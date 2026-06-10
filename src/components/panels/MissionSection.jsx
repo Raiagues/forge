@@ -23,7 +23,7 @@ const mono = { fontFamily: "'Space Mono', monospace" }
 const SEV_COLOR = { error: 'var(--err2)', warn: 'var(--warn2)', info: 'var(--ink3)' }
 
 // ── collapsible stage with flow rail ──────────────────────────────
-function Stage({ n, title, done, open, onToggle, summary, last, children }) {
+function Stage({ n, title, done, open, onToggle, summary, last, children, onConfirm, canConfirm, confirmLabel }) {
   return (
     <div style={{ position: 'relative', paddingBottom: last ? 0 : 14 }}>
       {/* flow rail connecting the stage markers */}
@@ -63,7 +63,26 @@ function Stage({ n, title, done, open, onToggle, summary, last, children }) {
         transition: 'grid-template-rows .28s cubic-bezier(.4,0,.2,1)',
       }}>
         <div style={{ overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ paddingLeft: 24 }}>{children}</div>
+          <div style={{ paddingLeft: 24 }}>
+            {children}
+            {onConfirm && (
+              <div style={{ marginTop: 11 }}>
+                <button
+                  onClick={onConfirm} disabled={!canConfirm}
+                  style={{
+                    padding: '6px 14px', borderRadius: 5, border: 'none',
+                    cursor: canConfirm ? 'pointer' : 'not-allowed',
+                    background: canConfirm ? 'var(--navy)' : 'var(--paper4)',
+                    color: canConfirm ? 'rgba(255,255,255,.9)' : 'var(--ink4)',
+                    fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >{confirmLabel}</button>
+                {!canConfirm && (
+                  <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', marginTop: 5 }}>complete este estágio para avançar</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -367,7 +386,7 @@ function ValidationNotices() {
 
 // ── progress footer ───────────────────────────────────────────────
 function ProgressFooter() {
-  const { missionPlan, entities, live } = useForge()
+  const { missionPlan, entities, live, saveMissionDraft } = useForge()
   const wiredAll = Object.keys(entities).length > 0 &&
     Object.keys(entities).every(id => live?.wiring?.[id]?.wired)
   let pct = 0
@@ -380,6 +399,12 @@ function ProgressFooter() {
   const color = pct >= 80 ? 'var(--ok2)' : pct >= 50 ? 'var(--warn2)' : 'var(--err2)'
   return (
     <div style={{ padding: '9px 14px 11px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
+      <button onClick={saveMissionDraft} disabled={!missionPlan.frameworkId} style={{
+        width: '100%', marginBottom: 9, padding: '6px 10px', borderRadius: 5,
+        border: '1px solid var(--rule)', cursor: missionPlan.frameworkId ? 'pointer' : 'not-allowed',
+        background: 'var(--paper)', color: missionPlan.frameworkId ? 'var(--ink2)' : 'var(--ink4)',
+        ...mono, fontSize: 9.5, letterSpacing: '.04em',
+      }}>Salvar rascunho</button>
       <div style={{ display: 'flex', justifyContent: 'space-between', ...mono, fontSize: 8, color: 'var(--ink4)', marginBottom: 4 }}>
         <span>PROGRESSO DA MISSÃO</span><span>{pct}%</span>
       </div>
@@ -474,7 +499,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function MissionSection() {
-  const { missionPlan, entities, live } = useForge()
+  const { missionPlan, entities, live, loadMissionDraft } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
@@ -523,14 +548,39 @@ export default function MissionSection() {
     },
   ].filter(s => s.enabled)
 
-  const firstIncomplete = stages.find(s => !s.done)?.id ?? null
+  // Confirm-driven flow: a stage only collapses when the user explicitly
+  // confirms/advances it — never just because a field was filled. The open
+  // stage is the first one not yet confirmed (or any stage opened manually).
   const [manual, setManual] = useState({})
-  const isOpen = (id) => manual[id] ?? (id === firstIncomplete)
+  const [confirmed, setConfirmed] = useState({})
+  const activeId = stages.find(s => !confirmed[s.id])?.id ?? null
+  const isOpen = (id) => manual[id] ?? (id === activeId)
   const toggle = (id) => {
     const willOpen = !isOpen(id)
     track('stage_toggle', { stageId: id, action: willOpen ? 'expand' : 'collapse' })
     setManual(m => ({ ...m, [id]: willOpen }))
   }
+  const confirmStage = (id) => {
+    track('stage_toggle', { stageId: id, action: 'confirm' })
+    setConfirmed(c => ({ ...c, [id]: true }))
+    setManual(m => { const next = { ...m }; delete next[id]; return next })
+  }
+
+  // Draft restore banner — read once; never auto-restores.
+  const [draft, setDraft] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('forge_mission_draft')) } catch { return null }
+  })
+  const restoreDraft = () => {
+    loadMissionDraft(draft)
+    const p = draft.missionPlan || {}
+    const conf = {}
+    if (p.frameworkId) conf.comp = true
+    if (p.objectiveId) conf.obj = true
+    if ((p.name || '').trim().length >= 2) conf.det = true
+    if ((p.components || []).filter(id => COMPONENT_DEFS[id]?.supported).length >= 2) conf.hw = true
+    setConfirmed(conf); setManual({}); setDraft(null)
+  }
+  const discardDraft = () => { try { localStorage.removeItem('forge_mission_draft') } catch { /* ignore */ }; setDraft(null) }
 
   return (
     <div style={{ position: 'relative', height: '100%', overflow: 'hidden', display: 'flex' }}>
@@ -540,10 +590,34 @@ export default function MissionSection() {
         background: 'var(--paper2)', borderRight: '1px solid var(--rule)',
       }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px' }}>
+          {draft && (
+            <div style={{
+              marginBottom: 14, padding: '8px 10px', borderRadius: 6,
+              border: '1px solid var(--rule)', background: 'var(--paper)',
+            }}>
+              <div style={{ fontSize: 11, color: 'var(--ink2)', lineHeight: 1.4, marginBottom: 6 }}>
+                Rascunho salvo em {new Date(draft.savedAt).toLocaleString('pt-BR')} — deseja restaurar?
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={restoreDraft} style={{
+                  padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                  background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 10.5,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>Restaurar</button>
+                <button onClick={discardDraft} style={{
+                  padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
+                  border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink3)', fontSize: 10.5,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}>Descartar</button>
+              </div>
+            </div>
+          )}
           {stages.map((s, i) => (
             <Stage key={s.id} n={i + 1} title={s.title} done={s.done}
               open={isOpen(s.id)} onToggle={() => toggle(s.id)}
-              summary={s.summary} last={i === stages.length - 1}>
+              summary={s.summary} last={i === stages.length - 1}
+              canConfirm={s.done} onConfirm={() => confirmStage(s.id)}
+              confirmLabel={i === stages.length - 1 ? 'Confirmar' : 'Confirmar e avançar'}>
               {s.el}
             </Stage>
           ))}

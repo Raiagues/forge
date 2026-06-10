@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
-  validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, sameEnd,
+  validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, i2cAddressFromWires, sameEnd,
   SOFTWARE_MODULES,
 } from '../mission/index.js'
 import { track } from '../lib/analytics.js'
@@ -255,7 +255,14 @@ const useForge = create((set, get) => {
     return {
       ...partial,
       entities,
-      live: { validation, pins: pins.assignments, eco, wiring, i2c: i2cPinsFromWires(s.wires) },
+      live: {
+        validation, pins: pins.assignments, eco, wiring,
+        i2c: i2cPinsFromWires(s.wires),
+        // effective I²C address per sensor, derived from the SDO strap
+        addrs: Object.fromEntries(
+          componentIds.map(id => [id, i2cAddressFromWires(id, s.wires)]).filter(([, v]) => v),
+        ),
+      },
     }
   }
 
@@ -408,6 +415,34 @@ const useForge = create((set, get) => {
       entities: {}, wires: [], selectedId: null, drawerOpen: false, telemetry: [], activeSection: 'mission',
       missionPlan: { ...EMPTY_PLAN },
     })),
+
+    // ── mission draft (manual save / restore, never automatic) ───────
+    saveMissionDraft: () => {
+      const s = get()
+      try {
+        localStorage.setItem('forge_mission_draft', JSON.stringify({
+          savedAt: new Date().toISOString(),
+          missionPlan: s.missionPlan,
+          wires: s.wires,
+        }))
+        track('mission_draft_save', {})
+        get().notify('Rascunho salvo')
+      } catch { get().notify('Não foi possível salvar o rascunho') }
+    },
+    loadMissionDraft: (draft) => {
+      if (!draft || !draft.missionPlan) return
+      const plan = { ...EMPTY_PLAN, ...draft.missionPlan }
+      const ids = (plan.components || []).filter(id => COMPONENT_DEFS[id]?.supported)
+      const pos = layoutFor(ids)
+      const entities = {}
+      ids.forEach(id => { entities[id] = makeEntity(id, pos[id], 0) })
+      const wires = Array.isArray(draft.wires) ? draft.wires : []
+      track('mission_draft_restore', {})
+      set(recomputeLive({
+        missionPlan: { ...plan, components: ids },
+        entities, wires, selectedId: null, drawerOpen: false, activeSection: 'mission',
+      }))
+    },
 
     // ── hardware editing (single canonical toggle) ───────────────────
     // Adding/removing hardware updates BOTH the plan and the live PCB so
