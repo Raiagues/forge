@@ -84,10 +84,25 @@ Mission templates are *generators* of that state, not just labels.
   `isScanning`, `navWidth` (persisted), `seq`, `telemetry`, `serialLog`,
   `notice` (toast), `activeModuleId` + `firmwareEdits` (modular firmware).
 - **Analytics**: store actions call `track()` from `src/lib/analytics.js` —
-  local, structured event log in localStorage (sections, dwell time, hardware
-  add/remove, pin/wire attempts + failures, coming-soon clicks, copilot runs).
-  Inspect in the developer-only Analytics view (gear icon in the rail);
-  summary/export/clear in `AnalyticsPanel.jsx`.
+  structured event log in localStorage AND batch-flushed to the backend,
+  which appends per-session files to `analytics/sessions/<sid>.jsonl`
+  (endpoints in `server/flash.js`: POST /analytics/events, GET
+  /analytics/sessions, GET /analytics/export). Inspect in the dev
+  Analytics view (gear icon); "nova sessão de teste" there resets between
+  testers (flush + new session id + reload).
+- **User testing**: `./start_test_user.sh` = one-command session launcher
+  (user-test mode via `VITE_USER_TEST=1` hides the Serial Test rail entry).
+  Facilitator guide + metrics interpretation in `user_testing_env/README.md`;
+  `node user_testing_env/aggregate.js` merges all sessions into
+  `analytics/aggregate.json` with a validation summary.
+- **Log Doctor** (`src/debug/logDoctor.js`): the AI debugging assistant —
+  a pure signature catalog (sensor not found, empty I²C scan, brownout,
+  crash, reboot loop, …) cross-referenced with the digital twin for
+  high-confidence diagnoses + fix actions. Async provider seam like the
+  copilot (local heuristics now, LLM later). Registered in the debug
+  registry as an interactive tool (`ui: 'logdoctor'` → card mapped in
+  `DebugPanel.jsx`); user decisions tracked as `debug_session`,
+  `suggestion_accepted/rejected`, `fix_applied`.
 - Key actions: **`toggleHardware`** (single canonical add/remove — syncs plan +
   entities + revalidates), `selectFramework`, `selectObjective` /
   `setObjectiveMetaField`, `setBudget` / `setOverride`, `notify`,
