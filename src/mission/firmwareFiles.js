@@ -58,12 +58,19 @@ const pinDefines = (i2c) => (i2c.sda == null || i2c.scl == null ? '' : `#ifndef 
 // scheduler. Labels/addresses/voltages come from the injected def.
 const DRIVER_TEMPLATES = {
   bmp280: {
+    // an SSD1306 OLED ships alongside this sensor in the bring-up kit:
+    // its presence is what turns on the display checkpoints in main.ino
+    oledCompanion: true,
     fields: [
       { decl: 'float temperature;', comment: '°C' },
       { decl: 'float pressure;', comment: 'hPa' },
     ],
     readInto: (pkt) => `${pkt} = bmp280_read();`,
     packetAssign: (id) => `  pkt.temperature = ${id}.temperature;\n  pkt.pressure    = ${id}.pressure;`,
+    displayLines: (pkt) => [
+      `display.print("T: "); display.print(${pkt}.temperature, 1); display.println(" C");`,
+      `display.print("P: "); display.print(${pkt}.pressure, 1); display.println(" hPa");`,
+    ],
     body: ({ def, addr, i2c }) => `#include <Adafruit_BMP280.h>
 
 ${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR ${addr}
@@ -74,6 +81,7 @@ struct Bmp280Reading {
 };
 
 Adafruit_BMP280 _bmp;
+bool ${def.id}_ok = false;
 
 void bmp280_init() {
   Serial.println("[${def.label}] init @ ${addr}");
@@ -81,6 +89,7 @@ void bmp280_init() {
     Serial.println("[${def.label}] nao encontrado — verifique a fiação");
     return;
   }
+  ${def.id}_ok = true;
   Serial.println("[${def.label}] OK");
 }
 
@@ -101,6 +110,9 @@ Bmp280Reading bmp280_read() {
     ],
     readInto: (pkt) => `${pkt} = mpu6050_read();`,
     packetAssign: (id) => `  memcpy(pkt.accel, ${id}.accel, sizeof(pkt.accel));\n  memcpy(pkt.gyro,  ${id}.gyro,  sizeof(pkt.gyro));`,
+    displayLines: (pkt) => [
+      `display.print("AX: "); display.println(${pkt}.accel[0], 2);`,
+    ],
     body: ({ def, addr, i2c }) => `#include <Adafruit_MPU6050.h>
 
 ${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR ${addr}
@@ -111,6 +123,7 @@ struct Mpu6050Reading {
 };
 
 Adafruit_MPU6050 _mpu;
+bool ${def.id}_ok = false;
 
 void mpu6050_init() {
   Serial.println("[${def.label}] init @ ${addr}");
@@ -120,6 +133,7 @@ void mpu6050_init() {
   }
   _mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   _mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  ${def.id}_ok = true;
   Serial.println("[${def.label}] OK");
 }
 
@@ -140,29 +154,97 @@ const activeSensors = (defs, componentIds) =>
   componentIds.filter((id) => defs[id]?.category === 'sensor' && DRIVER_TEMPLATES[id])
 
 // ── generators ──────────────────────────────────────────────────────
-function genMain({ sensors, i2c, missionName }) {
+function genMain({ defs, sensors, i2c, missionName }) {
   const wired = i2c.sda != null && i2c.scl != null
   const defines = wired ? `#define SDA_PIN ${i2c.sda}   // da aba Fiação\n#define SCL_PIN ${i2c.scl}   // da aba Fiação\n\n` : ''
   const wireBegin = wired
     ? 'Wire.begin(SDA_PIN, SCL_PIN);'
     : 'Wire.begin();  // defina SDA e SCL na aba Fiação'
+
+  // OLED checkpoints: enabled when a sensor whose bring-up kit carries
+  // the SSD1306 companion display is part of the mission hardware.
+  const oled = sensors.some((id) => DRIVER_TEMPLATES[id].oledCompanion)
+  const bootName = (missionName || 'FORGE').replace(/["\\]/g, '')
+
+  const oledIncludes = oled ? `#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define OLED_ADDR 0x3C
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+bool _oled_ok = false;
+unsigned long _oled_hold_until = 0;   // segura mensagens de falha sem delay()
+
+` : ''
+
+  const oledHelpers = oled ? `
+
+// checkpoint visual: "<sensor> OK" ou "<sensor> FALHA" (falha fica 3 s)
+void oled_status(const char *name, bool ok) {
+  if (!_oled_ok) return;
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(name);
+  display.println(ok ? " OK" : " FALHA");
+  display.display();
+  if (!ok) _oled_hold_until = millis() + 3000;
+}
+
+// leituras atuais no display, atualizadas a cada tick do scheduler
+void oled_show_readings() {
+  if (!_oled_ok || millis() < _oled_hold_until) return;
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+${sensors.map((id) => `  if (!${id}_ok) {
+    oled_status("${defs[id].label}", false);
+    return;
+  }
+${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `  ${l}`).join('\n')}`).join('\n')}
+  display.display();
+}` : ''
+
+  const oledBoot = oled ? `
+  // tela de boot (unico delay permitido)
+  _oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+  if (_oled_ok) {
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("FORGE");
+    display.println("${bootName}");
+    display.display();
+    delay(2000);
+  }
+` : ''
+
+  const initCalls = sensors
+    .map((id) => `  ${id}_init();${oled ? `\n  oled_status("${defs[id].label}", ${id}_ok);` : ''}`)
+    .join('\n')
+
   return `// ${missionName || 'missão FORGE'} — gerado pelo FORGE a partir do estado da missão
 // núcleo — regenerado quando o hardware ou a fiação mudam
 
 #include <Wire.h>
-${defines}${sensors.map((id) => `#include "sensor_${id}.h"`).join('\n')}${sensors.length ? '\n' : ''}#include "telemetry.h"
+${oledIncludes}${defines}${sensors.map((id) => `#include "sensor_${id}.h"`).join('\n')}${sensors.length ? '\n' : ''}#include "telemetry.h"
 #include "scheduler.h"
 
 void setup() {
   Serial.begin(115200);
   ${wireBegin}
-${sensors.map((id) => `  ${id}_init();`).join('\n')}${sensors.length ? '\n' : ''}  telemetry_init();
-  Serial.println("[${missionName || 'FORGE'}] pronto");
+${oledBoot}${initCalls}${sensors.length ? '\n' : ''}  telemetry_init();
+  Serial.println("[${bootName}] pronto");
 }
 
 void loop() {
-  scheduler_tick();
-}`
+  ${oled ? 'if (scheduler_tick()) oled_show_readings();' : 'scheduler_tick();'}
+}${oledHelpers}`
 }
 
 function genTelemetry({ defs, sensors, rateHz }) {
@@ -195,14 +277,18 @@ function genScheduler({ defs, sensors, rateHz }) {
 #define SAMPLE_INTERVAL_MS ${interval}
 
 unsigned long _sched_last = 0;
+TlmPacket _sched_pkt = {};   // ultimo pacote amostrado (lido pelo display)
 
-void scheduler_tick() {
-  if (millis() - _sched_last < SAMPLE_INTERVAL_MS) return;
+// retorna true quando uma nova amostra foi coletada neste tick
+bool scheduler_tick() {
+  if (millis() - _sched_last < SAMPLE_INTERVAL_MS) return false;
   _sched_last = millis();
 
   TlmPacket pkt = {};
 ${reads.length ? reads.join('\n') + '\n' : ''}  pkt.uptime_ms = millis();
+  _sched_pkt = pkt;
   telemetry_send(pkt);
+  return true;
 }`
 }
 
