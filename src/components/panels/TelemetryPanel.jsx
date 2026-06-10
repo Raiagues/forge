@@ -48,8 +48,18 @@ function Sparkline({ data, color, unit, label, value, domain }) {
 }
 
 export default function TelemetryPanel() {
-  const { telemetry, entities, seq } = useForge()
-  if (Object.keys(entities).length === 0) return <EmptyState section="Telemetry" />
+  const { telemetry, entities, seq, hwLink } = useForge()
+  // Only show telemetry when a real serial stream is active (ESP32 connected
+  // through the Serial bridge). No real stream → show nothing, never simulated.
+  if (!hwLink.connected) {
+    return (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink4)', letterSpacing: '.06em' }}>
+          aguardando dados do hardware
+        </span>
+      </div>
+    )
+  }
 
   const last = telemetry[telemetry.length - 1] || {}
   const col = (key) => telemetry.map(t => t[key])
