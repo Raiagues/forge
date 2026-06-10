@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import useForge from '../../store/useForge'
+import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import CodeEditor from '../ui/CodeEditor'
 import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
+import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the FORGE
@@ -252,8 +253,13 @@ export default function SerialTest() {
   // the platform can honestly distinguish hardware from simulation.
   const setHwLink = useForge(s => s.setHwLink)
   const wires = useForge(s => s.wires)
+  const fwFiles = useForge(s => s.fwFiles)
+  const fwEdits = useForge(s => s.fwEdits)
+  const setFwEdit = useForge(s => s.setFwEdit)
+  const addrs = useForge(s => s.live?.addrs) || {}
   const [connected, setConnected] = useState(false)
   const [code, setCode] = useState(BMP_SKETCH)
+  const [activeFileName, setActiveFileName] = useState(null)
   const [flashing, setFlashing] = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [serialLines, setSerialLines] = useState([])
@@ -427,13 +433,25 @@ export default function SerialTest() {
     || [...STAGES].reverse().find((s) => stages[s.id] === ST_DONE)
   const doneCount = STAGES.filter((s) => stages[s.id] === ST_DONE).length
 
+  // ── mission firmware mode: the generated multi-file set from the
+  // store drives the editor; the preset sketches remain only as a
+  // fallback while no mission hardware exists yet.
+  const missionMode = fwFiles.length > 0
+  const activeFile = missionMode ? (fwFiles.find((f) => f.file === activeFileName) || fwFiles[0]) : null
+  const fileContent = (f) => fwEdits[f.file] ?? f.code
+  const editorValue = missionMode ? fileContent(activeFile) : code
+  const editorName = missionMode ? activeFile.file : 'forge_sketch.ino'
+  const onEditorChange = missionMode ? (v) => setFwEdit(activeFile.file, v) : setCode
+  // the full source the board will actually run (for diagnosis + flash)
+  const fullSource = missionMode ? fwFiles.map(fileContent).join('\n') : code
+
   // Cross-referenced diagnosis: sketch #defines × ESP32 pin db × canvas
   // wiring × real I2C scan. Only runs after a scan completed, and only
   // while the sensor is not validated — never on speculation.
   const findings = useMemo(() => {
     if (hw.i2c == null || hw.bmp) return []
-    return diagnoseI2C({ sketch: code, wires, scan: { complete: true, addresses: hw.found } })
-  }, [hw.i2c, hw.bmp, hw.found, code, wires])
+    return diagnoseI2C({ sketch: fullSource, wires, scan: { complete: true, addresses: hw.found } })
+  }, [hw.i2c, hw.bmp, hw.found, fullSource, wires])
 
   const FINDING_TAG = {
     'invalid-pin': 'pino I2C inválido',
@@ -490,24 +508,36 @@ export default function SerialTest() {
             </div>
           </Card>
 
-          <Card title="Sketches">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
-              {PRESETS.map((p) => {
-                const active = activePreset === p.id
-                return (
-                  <button key={p.id} onClick={() => setCode(p.code)} disabled={flashing} style={{
-                    display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', cursor: 'pointer',
-                    padding: '6px 9px', borderRadius: 5,
-                    border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`,
-                    borderLeft: `3px solid ${active ? 'var(--acc)' : 'var(--paper4)'}`,
-                    background: active ? 'rgba(43,94,167,.06)' : 'var(--paper)',
-                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5,
-                    color: active ? 'var(--ink)' : 'var(--ink2)', fontWeight: active ? 500 : 400,
-                  }}>{p.label}</button>
-                )
-              })}
-            </div>
+          <Card title="Arquitetura do projeto">
+            {missionMode ? (
+              <ArchitectureBlocks files={fwFiles} activeFile={activeFile} edited={fwEdits} onSelect={(f) => setActiveFileName(f.file)} />
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6, padding: '2px 0 4px' }}>
+                Monte a missão (hardware) para gerar os módulos de firmware do projeto.
+              </div>
+            )}
           </Card>
+
+          {!missionMode && (
+            <Card title="Sketches de validação">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
+                {PRESETS.map((p) => {
+                  const active = activePreset === p.id
+                  return (
+                    <button key={p.id} onClick={() => setCode(p.code)} disabled={flashing} style={{
+                      display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', cursor: 'pointer',
+                      padding: '6px 9px', borderRadius: 5,
+                      border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`,
+                      borderLeft: `3px solid ${active ? 'var(--acc)' : 'var(--paper4)'}`,
+                      background: active ? 'rgba(43,94,167,.06)' : 'var(--paper)',
+                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5,
+                      color: active ? 'var(--ink)' : 'var(--ink2)', fontWeight: active ? 500 : 400,
+                    }}>{p.label}</button>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* column resize handle */}
@@ -519,12 +549,16 @@ export default function SerialTest() {
           {/* editor */}
           <Pane style={{ height: editorH, flexShrink: 0 }}>
             <PaneHeader>
-              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, color: 'var(--ink4)' }}>forge_sketch.ino</span>
+              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, color: 'var(--ink4)' }}>{editorName}</span>
+              {missionMode && fwEdits[activeFile.file] != null && (
+                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)' }}>editado</span>
+              )}
               <div style={{ flex: 1 }} />
               {flashing && <Spinner label="gravando" />}
               <button onClick={flash} disabled={flashing || detecting} style={solidBtn(flashing || detecting)}>{flashing ? 'Flashing…' : 'Flash to ESP32'}</button>
             </PaneHeader>
-            <CodeEditor value={code} onChange={setCode} disabled={flashing} background={EDITOR_BG} style={{ flex: 1, minHeight: 0 }} />
+            <CodeEditor value={editorValue} onChange={onEditorChange} disabled={flashing} background={EDITOR_BG} style={{ flex: 1, minHeight: 0 }} />
+            {missionMode && <FileContext file={activeFile} wires={wires} addrs={addrs} />}
           </Pane>
 
           {/* editor/console resize handle */}
@@ -613,6 +647,86 @@ function Card({ title, children }) {
     <div style={{ border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper2)', padding: '10px 12px', flexShrink: 0 }}>
       <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>{title}</div>
       {children}
+    </div>
+  )
+}
+
+// ── generated firmware files as clickable module blocks ─────────────
+// Grouped by layer: núcleo (fundo escuro) → drivers (médio) → sistema
+// (claro). Compact blocks, filename only; the active one is highlighted.
+const GROUP_STYLE = {
+  core:   { bg: 'var(--navy)',   fg: 'rgba(255,255,255,.88)', border: 'transparent' },
+  driver: { bg: 'var(--paper4)', fg: 'var(--ink)',            border: 'transparent' },
+  system: { bg: 'var(--paper)',  fg: 'var(--ink2)',           border: 'var(--rule)' },
+}
+function ArchitectureBlocks({ files, activeFile, edited, onSelect }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
+      {FILE_GROUPS.map((g) => {
+        const items = files.filter((f) => f.group === g.id)
+        if (!items.length) return null
+        const st = GROUP_STYLE[g.id] || GROUP_STYLE.system
+        return (
+          <div key={g.id}>
+            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 7.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{g.label}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {items.map((f) => {
+                const active = activeFile?.file === f.file
+                return (
+                  <button key={f.file} onClick={() => onSelect(f)} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                    width: '100%', textAlign: 'left', cursor: 'pointer',
+                    padding: '6px 9px', borderRadius: 4,
+                    background: st.bg, color: st.fg,
+                    border: `1px solid ${active ? 'var(--acc)' : st.border}`,
+                    boxShadow: active ? '0 0 0 1px var(--acc)' : 'none',
+                    fontFamily: "'Space Mono', monospace", fontSize: 10.5,
+                    fontWeight: active ? 700 : 400,
+                  }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file}</span>
+                    {edited[f.file] != null && <span style={{ fontSize: 7, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)', flexShrink: 0 }}>editado</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── context strip under the editor ───────────────────────────────────
+// main.ino → one line per data wire ("SDA — GPIO21 — BMP280"); a driver
+// file → the sensor's identity (address, voltage) and its wired GPIOs.
+// Everything is derived from the wiring canvas state + catalog.
+function FileContext({ file, wires, addrs }) {
+  const pairs = wires.map((w) => {
+    const mcu = [w.from, w.to].find((e) => COMPONENT_DEFS[e.comp]?.category === 'mcu')
+    const dev = [w.from, w.to].find((e) => COMPONENT_DEFS[e.comp]?.category !== 'mcu')
+    return mcu && dev ? { mcu, dev } : null
+  }).filter((p) => p && p.mcu.pin.startsWith('GPIO'))
+
+  let body = null
+  if (file.group === 'core') {
+    body = pairs.length
+      ? pairs.map((p, i) => <div key={i}>{p.dev.pin} — {p.mcu.pin} — {COMPONENT_DEFS[p.dev.comp]?.label || p.dev.comp}</div>)
+      : <div>nenhum pino de dados fiado — conecte os sensores na aba Fiação</div>
+  } else if (file.group === 'driver') {
+    const def = COMPONENT_DEFS[file.compId]
+    const mine = pairs.filter((p) => p.dev.comp === file.compId)
+    body = (
+      <>
+        <div style={{ color: 'var(--ink)' }}>{def?.friendly} · {def?.label}</div>
+        <div>endereço I2C: {addrs[file.compId]?.addr || def?.address || '—'} · tensão: {def?.voltage || '—'}</div>
+        <div>{mine.length ? mine.map((p) => `${p.dev.pin} — ${p.mcu.pin}`).join(' · ') : 'sem fiação de dados — conecte na aba Fiação'}</div>
+      </>
+    )
+  }
+  if (!body) return null
+  return (
+    <div style={{ flexShrink: 0, padding: '7px 12px', borderTop: '1px solid var(--rule)', background: 'var(--paper2)', fontFamily: "'Space Mono', monospace", fontSize: 9.5, lineHeight: 1.7, color: 'var(--ink3)', maxHeight: 96, overflowY: 'auto' }}>
+      {body}
     </div>
   )
 }
