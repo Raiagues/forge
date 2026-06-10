@@ -91,7 +91,6 @@ bool ${def.id}_ok = false;
 
 void bmp280_init() {
   Serial.println("[${def.label}] init @ ${addr}${alt ? `/${alt}` : ''}");
-  delay(1000);  // o sensor precisa estabilizar no barramento I2C após Wire.begin()
   // o endereço depende do pino SDO do módulo — sonde os dois straps
   if (_bmp.begin(${def.id.toUpperCase()}_ADDR)) {
     ${def.id}_ok = true;
@@ -243,7 +242,7 @@ ${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `    ${l}`).join('\
 }` : ''
 
   const oledBoot = oled ? `
-  // tela de boot (unico delay permitido)
+  // tela de boot — sem delay: o BMP280 deve inicializar logo após o Wire.begin
   _oled_ok = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
   if (_oled_ok) {
     display.clearDisplay();
@@ -253,7 +252,6 @@ ${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `    ${l}`).join('\
     display.println("FORGE");
     display.println("${bootName}");
     display.display();
-    delay(2000);
   }
 ` : ''
 
@@ -270,6 +268,7 @@ ${oledIncludes}${defines}${sensors.map((id) => `#include "sensor_${id}.h"`).join
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);  // obrigatório — estabiliza alimentação/barramento antes do Wire.begin
   ${wireBegin}
 ${oledBoot}${initCalls}${sensors.length ? '\n' : ''}  telemetry_init();
   Serial.println("[${bootName}] pronto");
