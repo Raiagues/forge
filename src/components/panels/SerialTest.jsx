@@ -3,6 +3,7 @@ import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import CodeEditor from '../ui/CodeEditor'
 import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
+import { ADDR_STRAPS } from '../../mission/wiring.js'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the FORGE
@@ -211,8 +212,8 @@ void loop() {
 `
 
 const PRESETS = [
-  { id: 'bmp', label: 'BMP280 + OLED', code: BMP_SKETCH },
-  { id: 'echo', label: 'Echo', code: ECHO_SKETCH },
+  { id: 'bmp', label: 'BMP280 + OLED', code: BMP_SKETCH, sensors: ['bmp280'] },
+  { id: 'echo', label: 'Echo', code: ECHO_SKETCH, sensors: [] },
 ]
 
 // The bring-up pipeline — 7 milestones, each lit by a REAL signal.
@@ -237,7 +238,6 @@ const LED_LEGEND = [
 const TABS = [
   { id: 'serial', label: 'Serial' },
   { id: 'build', label: 'Build / Flash' },
-  { id: 'diag', label: 'Diagnóstico' },
 ]
 
 const clock = () => new Date().toTimeString().slice(0, 8)
@@ -320,7 +320,7 @@ export default function SerialTest() {
     if (/OLED OK/.test(line)) { setHw((h) => ({ ...h, oledOk: true, oled: h.oled || '0x3c' })); note('OLED respondeu em 0x3c') }
     if (/OLED FAILED/.test(line)) setHw((h) => ({ ...h, oledOk: false }))
     if (/BMP280 OK/.test(line)) { setStage('sensor', ST_DONE); setHw((h) => { note(`BMP280 reconhecido em ${h.bmp || '0x76'}`); return { ...h, bmp: h.bmp || '0x76' } }) }
-    if (/BMP280 (NOT FOUND|missing)/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — diagnóstico cruzado na aba Diagnóstico') }
+    if (/BMP280 (NOT FOUND|missing)/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — veja o painel de diagnóstico') }
     m = line.match(/Temp:\s*([\d.]+)\s*C\s*Pressure:\s*([\d.]+)/i)
     if (m) { setReading(`${m[1]} °C · ${m[2]} hPa`); setStage('telem', ST_DONE); note('Telemetria fluindo') }
   }
@@ -436,8 +436,6 @@ export default function SerialTest() {
   }
 
   const activePreset = PRESETS.find((p) => p.code === code)?.id
-  const currentStage = [...STAGES].reverse().find((s) => stages[s.id] === ST_ACTIVE)
-    || [...STAGES].reverse().find((s) => stages[s.id] === ST_DONE)
 
   // ── mission firmware mode: the generated multi-file set from the
   // store drives the editor; the preset sketches remain only as a
@@ -451,28 +449,45 @@ export default function SerialTest() {
   // the full source the board will actually run (for diagnosis + flash)
   const fullSource = missionMode ? fwFiles.map(fileContent).join('\n') : code
 
-  // Cross-referenced diagnosis: sketch #defines × ESP32 pin db × canvas
-  // wiring × real I2C scan. Only runs after a scan completed, and only
-  // while the sensor is not validated — never on speculation.
-  const findings = useMemo(() => {
-    if (hw.i2c == null || hw.bmp) return []
-    return diagnoseI2C({ sketch: fullSource, wires, scan: { complete: true, addresses: hw.found } })
-  }, [hw.i2c, hw.bmp, hw.found, fullSource, wires])
+  // sensors under test: the mission's driver set, or the preset's
+  const testSensors = missionMode
+    ? fwFiles.filter((f) => f.group === 'driver').map((f) => f.compId)
+    : (PRESETS.find((p) => p.code === code)?.sensors || [])
+  const expectedAddrs = (id) =>
+    ADDR_STRAPS[id] || (COMPONENT_DEFS[id]?.address ? [COMPONENT_DEFS[id].address] : [])
 
-  const FINDING_TAG = {
-    'invalid-pin': 'pino I2C inválido',
-    'pin-mismatch': 'conflito fiação × código',
-    'addr-mismatch': 'endereço divergente',
-    'absent': 'ausente (físico)',
+  // Cross-referenced diagnosis: sketch #defines × ESP32 pin db × canvas
+  // wiring × real I2C scan, for EVERY sensor under test. Only runs after
+  // a scan completed — never on speculation. Sensors the scan found are
+  // skipped by the engine.
+  const findings = useMemo(() => {
+    if (hw.i2c == null) return []
+    return diagnoseI2C({
+      sketch: fullSource, wires,
+      scan: { complete: true, addresses: hw.found },
+      sensors: testSensors.map((id) => ({ id, label: COMPONENT_DEFS[id]?.label || id, addrs: expectedAddrs(id) })),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hw.i2c, hw.found, fullSource, wires, testSensors.join(',')])
+
+  // per-sensor diagnostic card status, recomputed as serial data arrives
+  const sensorCard = (id) => {
+    const def = COMPONENT_DEFS[id]
+    const exp = expectedAddrs(id)
+    const base = { id, name: def?.friendly || id, part: def?.label || id, addr: exp.join('/') || '—' }
+    if (exp.some((a) => hw.found.includes(a.toLowerCase()))) return { ...base, st: 'encontrado' }
+    const pinErr = findings.find((f) => f.kind === 'invalid-pin' || f.kind === 'pin-mismatch')
+    if (pinErr) return { ...base, st: 'erro de pino', msg: `${pinErr.what} ${pinErr.fix}` }
+    const mine = findings.find((f) => f.sensor === id)
+    if (mine) return { ...base, st: 'ausente', msg: 'Verifique alimentação e conexão física' }
+    return { ...base, st: 'aguardando' }
   }
-  const bmpStatus = hw.bmp ? `${hw.bmp} validado`
-    : findings[0] ? FINDING_TAG[findings[0].kind]
-    : (stages.sensor === ST_ERROR ? 'falha — aguardando varredura' : '—')
+  const cards = testSensors.map(sensorCard)
 
   // ── guided bring-up: 4 active steps driven by the same REAL signals
   // that lit the old checklist. The user always sees exactly one thing
   // to do next; completed steps collapse to a green one-liner.
-  const validateFailed = stages.sensor === ST_ERROR || (hw.i2c != null && !hw.bmp && findings.length > 0)
+  const validateFailed = stages.sensor === ST_ERROR || findings.length > 0
   const guidedSteps = [
     { id: 'detect', n: 1, title: 'Detectar placa',
       hint: 'Conecte o ESP32 via USB e clique em Detectar',
@@ -493,6 +508,17 @@ export default function SerialTest() {
       failures: findings.length ? findings : (validateFailed ? [{ what: 'Sensor não respondeu', fix: 'Verifique alimentação e conexão física' }] : []),
       summary: reading ? `Sensores validados · ${reading}` : 'Sensores validados' },
   ]
+
+  // overall bring-up status shown at the top of the diagnostics panel
+  const overall = validateFailed
+    ? { label: 'Falha detectada', color: 'var(--err2)' }
+    : stages.telem === ST_DONE && stages.sensor === ST_DONE
+      ? { label: 'Tudo certo', color: 'var(--ok2)' }
+      : stages.reboot === ST_DONE
+        ? { label: 'Validando sensores', color: 'var(--acc2)' }
+        : (stages.board === ST_DONE || connected)
+          ? { label: 'Pronto para flash', color: 'var(--warn2)' }
+          : { label: 'Aguardando conexão', color: 'var(--ink4)' }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
@@ -585,7 +611,7 @@ export default function SerialTest() {
                 {TABS.map((tb) => <button key={tb.id} onClick={() => setTab(tb.id)} style={tabBtn(tab === tb.id)}>{tb.label}</button>)}
               </span>
               <div style={{ flex: 1 }} />
-              {tab !== 'diag' && <button onClick={() => (tab === 'serial' ? setSerialLines([]) : setLogLines([]))} style={miniBtn}>limpar</button>}
+              <button onClick={() => (tab === 'serial' ? setSerialLines([]) : setLogLines([]))} style={miniBtn}>limpar</button>
             </PaneHeader>
 
             {tab === 'serial' && (
@@ -598,37 +624,6 @@ export default function SerialTest() {
                 {logLines.map((l, i) => <Line key={i} t={l.t} color={/ERROR|failed/i.test(l.text) ? '#EE8A6A' : '#E0B057'} prefix="⚑" text={l.text} />)}
               </Console>
             )}
-            {tab === 'diag' && (
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '10px 13px', ...consoleBase }}>
-                <DiagRow k="placa" v={chip || 'ESP32-WROOM-32D'} />
-                <DiagRow k="porta" v={connected ? '/dev/ttyUSB0 · 115200' : '—'} />
-                <DiagRow k="toolchain" v="arduino-cli · framework Arduino" />
-                <DiagRow k="OLED" v={hw.oledOk ? `${hw.oled} respondeu` : (hw.oled || '—')} />
-                <DiagRow k="BMP280" v={bmpStatus} />
-                <DiagRow k="I2C" v={hw.i2c != null ? `${hw.i2c} dispositivo(s)` : '—'} />
-                <DiagRow k="última leitura" v={reading || '—'} />
-                <DiagRow k="etapa atual" v={currentStage ? currentStage.label : '—'} last />
-                {findings.length > 0 && (
-                  <>
-                    <div style={{ height: 10 }} />
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(231,237,247,.35)', marginBottom: 6 }}>diagnóstico cruzado · código × fiação × scan</div>
-                    {findings.map((f, i) => (
-                      <div key={i} style={{ marginBottom: 9, paddingLeft: 9, borderLeft: '2px solid #EE8A6A' }}>
-                        <div style={{ color: '#EE8A6A' }}>{f.what}</div>
-                        <div style={{ color: 'rgba(231,237,247,.58)' }}>{f.why}</div>
-                        <div style={{ color: '#9AD0A8' }}>→ {f.fix}</div>
-                      </div>
-                    ))}
-                  </>
-                )}
-                <div style={{ height: 10 }} />
-                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(231,237,247,.35)', marginBottom: 6 }}>eventos interpretados</div>
-                {diagLines.length === 0 && <div style={{ color: 'rgba(231,237,247,.28)', fontFamily: "'Space Mono', monospace", fontSize: 11 }}># nenhum evento ainda</div>}
-                {diagLines.map((l, i) => <Line key={i} t={l.t} color="#9AD0A8" prefix="✓" text={l.text} />)}
-                <div ref={diagEndRef} />
-              </div>
-            )}
-
             {/* send row — only meaningful on the Serial tab */}
             {tab === 'serial' && (
               <div style={{ display: 'flex', gap: 8, padding: '8px 10px', borderTop: '1px solid var(--rule)', background: 'var(--paper2)', flexShrink: 0 }}>
@@ -642,6 +637,12 @@ export default function SerialTest() {
             )}
           </Pane>
         </div>
+
+        {/* ── persistent diagnostics panel (always on screen) ──────── */}
+        <DiagPanel
+          overall={overall} cards={cards} events={diagLines}
+          chip={chip} connected={connected} endRef={diagEndRef}
+        />
       </div>
     </div>
   )
@@ -814,11 +815,72 @@ function Row({ k, v, dot, mono, last }) {
     </div>
   )
 }
-function DiagRow({ k, v, last }) {
+// ── persistent diagnostics panel ─────────────────────────────────────
+// Always visible to the right of the editor: overall bring-up status,
+// one card per sensor under test, the interpreted events stream and the
+// target line. Updates live from the serial ingest — no clicks needed.
+const CARD_ST = {
+  'aguardando':   { color: 'var(--ink4)',  bg: 'transparent' },
+  'encontrado':   { color: 'var(--ok2)',   bg: 'rgba(58,144,96,.07)' },
+  'ausente':      { color: 'var(--err2)',  bg: 'rgba(192,64,48,.05)' },
+  'erro de pino': { color: 'var(--err2)',  bg: 'rgba(192,64,48,.05)' },
+}
+function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
+  const mono = { fontFamily: "'Space Mono', monospace" }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: last ? 'none' : '1px solid rgba(255,255,255,.06)' }}>
-      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, letterSpacing: '.04em', color: 'rgba(231,237,247,.45)' }}>{k}</span>
-      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: PANEL_INK }}>{v}</span>
+    <div style={{
+      width: 248, flexShrink: 0, marginLeft: 10, minHeight: 0,
+      border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper2)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <div style={{ padding: '8px 11px', borderBottom: '1px solid var(--rule)', flexShrink: 0 }}>
+        <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Diagnóstico</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: overall.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: overall.color }}>{overall.label}</span>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '9px 11px' }}>
+        {cards.length === 0 && (
+          <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6 }}>
+            Nenhum sensor sob teste — monte a missão ou escolha o sketch BMP280 + OLED.
+          </div>
+        )}
+        {cards.map((c) => {
+          const st = CARD_ST[c.st] || CARD_ST.aguardando
+          return (
+            <div key={c.id} style={{
+              border: '1px solid var(--rule)', borderLeft: `3px solid ${st.color}`,
+              borderRadius: 5, background: st.bg, padding: '7px 9px', marginBottom: 7,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
+                <span style={{ ...mono, fontSize: 8, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color, flexShrink: 0 }}>{c.st}</span>
+              </div>
+              <div style={{ ...mono, fontSize: 8.5, color: 'var(--ink4)', marginTop: 2 }}>I2C esperado: {c.addr}</div>
+              {c.msg && (
+                <div style={{ fontSize: 10, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--rule2)' }}>{c.msg}</div>
+              )}
+            </div>
+          )
+        })}
+
+        <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '10px 0 5px' }}>eventos interpretados</div>
+        {events.length === 0 && <div style={{ ...mono, fontSize: 9.5, color: 'var(--ink4)' }}>nenhum evento ainda</div>}
+        {events.map((l, i) => (
+          <div key={i} style={{ ...mono, fontSize: 9, color: 'var(--ink3)', lineHeight: 1.6, display: 'flex', gap: 6 }}>
+            <span style={{ color: 'var(--ink4)', flexShrink: 0 }}>{l.t}</span>
+            <span>{l.text}</span>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+
+      <div style={{ padding: '7px 11px', borderTop: '1px solid var(--rule)', flexShrink: 0, ...mono, fontSize: 8.5, color: 'var(--ink4)', lineHeight: 1.6 }}>
+        <div>{chip || 'ESP32-WROOM-32D'} · {connected ? 'ttyUSB0 · 115200' : 'sem conexão'}</div>
+        <div>arduino-cli · framework Arduino</div>
+      </div>
     </div>
   )
 }

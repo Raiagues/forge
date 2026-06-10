@@ -81,7 +81,7 @@ export const COMPONENT_PINS = {
 }
 
 // I²C address straps: { compId: [addr SDO=GND, addr SDO=3V3] }
-const ADDR_STRAPS = { bmp280: ['0x76', '0x77'], mpu6050: ['0x68', '0x69'] }
+export const ADDR_STRAPS = { bmp280: ['0x76', '0x77'], mpu6050: ['0x68', '0x69'] }
 
 export const pinDef = (comp, pin) => (COMPONENT_PINS[comp] || []).find(p => p.id === pin) || null
 const endKey = (e) => `${e.comp}.${e.pin}`

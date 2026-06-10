@@ -69,8 +69,8 @@ export function canvasI2CPins(wires = []) {
 //   sketch  — full source of the active sketch
 //   wires   — store wiring state [{from:{comp,pin},to:{comp,pin}}]
 //   scan    — { complete: bool, addresses: ['0x3c', ...] } from the board
-//   sensors — expected I2C sensors [{ label, addrs: ['0x76','0x77'] }]
-export function diagnoseI2C({ sketch = '', wires = [], scan = null, sensors = [{ label: 'BMP280', addrs: ['0x76', '0x77'] }] }) {
+//   sensors — expected I2C sensors [{ id?, label, addrs: ['0x76','0x77'] }]
+export function diagnoseI2C({ sketch = '', wires = [], scan = null, sensors = [{ id: 'bmp280', label: 'BMP280', addrs: ['0x76', '0x77'] }] }) {
   const code = parseSketchPins(sketch)
   const canvas = canvasI2CPins(wires)
   const findings = []
@@ -113,7 +113,7 @@ export function diagnoseI2C({ sketch = '', wires = [], scan = null, sensors = [{
         .map((a) => `0x${a.slice(2).toUpperCase()}${KNOWN_ADDRS[a] ? ` (possivelmente ${KNOWN_ADDRS[a]})` : ''}`)
         .join(', ')
       findings.push({
-        kind: 'addr-mismatch', severity: 'error',
+        kind: 'addr-mismatch', severity: 'error', sensor: s.id || null,
         what: `${s.label} não respondeu em ${expected}.`,
         why: `A varredura I2C funcionou e encontrou dispositivo em ${others}, mas nada nos endereços esperados do ${s.label}.`,
         fix: `Verifique alimentação e conexão física do ${s.label} — e confira o strap de endereço (pino SDO).`,
@@ -122,7 +122,7 @@ export function diagnoseI2C({ sketch = '', wires = [], scan = null, sensors = [{
       // 4 · SENSOR ABSENT — last resort: pins válidos, fiação coerente,
       // barramento vazio. O problema é físico.
       findings.push({
-        kind: 'absent', severity: 'error',
+        kind: 'absent', severity: 'error', sensor: s.id || null,
         what: `${s.label} ausente.`,
         why: `Os pinos I2C são válidos, a fiação confere com o código e a varredura não encontrou nenhum dispositivo em ${expected}.`,
         fix: `Confira a alimentação (VCC/GND) e as soldas do módulo ${s.label} — a falha está na conexão física.`,
