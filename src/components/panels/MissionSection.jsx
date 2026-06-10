@@ -22,7 +22,15 @@ const mono = { fontFamily: "'Space Mono', monospace" }
 const SEV_COLOR = { error: 'var(--err2)', warn: 'var(--warn2)', info: 'var(--ink3)' }
 
 // ── collapsible stage with flow rail ──────────────────────────────
-function Stage({ n, title, done, open, onToggle, summary, last, children, onConfirm, canConfirm, confirmLabel }) {
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function Stage({ n, title, done, open, onToggle, summary, last, children, onConfirm, canConfirm, confirmLabel, onEdit }) {
   return (
     <div style={{ position: 'relative', paddingBottom: last ? 0 : 14 }}>
       {/* flow rail connecting the stage markers */}
@@ -48,12 +56,19 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
         <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
       </button>
 
-      {/* collapsed: concise overview of what was configured */}
+      {/* collapsed: only the one-line summary + a minimal edit pencil */}
       {!open && summary && (
-        <div style={{
-          margin: '2px 0 2px 24px', fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.5,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{summary}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0 2px 24px' }}>
+          <span style={{ flex: 1, fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+          {onEdit && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit() }} title="Editar"
+              style={{
+                flexShrink: 0, width: 20, height: 20, padding: 0, borderRadius: 4, cursor: 'pointer',
+                border: '1px solid var(--rule)', background: 'var(--paper)', color: 'var(--ink3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}><PencilIcon /></button>
+          )}
+        </div>
       )}
 
       {/* smooth expand/retract */}
@@ -268,7 +283,6 @@ function HardwareStage() {
             .sort((a, b) => (a.comingSoon ? 1 : 0) - (b.comingSoon ? 1 : 0))
             .map(d => {
               const placed = !!entities[d.id]
-              const soon = !!d.comingSoon
               const eff = effectiveProps(d, missionPlan.overrides[d.id])
               return (
                 <button key={d.id}
@@ -496,7 +510,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function MissionSection() {
-  const { missionPlan, entities, live, loadMissionDraft } = useForge()
+  const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed, notify } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
@@ -509,7 +523,7 @@ export default function MissionSection() {
   const stages = [
     {
       id: 'comp', title: 'Competição', done: !!missionPlan.frameworkId,
-      summary: fw ? `${fw.name} · ${fw.full}${fw.payload?.massMaxG ? ` · ≤${fw.payload.massMaxG} g` : ''}` : null,
+      summary: fw ? `${fw.name}${fw.payload?.massMaxG ? ` · ${fw.payload.massMaxG} g` : ''}` : null,
       el: <CompetitionStage />,
       enabled: true,
     },
@@ -559,6 +573,7 @@ export default function MissionSection() {
   }
   const confirmStage = (id) => {
     track('stage_toggle', { stageId: id, action: 'confirm' })
+    markFirstStageConfirmed()
     setConfirmed(c => ({ ...c, [id]: true }))
     setManual(m => { const next = { ...m }; delete next[id]; return next })
   }
@@ -614,13 +629,22 @@ export default function MissionSection() {
               open={isOpen(s.id)} onToggle={() => toggle(s.id)}
               summary={s.summary} last={i === stages.length - 1}
               canConfirm={s.done} onConfirm={() => confirmStage(s.id)}
-              confirmLabel={i === stages.length - 1 ? 'Confirmar' : 'Confirmar e avançar'}>
+              confirmLabel={i === stages.length - 1 ? 'Confirmar' : 'Confirmar e avançar'}
+              onEdit={() => notify('Edição de missão salva · em breve')}>
               {s.el}
             </Stage>
           ))}
-          {missionPlan.frameworkId && <ValidationNotices />}
         </div>
         <ProgressFooter />
+        {stages.length > 0 && stages[stages.length - 1].id === 'wire' && stages[stages.length - 1].done && (
+          <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
+            <button onClick={() => setSection('architecture')} style={{
+              width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 12,
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}>Ver arquitetura</button>
+          </div>
+        )}
       </div>
 
       {/* live hardware view */}

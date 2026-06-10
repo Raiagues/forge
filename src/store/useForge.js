@@ -305,6 +305,7 @@ const useForge = create((set, get) => {
     serialLog: INITIAL_SERIAL,
     notice: null,             // lightweight contextual toast { id, message }
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
+    firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
     wires: [],                // user-made pin connections [{from:{comp,pin},to:{comp,pin}}]
 
@@ -347,6 +348,7 @@ const useForge = create((set, get) => {
 
     notify: (message) => set({ notice: { id: ++noticeSeq, message } }),
     clearNotice: () => set({ notice: null }),
+    markFirstStageConfirmed: () => { if (!get().firstStageConfirmed) set({ firstStageConfirmed: true }) },
 
     // Coming-soon items stay clickable: a single unified bottom-right toast,
     // never a modal. `label` is the user-facing feature name.
