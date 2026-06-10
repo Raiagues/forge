@@ -5,6 +5,7 @@ import {
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
   SOFTWARE_MODULES,
 } from '../mission/index.js'
+import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
 import { runLogDoctor } from '../debug/logDoctor.js'
@@ -271,17 +272,42 @@ const useForge = create((set, get) => {
         : { ...e, status: wiring[id]?.wired ? STATUS.OK : STATUS.IDLE }
     }
 
+    // effective I²C address per sensor, derived from the SDO strap
+    const addrs = Object.fromEntries(
+      componentIds.map(id => [id, i2cAddressFromWires(id, s.wires)]).filter(([, v]) => v),
+    )
+
+    // flashable firmware set — regenerated whenever hardware or wiring
+    // changes. User edits survive only while the generated content is
+    // identical; a regeneration discards them (with a toast).
+    const fwFiles = generateFirmwareFiles({
+      defs: COMPONENT_DEFS, componentIds, wires: s.wires, addrs,
+      rateHz: parseFloat(objective?.meta?.rateHz) || 1,
+      missionName: s.missionPlan.name,
+    })
+    const prevGen = Object.fromEntries((get().fwFiles || []).map(f => [f.file, f.code]))
+    let fwEdits = s.fwEdits || {}
+    let regenerated = false
+    for (const name of Object.keys(fwEdits)) {
+      const nf = fwFiles.find(f => f.file === name)
+      if (!nf || (name in prevGen && nf.code !== prevGen[name])) {
+        if (!regenerated) fwEdits = { ...fwEdits }
+        delete fwEdits[name]
+        regenerated = true
+      }
+    }
+
     return {
       ...partial,
       entities,
+      fwFiles,
+      fwEdits,
+      ...(regenerated ? { notice: { id: ++noticeSeq, message: 'Arquivo regenerado — suas edições foram substituídas' } } : {}),
       live: {
         validation, pins: pins.assignments, eco, wiring,
         i2c: i2cPinsFromWires(s.wires),
         uart: uartPinsFromWires(s.wires),
-        // effective I²C address per sensor, derived from the SDO strap
-        addrs: Object.fromEntries(
-          componentIds.map(id => [id, i2cAddressFromWires(id, s.wires)]).filter(([, v]) => v),
-        ),
+        addrs,
       },
     }
   }
@@ -316,6 +342,10 @@ const useForge = create((set, get) => {
     // ── firmware workspace ───────────────────────────────────────────
     activeModuleId: 'main',
     firmwareEdits: {},         // moduleId → user-edited code (overrides generator)
+
+    // ── flashable firmware set (Serial Test view) ────────────────────
+    fwFiles: [],               // generated [{ file, group, compId?, code }]
+    fwEdits: {},               // file → user-edited code (overrides generator)
 
     // ── Log Doctor (AI debugging assistant) ─────────────────────────
     logDoctor: { running: false, result: null, input: '', source: null, ratings: {} },
@@ -715,6 +745,16 @@ const useForge = create((set, get) => {
     resetFirmwareEdit: (moduleId) => set(s => {
       const edits = { ...s.firmwareEdits }; delete edits[moduleId]
       return { firmwareEdits: edits }
+    }),
+    // edits over the flashable file set; dropped on regeneration
+    setFwEdit: (file, code) => set(s => {
+      if (s.fwEdits[file] == null) track('fw_edit', { target: file })
+      const gen = s.fwFiles.find(f => f.file === file)
+      if (gen && gen.code === code) {
+        const edits = { ...s.fwEdits }; delete edits[file]
+        return { fwEdits: edits }
+      }
+      return { fwEdits: { ...s.fwEdits, [file]: code } }
     }),
 
     // ────────────────────────────────────────────────────────────────
