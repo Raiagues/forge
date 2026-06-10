@@ -642,11 +642,11 @@ export default function MissionSection() {
         <ProgressFooter />
         {stages.length > 0 && stages[stages.length - 1].id === 'wire' && stages[stages.length - 1].done && (
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
-            <button onClick={() => setSection('architecture')} style={{
+            <button onClick={() => setSection('serialtest')} style={{
               width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 12,
               fontFamily: "'Space Grotesk', sans-serif",
-            }}>Ver arquitetura</button>
+            }}>Iniciar testes de hardware</button>
           </div>
         )}
       </div>
