@@ -334,6 +334,12 @@ export default function SerialTest() {
       const line = ev.data
       if (line.startsWith('#')) { pushSerial('sys', line.replace(/^#\s?/, '')); return }
       pushSerial('rx', line); ingestSerial(line)
+      // mirror REAL device output into the platform serial buffer so the
+      // Serial monitor and the Log Doctor analyze the physical hardware
+      const cls = /not found|failed|error|timeout|missing|brownout|guru meditation/i.test(line) ? 'err'
+        : /warn|retry/i.test(line) ? 'warn'
+        : /ok|ready|complete|ack/i.test(line) ? 'ok' : 'info'
+      useForge.getState().pushSerial({ m: line, cls })
     }
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {

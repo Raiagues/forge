@@ -131,7 +131,8 @@ export default function LogDoctorCard() {
       {result && !running && (
         <div style={{ marginTop: 12 }}>
           <div style={{ ...mono, fontSize: 9, color: 'var(--ink3)', marginBottom: 8 }}>
-            {result.summary}{source === 'serial' ? ' · fonte: buffer serial' : ''}
+            {result.summary}
+            {source === 'serial-real' ? ' · fonte: ESP32 real' : source === 'serial' ? ' · fonte: buffer serial (simulação)' : ''}
           </div>
           {result.findings.map(f => (
             <Finding key={f.id} f={f} rating={ratings[f.id]}

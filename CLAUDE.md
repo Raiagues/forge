@@ -104,15 +104,12 @@ Mission templates are *generators* of that state, not just labels.
   registry as an interactive tool (`ui: 'logdoctor'` → card mapped in
   `DebugPanel.jsx`); user decisions tracked as `debug_session`,
   `suggestion_accepted/rejected`, `fix_applied`.
-- **Training scenarios** (`src/debug/scenarios.js`): guided troubleshooting
-  exercises ("Cenários de treino", debug group `simulation`). Each plants a
-  hidden root cause — TX/RX straight-through (seeded INTO the twin wiring),
-  baud mismatch, no sky view, power dips, or nominal cold start — and
-  streams a realistic NMEA log (valid checksums) into the serial buffer
-  via `trainingTick`. Students investigate across surfaces, take
-  progressive hints, and submit a diagnosis from a shuffled cause catalog;
-  scenarios accept MULTIPLE valid causes/fixes. Store slice `training` +
-  actions; tracked as `scenario_started/hint/submitted/revealed/stopped`.
+- **Physical hardware diagnostics**: when Serial Test connects a real
+  ESP32, its stream is mirrored into the store serial buffer (with simple
+  severity classification), so the Serial monitor shows the live device
+  and the Log Doctor's "Usar serial atual" analyzes REAL output cross-
+  referenced with the twin (source reported as "ESP32 real"). There is no
+  separate simulated test layer — diagnostics run on the normal surfaces.
 - **GPS NEO-6M is a supported component**: UART pins (TX/RX/VCC/GND) with
   crossing rules in `wiring.js` (TX-em-TX/RX-em-RX errors, remap warnings,
   `uartPinsFromWires` → `Serial2.begin` pins in the generated

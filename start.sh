@@ -59,10 +59,14 @@ for _ in $(seq 1 40); do
     bold "FORGE is running:"
     echo "  ➜  ${URL}"
     echo "  flash server: http://localhost:${SERVER_PORT}/  (POST /flash)"
-    # best-effort browser open (never fatal)
-    ( command -v xdg-open >/dev/null 2>&1 && xdg-open "$URL" \
-      || command -v open >/dev/null 2>&1 && open "$URL" \
-      || command -v google-chrome >/dev/null 2>&1 && google-chrome "$URL" ) >/dev/null 2>&1 &
+    # best-effort browser open (never fatal) — exactly ONE window:
+    # if/elif so success of one opener never chains into the next
+    (
+      if command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL"
+      elif command -v open >/dev/null 2>&1; then open "$URL"
+      elif command -v google-chrome >/dev/null 2>&1; then google-chrome "$URL"
+      fi
+    ) >/dev/null 2>&1 &
     echo "  logs:  tail -f ${LOG}  ·  tail -f ${SRV_LOG}"
     echo "  stop:  ./stop.sh"
     exit 0

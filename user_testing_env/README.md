@@ -35,20 +35,21 @@ navegador e imprime as instruções. Para parar: `./stop.sh`.
    **nova sessão de teste**. Grava os eventos pendentes, gera novo
    `session_id` e zera o estado do app.
 
-## Exercício guiado: GPS sem satélites (aula prática)
+## Depuração com hardware físico (ESP32 + GPS real)
 
-Para sessões educacionais com hardware real (ESP32 + NEO-6M), use os
-**Cenários de treino** na seção Debug. Cada cenário planta uma causa raiz
-escondida (fios TX/RX não cruzados, baud errado, sem visada do céu,
-alimentação instável, ou cold start normal) e reproduz o log realista do
-dispositivo. O aluno investiga pelo monitor serial, fiação 2D, referência de
-engenharia e assistente de depuração, pede dicas progressivas se precisar e
-submete o diagnóstico — cenários aceitam mais de um caminho de correção.
+O diagnóstico funciona direto sobre o hardware real, sem camada de teste
+separada:
 
-Fluxo sugerido: "Sortear cenário" (o aluno não vê a causa) → aluno investiga
-e diagnostica no app → aluno reproduz/conserta na bancada física → revelação
-e discussão dos caminhos válidos. Métricas por aluno: tempo até o diagnóstico,
-dicas usadas, tentativas erradas (`scenario_submitted` com `ok:false`).
+1. Conecte o ESP32 via USB e abra **Serial Test** → **Conectar**. A partir
+   daí a saída REAL do dispositivo é espelhada no monitor Serial da
+   plataforma (o rodapé muda para "hardware real").
+2. Monte o projeto correspondente no app (ESP32 + GPS NEO-6M + fiação 2D)
+   para o gêmeo digital refletir a bancada.
+3. Em **Debug** → **Assistente de depuração**, clique **"Usar serial atual"**:
+   o Log Doctor analisa o log do dispositivo físico cruzado com a fiação do
+   projeto (UART muda, baud errado, SNR baixo nas $GPGSV, resets por
+   alimentação) e aponta causas prováveis com correções.
+4. Marque cada diagnóstico como útil/não útil — isso alimenta as métricas.
 
 ## O que é medido
 

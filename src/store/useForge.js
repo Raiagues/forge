@@ -8,7 +8,6 @@ import {
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
 import { runLogDoctor } from '../debug/logDoctor.js'
-import { getScenario, randomScenario, scenarioWires } from '../debug/scenarios.js'
 
 // ──────────────────────────────────────────────────────────────────
 // FORGE store — single source of truth for the digital twin.
@@ -322,9 +321,6 @@ const useForge = create((set, get) => {
 
     // ── Log Doctor (AI debugging assistant) ─────────────────────────
     logDoctor: { running: false, result: null, input: '', source: null, ratings: {} },
-
-    // ── training scenario (guided troubleshooting exercise) ─────────
-    training: { scenarioId: null, startedAt: null, stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false },
 
     // ── navigation / selection ──────────────────────────────────────
     setSection: (id) => {
@@ -745,10 +741,12 @@ const useForge = create((set, get) => {
       }
     },
 
-    // analyze the in-app serial buffer (simulated or mirrored device log)
+    // analyze the serial buffer — REAL device output when a physical
+    // ESP32 is connected (Serial Test mirrors its stream here), the
+    // simulation otherwise. The source is reported honestly.
     runLogDoctorOnSerial: () => {
       const lines = get().serialLog.map(l => l.m).reverse().join('\n')
-      get().runLogDoctorOnText(lines, 'serial')
+      get().runLogDoctorOnText(lines, get().hwLink.connected ? 'serial-real' : 'serial')
     },
 
     rateDoctorFinding: (findingId, accepted) => {
@@ -756,83 +754,6 @@ const useForge = create((set, get) => {
       const finding = s.logDoctor.result?.findings.find(f => f.id === findingId)
       track(accepted ? 'suggestion_accepted' : 'suggestion_rejected', { target: finding?.title || findingId })
       set({ logDoctor: { ...s.logDoctor, ratings: { ...s.logDoctor.ratings, [findingId]: accepted } } })
-    },
-
-    // ────────────────────────────────────────────────────────────────
-    // Training scenarios — guided troubleshooting. The scenario seeds
-    // the twin (including planted wiring faults) and streams a realistic
-    // device log; students investigate and submit a diagnosis. Multiple
-    // accepted causes/fixes per scenario; every step is tracked.
-    // ────────────────────────────────────────────────────────────────
-    startTrainingScenario: (id = null) => {
-      const scenario = id ? getScenario(id) : randomScenario()
-      if (!scenario) return
-      // ensure the exercise hardware is on the board
-      if (!get().entities.esp32) get().toggleHardware('esp32')
-      if (!get().entities.gps_neo6m) get().toggleHardware('gps_neo6m')
-      // seed the twin: replace the GPS wires with the scenario's (which
-      // may contain the planted fault, e.g. TX straight-through)
-      const s = get()
-      const wires = [
-        ...s.wires.filter(w => w.from.comp !== 'gps_neo6m' && w.to.comp !== 'gps_neo6m'),
-        ...scenarioWires(scenario),
-      ]
-      track('scenario_started', { target: scenario.id })
-      set(recomputeLive({
-        wires,
-        training: { scenarioId: scenario.id, startedAt: Date.now(), stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false },
-        serialLog: [{ t: clock(0), m: `cenário de treino iniciado · ${scenario.title}`, cls: 'info' }],
-      }))
-    },
-
-    // advance the scenario log one step; returns the delay until the
-    // next step (ms) or null when the stream is done. Repeating
-    // scenarios loop back past the boot banner, like a real device.
-    trainingTick: () => {
-      const { training } = get()
-      const scenario = getScenario(training.scenarioId)
-      if (!scenario) return null
-      let idx = training.stepIdx
-      if (idx >= scenario.steps.length) {
-        const last = scenario.steps[scenario.steps.length - 1]
-        if (!/repete/.test(last.m)) return null
-        idx = 2 // loop past the boot banner
-      }
-      const step = scenario.steps[idx]
-      get().pushSerial({ m: step.m, cls: step.cls })
-      set(st => ({ training: { ...st.training, stepIdx: idx + 1 } }))
-      const next = scenario.steps[idx + 1] || (/repete/.test(scenario.steps[scenario.steps.length - 1].m) ? scenario.steps[2] : null)
-      return next ? next.d : null
-    },
-
-    useTrainingHint: () => {
-      const { training } = get()
-      const scenario = getScenario(training.scenarioId)
-      if (!scenario || training.hintsUsed >= scenario.hints.length) return
-      track('scenario_hint', { target: scenario.id, hint: training.hintsUsed + 1 })
-      set(st => ({ training: { ...st.training, hintsUsed: st.training.hintsUsed + 1 } }))
-    },
-
-    submitTrainingDiagnosis: (causeId, notes = '') => {
-      const { training } = get()
-      const scenario = getScenario(training.scenarioId)
-      if (!scenario) return
-      const ok = scenario.accepted.includes(causeId)
-      const elapsedS = Math.round((Date.now() - training.startedAt) / 1000)
-      track('scenario_submitted', { target: scenario.id, cause: causeId, ok, elapsedS, hints: training.hintsUsed })
-      set(st => ({ training: { ...st.training, submissions: [...st.training.submissions, { causeId, ok, notes }] } }))
-      return ok
-    },
-
-    revealTraining: () => {
-      const { training } = get()
-      track('scenario_revealed', { target: training.scenarioId, solved: training.submissions.some(s => s.ok) })
-      set(st => ({ training: { ...st.training, revealed: true } }))
-    },
-
-    stopTrainingScenario: () => {
-      track('scenario_stopped', { target: get().training.scenarioId })
-      set({ training: { scenarioId: null, startedAt: null, stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false } })
     },
 
     // execute a suggested fix (wiring action, open code module, inspect)

@@ -24,8 +24,6 @@ export const DEBUG_GROUPS = [
   // ── planned tool families (registered later via registerDebugTool) ──
   // 'logs' graduated from planned: the Log Doctor assistant lives there.
   { id: 'logs', label: 'Assistente de depuração', desc: 'Diagnóstico por log do dispositivo + gêmeo digital' },
-  // 'simulation' graduated: guided troubleshooting exercises live there.
-  { id: 'simulation', label: 'Cenários de treino', desc: 'Exercícios guiados de diagnóstico com falhas plantadas' },
   { id: 'unit', label: 'Testes unitários', desc: 'Testes por componente', planned: true },
   { id: 'groups', label: 'Testes de grupo', desc: 'Grupos de sensores / módulos', planned: true },
   { id: 'runtime', label: 'Validação em runtime', desc: 'Validações ao vivo durante a missão', planned: true },
@@ -114,14 +112,6 @@ export const DEBUG_TOOLS = [
     label: 'Diagnóstico por log',
     desc: 'Cole a saída serial do dispositivo: o assistente cruza os sintomas com o estado real do projeto e aponta a causa provável com correção sugerida.',
     run: () => ({ status: DSTATUS.IDLE, summary: 'aguardando log para analisar', details: [] }),
-  },
-  // Guided troubleshooting: plants a realistic GPS fault (twin + log) and
-  // lets students investigate and submit a diagnosis. Engine: scenarios.js
-  {
-    id: 'training_scenario', group: 'simulation', ui: 'training',
-    label: 'Exercício · GPS sem satélites',
-    desc: 'Um cenário de falha realista é plantado no projeto e no log. Investigue fiação, código e sinais — e diagnostique a causa. Há mais de um caminho válido de correção.',
-    run: () => ({ status: DSTATUS.IDLE, summary: 'nenhum cenário ativo', details: [] }),
   },
 ]
 
