@@ -7,7 +7,6 @@ import {
 } from '../../mission/index.js'
 import { track } from '../../lib/analytics.js'
 import HardwareViews, { ViewToggle } from '../canvas/HardwareViews'
-import CopilotPanel from '../mission/CopilotPanel'
 
 // ──────────────────────────────────────────────────────────────────
 // Mission builder — a systems-engineering flow, not a flat form.
@@ -628,8 +627,6 @@ export default function MissionSection() {
 
       {/* live hardware view */}
       <BuilderCanvas />
-
-      <CopilotPanel />
     </div>
   )
 }

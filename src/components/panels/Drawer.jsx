@@ -149,9 +149,14 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
     return `${other.pin} (${COMPONENT_DEFS[other.comp]?.label || other.comp})`
   }
 
-  // telemetry preview series for this component
-  const sparkKey = id === 'bmp280' ? 'temp' : id === 'mpu6050' ? 'accel' : id === 'esp32' ? 'heap' : null
-  const sparkColor = id === 'bmp280' ? 'var(--err2)' : id === 'mpu6050' ? 'var(--warn2)' : 'var(--ok2)'
+  // telemetry preview series for this component (simulated readings)
+  const sparks = id === 'bmp280'
+    ? [{ key: 'press', label: 'Pressão (hPa)', color: 'var(--acc2)' }, { key: 'temp', label: 'Temperatura (°C)', color: 'var(--err2)' }]
+    : id === 'mpu6050'
+      ? [{ key: 'accel', label: 'Aceleração Z (g)', color: 'var(--warn2)' }]
+      : id === 'esp32'
+        ? [{ key: 'heap', label: 'Heap livre (kB)', color: 'var(--ok2)' }]
+        : []
 
   // the firmware module generated for this component (modular firmware)
   const mods = activeModules({ defs: COMPONENT_DEFS, componentIds: Object.keys(useForge.getState().entities), objectiveId: missionPlan.objectiveId })
@@ -253,8 +258,38 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
           </Section>
         )}
 
-        {/* physical pins — what is ACTUALLY wired, pin by pin */}
-        {physPins.length > 0 && (
+        {/* ESP32: pin assignment table derived from the live wiring */}
+        {id === 'esp32' && (
+          <Section label="Atribuição de pinos">
+            <div style={{ display: 'flex', padding: '3px 2px', borderBottom: '1px solid var(--rule)' }}>
+              <span style={{ ...mono, fontSize: 7.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', width: 84, flexShrink: 0 }}>Pino ESP32</span>
+              <span style={{ ...mono, fontSize: 7.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Conectado a</span>
+            </div>
+            {wires.filter(w => w.from.comp === 'esp32' || w.to.comp === 'esp32').map((w, i) => {
+              const own = w.from.comp === 'esp32' ? w.from : w.to
+              const other = w.from.comp === 'esp32' ? w.to : w.from
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '5px 2px', borderBottom: '1px solid var(--rule2)' }}>
+                  <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink2)', width: 84, flexShrink: 0 }}>{own.pin}</span>
+                  <span style={{ ...mono, fontSize: 10.5, color: 'var(--acc)' }}>
+                    {other.pin} · {COMPONENT_DEFS[other.comp]?.label || other.comp}
+                  </span>
+                </div>
+              )
+            })}
+            {!wires.some(w => w.from.comp === 'esp32' || w.to.comp === 'esp32') && (
+              <div style={{ fontSize: 11, color: 'var(--ink4)', padding: '5px 2px' }}>
+                Nenhum pino atribuído — faça a fiação na vista 2D.
+              </div>
+            )}
+            <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 6, lineHeight: 1.5 }}>
+              Derivado da fiação ao vivo · I²C padrão: SDA GPIO21 · SCL GPIO22 (remapeável)
+            </div>
+          </Section>
+        )}
+
+        {/* sensors: physical pins — what is ACTUALLY wired, pin by pin */}
+        {id !== 'esp32' && physPins.length > 0 && (
           <Section label="Pinos">
             {physPins.map((p) => {
               const conn = pinConnection(p.id)
@@ -275,8 +310,11 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
                 </button>
               )
             })}
+            {live?.addrs?.[id] && (
+              <PropRow label="Endereço I²C efetivo" value={`${live.addrs[id].addr} · ${live.addrs[id].strap}`} />
+            )}
             <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 6, lineHeight: 1.5 }}>
-              Conexões reais feitas na fiação 2D · clique num pino para saber sobre remapeamento assistido
+              Conexões reais feitas na fiação 2D
             </div>
           </Section>
         )}
@@ -309,15 +347,18 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
               {Object.entries(readings).map(([k, v]) => (
                 <PropRow key={k} label={k.replace(/_/g, ' ')} value={v} />
               ))}
-              {sparkKey && (
-                <div style={{ marginTop: 8 }}>
-                  <MiniSpark data={telemetry.map(t => t[sparkKey])} color={sparkColor} />
+              {sparks.map(s => (
+                <div key={s.key} style={{ marginTop: 8 }}>
+                  <div style={{ ...mono, fontSize: 7.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 3 }}>{s.label}</div>
+                  <MiniSpark data={telemetry.map(t => t[s.key])} color={s.color} />
                 </div>
-              )}
+              ))}
             </>
           ) : (
             <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5 }}>
-              Sem dados — {def.category === 'mcu' ? 'aguardando inicialização' : 'o sensor não está conectado. Faça a fiação para ver leituras simuladas.'}
+              {def.category === 'mcu'
+                ? 'Sem dados — aguardando inicialização.'
+                : 'sensor não conectado — verifique a fiação'}
             </div>
           )}
         </Section>

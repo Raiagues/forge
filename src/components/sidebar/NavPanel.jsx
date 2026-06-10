@@ -73,7 +73,7 @@ function GhostButton({ label, onClick }) {
 // Mission nav = live mission summary. The builder itself lives in the
 // center workspace (MissionSection); this rail mirrors its state.
 function MissionNav() {
-  const { missionPlan, live, entities, runCopilot } = useForge()
+  const { missionPlan, live, entities } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const obj = getObjective(missionPlan.objectiveId)
   const v = live?.validation
@@ -111,7 +111,6 @@ function MissionNav() {
         ['custo', `R$ ${eco.priceBRL}`, missionPlan.budgetBRL && eco.priceBRL > missionPlan.budgetBRL ? 'var(--err2)' : undefined],
         ['consumo', `${eco.currentmA.toFixed(0)} mA`],
       ]} />
-      <GhostButton label="◇ Pedir análise ao copiloto" onClick={() => runCopilot('analysis')} />
     </>
   )
 }
