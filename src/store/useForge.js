@@ -68,7 +68,6 @@ export const MISSION_TEMPLATES = [
   {
     id: 'atmospheric',
     label: 'Monitoramento atmosférico',
-    icon: '🌬️',
     description: 'Temperatura, pressão e dinâmica de voo em altitude estratosférica.',
     altitude: '30 km',
     components: ['esp32', 'bmp280', 'mpu6050'],

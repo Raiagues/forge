@@ -116,7 +116,7 @@ function MissionNav() {
 }
 
 function HardwareNav() {
-  const { entities, selectedId, selectEntity, toggleHardware, notify } = useForge()
+  const { entities, selectedId, selectEntity, toggleHardware } = useForge()
   const groups = { mcu: [], sensor: [], comm: [], storage: [], power: [] }
   Object.values(entities).forEach(e => { if (groups[e.def.category]) groups[e.def.category].push(e) })
   const GROUP_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
@@ -144,7 +144,7 @@ function HardwareNav() {
             <NavItem key={d.id}
               label={d.comingSoon ? `${d.friendly || d.label}` : `+ ${d.friendly || d.label}`}
               right={d.comingSoon ? 'em breve' : d.label}
-              onClick={() => d.comingSoon ? notify(`${d.friendly || d.label} · em breve`) : toggleHardware(d.id)} />
+              onClick={() => toggleHardware(d.id)} />
           ))}
         </>
       )}

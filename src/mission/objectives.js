@@ -14,7 +14,6 @@
 export const OBJECTIVES = [
   {
     id: 'environmental',
-    icon: '🌱',
     label: 'Monitoramento ambiental',
     desc: 'Temperatura, pressão e perfil atmosférico em altitude.',
     meta: {
@@ -36,7 +35,6 @@ export const OBJECTIVES = [
   },
   {
     id: 'attitude',
-    icon: '🔄',
     label: 'Dinâmica de voo',
     desc: 'Aceleração, rotação e estimativa de atitude durante o voo.',
     meta: {
@@ -58,7 +56,6 @@ export const OBJECTIVES = [
   },
   {
     id: 'altitude_profile',
-    icon: '📈',
     label: 'Perfil de altitude',
     desc: 'Altitude barométrica contínua e eventos de voo (subida, burst, queda).',
     meta: {
@@ -87,7 +84,6 @@ export const OBJECTIVES = [
   },
   {
     id: 'custom',
-    icon: '✎',
     label: 'Objetivo personalizado',
     desc: 'Descreva o objetivo científico e defina as expectativas você mesmo.',
     meta: {

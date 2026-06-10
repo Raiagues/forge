@@ -86,7 +86,7 @@ export default function CopilotPanel() {
               {result.summary?.headline}
               {result.summary?.power && (
                 <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)', marginTop: 6 }}>
-                  ⚡ {result.summary.power.currentmA} mA · autonomia ~{result.summary.power.hours} h
+                  {result.summary.power.currentmA} mA · autonomia ~{result.summary.power.hours} h
                 </div>
               )}
             </div>
