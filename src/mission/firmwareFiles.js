@@ -194,7 +194,8 @@ void oled_status(const char *name, bool ok) {
   if (!ok) _oled_hold_until = millis() + 3000;
 }
 
-// leituras atuais no display, atualizadas a cada tick do scheduler
+// leituras atuais no display, atualizadas a cada tick do scheduler;
+// um sensor com falha vira UMA linha "FALHA" — os demais continuam
 void oled_show_readings() {
   if (!_oled_ok || millis() < _oled_hold_until) return;
   display.clearDisplay();
@@ -202,10 +203,10 @@ void oled_show_readings() {
   display.setTextSize(1);
   display.setCursor(0, 0);
 ${sensors.map((id) => `  if (!${id}_ok) {
-    oled_status("${defs[id].label}", false);
-    return;
-  }
-${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `  ${l}`).join('\n')}`).join('\n')}
+    display.println("${defs[id].label} FALHA");
+  } else {
+${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `    ${l}`).join('\n')}
+  }`).join('\n')}
   display.display();
 }` : ''
 
@@ -271,7 +272,9 @@ function genScheduler({ defs, sensors, rateHz }) {
   const interval = Math.max(1, Math.round(1000 / (parseFloat(rateHz) || 1)))
   const reads = sensors.map((id) => {
     const t = DRIVER_TEMPLATES[id]
-    return `  // ${defs[id].label}\n  ${t.readInto(`auto _${id}`)}\n${t.packetAssign(`_${id}`)}`
+    // honest sampling: a sensor that failed init is skipped, never read
+    // (its packet fields stay zerados) — no garbage in the telemetry
+    return `  // ${defs[id].label} — pulado se o init falhou\n  if (${id}_ok) {\n    ${t.readInto(`auto _${id}`)}\n${t.packetAssign(`_${id}`).replace(/^ {2}/gm, '    ')}\n  }`
   })
   return `// sistema — amostragem periódica na taxa configurada da missão
 #define SAMPLE_INTERVAL_MS ${interval}
