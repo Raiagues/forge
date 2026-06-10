@@ -91,18 +91,28 @@ bool ${def.id}_ok = false;
 
 void bmp280_init() {
   Serial.println("[${def.label}] init @ ${addr}${alt ? `/${alt}` : ''}");
+  delay(1000);  // o sensor precisa estabilizar no barramento I2C após Wire.begin()
   // o endereço depende do pino SDO do módulo — sonde os dois straps
   if (_bmp.begin(${def.id.toUpperCase()}_ADDR)) {
     ${def.id}_ok = true;
     Serial.println("[${def.label}] OK @ ${addr}");
-    return;
   }
-${alt ? `  if (_bmp.begin(${def.id.toUpperCase()}_ADDR_ALT)) {
+${alt ? `  else if (_bmp.begin(${def.id.toUpperCase()}_ADDR_ALT)) {
     ${def.id}_ok = true;
     Serial.println("[${def.label}] OK @ ${alt} — strap SDO difere da fiação no canvas");
+  }
+` : ''}  if (!${def.id}_ok) {
+    Serial.println("[${def.label}] nao encontrado — verifique a fiação");
     return;
   }
-` : ''}  Serial.println("[${def.label}] nao encontrado — verifique a fiação");
+  // configuração de amostragem obrigatória para leituras estáveis
+  _bmp.setSampling(
+    Adafruit_BMP280::MODE_NORMAL,
+    Adafruit_BMP280::SAMPLING_X2,
+    Adafruit_BMP280::SAMPLING_X16,
+    Adafruit_BMP280::FILTER_X16,
+    Adafruit_BMP280::STANDBY_MS_500
+  );
 }
 
 Bmp280Reading bmp280_read() {
