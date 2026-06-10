@@ -330,8 +330,10 @@ function ResizeHandle() {
 }
 
 export default function NavPanel() {
-  const { project, activeSection, hwLink, navWidth, missionPlan, firstStageConfirmed } = useForge()
+  const { activeSection, hwLink, navWidth, missionPlan } = useForge()
   const Content = NAV_CONTENT[activeSection]
+  const missionName = (missionPlan.name || '').trim()
+  const fw = getFramework(missionPlan.frameworkId)
 
   return (
     <div style={{
@@ -340,12 +342,20 @@ export default function NavPanel() {
       borderRight: '1px solid rgba(255,255,255,.04)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      {/* header */}
-      <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--navyb)', flexShrink: 0 }}>
-        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--navyt3)', marginBottom: 4 }}>Projeto ativo</div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navyt)', letterSpacing: '-.01em' }}>{firstStageConfirmed ? (missionPlan.name || project.name) : '*'}</div>
-        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: 'var(--navyt3)', marginTop: 3 }}>{project.competition} · {project.daysLeft}d</div>
-      </div>
+      {/* header — only renders once the user has named a mission */}
+      {(missionName || fw) && (
+        <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--navyb)', flexShrink: 0 }}>
+          {missionName && (
+            <>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--navyt3)', marginBottom: 4 }}>Projeto ativo</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navyt)', letterSpacing: '-.01em' }}>{missionName}</div>
+            </>
+          )}
+          {fw && (
+            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: 'var(--navyt3)', marginTop: missionName ? 3 : 0 }}>{fw.name}</div>
+          )}
+        </div>
+      )}
 
       {/* scrollable nav */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px' }}>

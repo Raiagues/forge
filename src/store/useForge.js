@@ -288,7 +288,6 @@ const useForge = create((set, get) => {
   }
 
   return {
-    project: { name: 'PISCE', competition: 'OBSAT · Fase 2', daysLeft: 26 },
     mission: { id: null, label: '', description: '', objectives: [], constraints: '', altitude: '—' },
     entities: {},
     activeSection: 'mission',

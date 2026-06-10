@@ -1,11 +1,13 @@
 import useForge, { STATUS } from '../../store/useForge'
+import { getFramework } from '../../mission/index.js'
 
 export default function Statusbar() {
-  const { entities, project, seq, live, missionPlan, hwLink } = useForge()
+  const { entities, seq, live, missionPlan, hwLink } = useForge()
   const list = Object.values(entities)
   const ok  = list.filter(e => e.status === STATUS.OK).length
   const v = live?.validation
   const eco = live?.eco
+  const fw = getFramework(missionPlan.frameworkId)
 
   return (
     <div style={{
@@ -31,7 +33,7 @@ export default function Statusbar() {
         </span>
       )}
       {seq > 0 && <span>t+{seq * 3}s · live</span>}
-      <span>{project.competition} · {project.daysLeft} dias</span>
+      {fw && <span>{fw.name}</span>}
     </div>
   )
 }

@@ -256,7 +256,7 @@ function DetailsStage() {
   const { missionPlan, setPlanName, setBudget } = useForge()
   return (
     <>
-      <MiniInput label="Nome" value={missionPlan.name} onChange={setPlanName} placeholder="Ex.: PISCE-1" />
+      <MiniInput label="Nome" value={missionPlan.name} onChange={setPlanName} placeholder="Nome da missão" />
       <MiniInput label="Orçamento" type="number" prefix="R$" value={missionPlan.budgetBRL ?? ''} onChange={v => setBudget(v)} placeholder="Ex.: 300" />
       <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 2 }}>
         O orçamento entra na validação. Preço, massa e consumo de cada módulo são editáveis no inspetor.
@@ -444,8 +444,12 @@ function BuilderCanvas() {
         <span style={{ ...mono, fontSize: 9, letterSpacing: '.08em', color: 'var(--ink3)' }}>
           {missionPlan.frameworkId ? getFramework(missionPlan.frameworkId)?.name : 'Missão'}
         </span>
-        <span style={{ color: 'var(--ink4)', fontSize: 10 }}>›</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{missionPlan.name || 'Nova missão'}</span>
+        {missionPlan.name?.trim() && (
+          <>
+            <span style={{ color: 'var(--ink4)', fontSize: 10 }}>›</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{missionPlan.name}</span>
+          </>
+        )}
         <span style={{
           ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
           padding: '1px 6px', borderRadius: 2, marginLeft: 4,

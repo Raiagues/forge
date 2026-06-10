@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import useForge, { SECTIONS, STATUS } from '../../store/useForge'
 import { track } from '../../lib/analytics.js'
 
@@ -27,7 +28,19 @@ export default function IconSidebar() {
   // user-testing mode (./start_test_user.sh): hide developer-facing
   // sections from the rail so testers see only the product workflow
   const userTest = import.meta.env.VITE_USER_TEST === '1'
-  const visibleSections = userTest ? SECTIONS.filter(s => s.id !== 'serialtest') : SECTIONS
+  // Architecture/Firmware only exist once the mission's Hardware stage is
+  // complete (same rule as the mission flow: at least 2 placed components)
+  const hwStageDone = list.length >= 2
+  const visibleSections = SECTIONS.filter(s => {
+    if (userTest && s.id === 'serialtest') return false
+    if (!hwStageDone && (s.id === 'architecture' || s.id === 'firmware')) return false
+    return true
+  })
+
+  // never leave the app stranded on a section that just became hidden
+  useEffect(() => {
+    if (!hwStageDone && (activeSection === 'architecture' || activeSection === 'firmware')) setSection('mission')
+  }, [hwStageDone, activeSection, setSection])
 
   return (
     <aside style={{
