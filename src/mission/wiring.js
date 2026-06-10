@@ -14,18 +14,46 @@
 // ──────────────────────────────────────────────────────────────────
 
 // Pin roles: power3v3 | gnd | vcc | gpio (with optional i2c hint)
+// The ESP32 entry mirrors the PHYSICAL ESP32-WROOM-32D devkit header:
+// every silkscreened pin, in board order, with `side` matching the
+// physical column. `label` carries the silkscreen text when it differs
+// from the GPIO id. `i2cCapable` marks the pins the platform accepts
+// for SDA/SCL (defaults GPIO21/22 + remappable GPIO18/19/23);
+// `inputOnly` pins have no output driver (GPIO34/35/36/39).
 export const COMPONENT_PINS = {
   esp32: [
-    { id: '3V3',    role: 'power3v3', note: 'alimentação 3.3V' },
-    { id: 'GND',    role: 'gnd',      note: 'terra' },
-    { id: 'GPIO21', role: 'gpio', i2c: 'sda', note: 'SDA padrão (I²C)' },
-    { id: 'GPIO22', role: 'gpio', i2c: 'scl', note: 'SCL padrão (I²C)' },
-    { id: 'GPIO16', role: 'gpio', uart: 'rx', note: 'RX2 (UART2) — recebe o TX do periférico' },
-    { id: 'GPIO17', role: 'gpio', uart: 'tx', note: 'TX2 (UART2) — envia para o RX do periférico' },
-    { id: 'GPIO18', role: 'gpio', note: 'SCK (VSPI)' },
-    { id: 'GPIO19', role: 'gpio', note: 'MISO (VSPI)' },
-    { id: 'GPIO23', role: 'gpio', note: 'MOSI (VSPI)' },
-    { id: 'GPIO34', role: 'gpio', inputOnly: true, note: 'ADC1_CH6 · somente entrada' },
+    // lado esquerdo da placa (de cima para baixo)
+    { id: '3V3',    role: 'power3v3', side: 'L', note: 'alimentação 3.3V' },
+    { id: 'GND',    role: 'gnd',      side: 'L', note: 'terra' },
+    { id: 'GPIO15', role: 'gpio',     side: 'L', note: 'ADC2_CH3 · strapping' },
+    { id: 'GPIO2',  role: 'gpio',     side: 'L', note: 'LED onboard · strapping' },
+    { id: 'GPIO4',  role: 'gpio',     side: 'L', note: 'ADC2_CH0' },
+    { id: 'GPIO16', role: 'gpio', uart: 'rx', side: 'L', label: 'GPIO16 (RX2)', note: 'RX2 (UART2) — recebe o TX do periférico' },
+    { id: 'GPIO17', role: 'gpio', uart: 'tx', side: 'L', label: 'GPIO17 (TX2)', note: 'TX2 (UART2) — envia para o RX do periférico' },
+    { id: 'GPIO5',  role: 'gpio',     side: 'L', note: 'CS (VSPI) · strapping' },
+    { id: 'GPIO18', role: 'gpio', i2cCapable: true, side: 'L', note: 'SCK (VSPI) · aceita I²C remapeado' },
+    { id: 'GPIO19', role: 'gpio', i2cCapable: true, side: 'L', note: 'MISO (VSPI) · aceita I²C remapeado' },
+    { id: 'GPIO21', role: 'gpio', i2c: 'sda', i2cCapable: true, side: 'L', note: 'SDA padrão (I²C)' },
+    { id: 'GPIO3',  role: 'gpio', uart: 'rx', side: 'L', label: 'GPIO3 (RX0)', note: 'RX0 (UART0 · console serial USB)' },
+    { id: 'GPIO1',  role: 'gpio', uart: 'tx', side: 'L', label: 'GPIO1 (TX0)', note: 'TX0 (UART0 · console serial USB)' },
+    { id: 'GPIO22', role: 'gpio', i2c: 'scl', i2cCapable: true, side: 'L', note: 'SCL padrão (I²C)' },
+    { id: 'GPIO23', role: 'gpio', i2cCapable: true, side: 'L', note: 'MOSI (VSPI) · aceita I²C remapeado' },
+    // lado direito da placa (de cima para baixo)
+    { id: 'VIN',    role: 'vin',  side: 'R', note: 'entrada 5V (USB/externa) — não é saída 3.3V' },
+    { id: 'GND2',   role: 'gnd',  side: 'R', label: 'GND', note: 'terra' },
+    { id: 'GPIO13', role: 'gpio', side: 'R', note: 'ADC2_CH4 · touch' },
+    { id: 'GPIO12', role: 'gpio', side: 'R', note: 'ADC2_CH5 · strapping' },
+    { id: 'GPIO14', role: 'gpio', side: 'R', note: 'ADC2_CH6 · touch' },
+    { id: 'GPIO27', role: 'gpio', side: 'R', note: 'ADC2_CH7 · touch' },
+    { id: 'GPIO26', role: 'gpio', side: 'R', note: 'ADC2_CH9 · DAC2' },
+    { id: 'GPIO25', role: 'gpio', side: 'R', note: 'ADC2_CH8 · DAC1' },
+    { id: 'GPIO33', role: 'gpio', side: 'R', note: 'ADC1_CH5 · touch' },
+    { id: 'GPIO32', role: 'gpio', side: 'R', note: 'ADC1_CH4 · touch' },
+    { id: 'GPIO35', role: 'gpio', inputOnly: true, side: 'R', label: 'GPIO35 (entrada)', note: 'ADC1_CH7 · somente entrada' },
+    { id: 'GPIO34', role: 'gpio', inputOnly: true, side: 'R', label: 'GPIO34 (entrada)', note: 'ADC1_CH6 · somente entrada' },
+    { id: 'GPIO39', role: 'gpio', inputOnly: true, side: 'R', label: 'VN (GPIO39)', note: 'ADC1_CH3 · somente entrada' },
+    { id: 'GPIO36', role: 'gpio', inputOnly: true, side: 'R', label: 'VP (GPIO36)', note: 'ADC1_CH0 · somente entrada' },
+    { id: 'EN',     role: 'en',   side: 'R', note: 'enable/reset do chip' },
   ],
   bmp280: [
     { id: 'VCC', role: 'vcc', note: 'alimentação (1.71–3.6 V)' },
@@ -205,7 +233,13 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
         push({
           severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
           title: `${other.id} é somente entrada`,
-          detail: `${other.id} não tem driver de saída — o I²C exige um GPIO com saída. Use GPIO21/22 ou outro GPIO comum.`,
+          detail: `${other.id} não tem driver de saída — o I²C exige um GPIO com saída. Use GPIO21/22 (padrão) ou GPIO18/19/23.`,
+        })
+      } else if (!other.i2cCapable) {
+        push({
+          severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: `${other.id} não suporta I²C`,
+          detail: `${i2cEnd.id} precisa de um pino I²C: GPIO21/22 (padrão) ou GPIO18/19/23 (remapeáveis).`,
         })
       } else if (other.i2c && other.i2c !== i2cEnd.role) {
         push({

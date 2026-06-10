@@ -11,19 +11,41 @@
 // Pure: catalog (`defs`) injected.
 // ──────────────────────────────────────────────────────────────────
 
-// Realistic ESP32-WROOM-32D devkit header (subset relevant to FORGE).
+// Full ESP32-WROOM-32D devkit header, in physical board order with the
+// silkscreen labels (mirrors COMPONENT_PINS.esp32 in wiring.js).
 export const ESP32_PINS = [
-  { pin: '3V3',    role: 'power',  note: 'alimentação 3.3V' },
-  { pin: 'GND',    role: 'power',  note: 'terra' },
-  { pin: 'GPIO21', role: 'i2c',    note: 'SDA (barramento I²C)' },
-  { pin: 'GPIO22', role: 'i2c',    note: 'SCL (barramento I²C)' },
-  { pin: 'GPIO16', role: 'uart',   note: 'RX2 (UART2)' },
-  { pin: 'GPIO17', role: 'uart',   note: 'TX2 (UART2)' },
-  { pin: 'GPIO23', role: 'spi',    note: 'MOSI (VSPI)' },
-  { pin: 'GPIO19', role: 'spi',    note: 'MISO (VSPI)' },
-  { pin: 'GPIO18', role: 'spi',    note: 'SCK (VSPI)' },
-  { pin: 'GPIO5',  role: 'spi',    note: 'CS (VSPI)' },
-  { pin: 'GPIO34', role: 'adc',    note: 'ADC1_CH6 (somente entrada)' },
+  // lado esquerdo (de cima para baixo)
+  { pin: '3V3',           role: 'power', note: 'alimentação 3.3V' },
+  { pin: 'GND',           role: 'power', note: 'terra' },
+  { pin: 'GPIO15',        role: 'gpio',  note: 'ADC2_CH3 · strapping' },
+  { pin: 'GPIO2',         role: 'gpio',  note: 'LED onboard · strapping' },
+  { pin: 'GPIO4',         role: 'gpio',  note: 'ADC2_CH0' },
+  { pin: 'GPIO16 (RX2)',  role: 'uart',  note: 'RX2 (UART2)' },
+  { pin: 'GPIO17 (TX2)',  role: 'uart',  note: 'TX2 (UART2)' },
+  { pin: 'GPIO5',         role: 'spi',   note: 'CS (VSPI)' },
+  { pin: 'GPIO18',        role: 'spi',   note: 'SCK (VSPI) · I²C remapeável' },
+  { pin: 'GPIO19',        role: 'spi',   note: 'MISO (VSPI) · I²C remapeável' },
+  { pin: 'GPIO21',        role: 'i2c',   note: 'SDA (barramento I²C)' },
+  { pin: 'GPIO3 (RX0)',   role: 'uart',  note: 'RX0 (UART0 · console)' },
+  { pin: 'GPIO1 (TX0)',   role: 'uart',  note: 'TX0 (UART0 · console)' },
+  { pin: 'GPIO22',        role: 'i2c',   note: 'SCL (barramento I²C)' },
+  { pin: 'GPIO23',        role: 'spi',   note: 'MOSI (VSPI) · I²C remapeável' },
+  // lado direito (de cima para baixo)
+  { pin: 'VIN',           role: 'power', note: 'entrada 5V (USB/externa)' },
+  { pin: 'GND',           role: 'power', note: 'terra' },
+  { pin: 'GPIO13',        role: 'gpio',  note: 'ADC2_CH4 · touch' },
+  { pin: 'GPIO12',        role: 'gpio',  note: 'ADC2_CH5 · strapping' },
+  { pin: 'GPIO14',        role: 'gpio',  note: 'ADC2_CH6 · touch' },
+  { pin: 'GPIO27',        role: 'gpio',  note: 'ADC2_CH7 · touch' },
+  { pin: 'GPIO26',        role: 'gpio',  note: 'ADC2_CH9 · DAC2' },
+  { pin: 'GPIO25',        role: 'gpio',  note: 'ADC2_CH8 · DAC1' },
+  { pin: 'GPIO33',        role: 'gpio',  note: 'ADC1_CH5 · touch' },
+  { pin: 'GPIO32',        role: 'gpio',  note: 'ADC1_CH4 · touch' },
+  { pin: 'GPIO35',        role: 'adc',   note: 'ADC1_CH7 (somente entrada)' },
+  { pin: 'GPIO34',        role: 'adc',   note: 'ADC1_CH6 (somente entrada)' },
+  { pin: 'VN (GPIO39)',   role: 'adc',   note: 'ADC1_CH3 (somente entrada)' },
+  { pin: 'VP (GPIO36)',   role: 'adc',   note: 'ADC1_CH0 (somente entrada)' },
+  { pin: 'EN',            role: 'ctrl',  note: 'enable/reset do chip' },
 ]
 
 // Bus → pin mapping templates. I²C is a shared bus: every I²C device

@@ -33,10 +33,11 @@ const PIN_SPACING = 24
 const ESP_W = 196
 const SENSOR_W = 168
 
-// ESP32 pins split across both sides of the chip drawing, like the
-// physical devkit. Power + default I²C face the sensors (right side).
-const ESP_RIGHT = ['3V3', 'GND', 'GPIO21', 'GPIO22', 'GPIO18', 'GPIO19']
-const ESP_LEFT = ['GPIO16', 'GPIO17', 'GPIO23', 'GPIO34']
+// ESP32 pins split across both sides of the chip drawing, mirroring the
+// physical devkit columns (from the pin catalog, not hardcoded here).
+// The physical LEFT column (3V3/GND/I²C) faces the sensors → drawing right.
+const ESP_RIGHT = COMPONENT_PINS.esp32.filter(p => p.side === 'L').map(p => p.id)
+const ESP_LEFT = COMPONENT_PINS.esp32.filter(p => p.side === 'R').map(p => p.id)
 
 // Deterministic schematic layout: ESP32 on the left (pins on both
 // sides), sensors stacked on the right (pins on their left edge).
@@ -252,19 +253,22 @@ export default function SchematicView() {
                   const connected = wires.some(w =>
                     (w.from.comp === id && w.from.pin === p.id) || (w.to.comp === id && w.to.pin === p.id))
                   const labelX = pos.side === 'right' ? pos.x - 10 : pos.x + 10
+                  // input-only pins: gray, no output dot — visivelmente sem driver de saída
+                  const inOnly = !!p.inputOnly
                   return (
                     <g key={p.id} style={{ cursor: 'crosshair' }}
                       onClick={(e) => { e.stopPropagation(); clickPin(id, p.id) }}>
                       {isPending && <circle cx={pos.x} cy={pos.y} r={9} fill="none" stroke={WIRE_SEL} strokeWidth={1.4} opacity={0.7} />}
                       <circle cx={pos.x} cy={pos.y} r={5.5}
-                        fill={isPending ? WIRE_SEL : connected ? (PIN_ROLE_COLOR[p.role] || '#5A6B7A') : 'var(--paper3)'}
-                        stroke={isPending ? '#2B5EA7' : PIN_ROLE_COLOR[p.role] || 'var(--rule)'} strokeWidth={1.4} />
+                        fill={isPending ? WIRE_SEL : inOnly ? 'var(--paper4)' : connected ? (PIN_ROLE_COLOR[p.role] || '#5A6B7A') : 'var(--paper3)'}
+                        stroke={isPending ? '#2B5EA7' : inOnly ? 'var(--ink4)' : PIN_ROLE_COLOR[p.role] || 'var(--rule)'}
+                        strokeWidth={1.4} strokeDasharray={inOnly ? '2 2' : 'none'} />
                       <text x={labelX} y={pos.y + 3.5}
                         textAnchor={pos.side === 'right' ? 'end' : 'start'}
                         fontFamily="'Space Mono', monospace" fontSize={9}
-                        fill={id === 'esp32' ? 'rgba(255,255,255,.72)' : 'var(--ink2)'}
+                        fill={inOnly ? (id === 'esp32' ? 'rgba(255,255,255,.34)' : 'var(--ink4)') : id === 'esp32' ? 'rgba(255,255,255,.72)' : 'var(--ink2)'}
                         style={{ pointerEvents: 'none' }}>
-                        {p.id}
+                        {p.label || p.id}
                       </text>
                       <title>{p.note || p.id}</title>
                     </g>

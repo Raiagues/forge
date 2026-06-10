@@ -26,11 +26,12 @@ const KNOWN_ADDRS = {
   '0x68': 'MPU6050', '0x69': 'MPU6050',
 }
 
-// A GPIO can carry I2C if it exists on the module, is a data GPIO and is
-// not input-only (I2C needs open-drain output — rules out GPIO34..39).
+// A GPIO can carry I2C only if the pin catalog marks it `i2cCapable`
+// (GPIO21/22 defaults + remappable GPIO18/19/23) — input-only pins and
+// plain GPIOs are rejected, mirroring the wiring validation.
 const i2cCapable = (gpioNum) => {
   const p = ESP32_DB.find((p) => p.id === `GPIO${gpioNum}`)
-  return !!p && p.role === 'gpio' && !p.inputOnly
+  return !!p && !!p.i2cCapable && !p.inputOnly
 }
 
 // Example pins offered in the fix message, validated against the db so
