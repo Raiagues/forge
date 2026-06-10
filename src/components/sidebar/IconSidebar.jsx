@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import useForge, { SECTIONS, STATUS } from '../../store/useForge'
 import { track } from '../../lib/analytics.js'
 
@@ -15,7 +14,7 @@ const ICONS = {
 }
 
 export default function IconSidebar() {
-  const { activeSection, setSection, entities, live } = useForge()
+  const { activeSection, setSection, entities, live, notify } = useForge()
 
   // issue indicator: live validation first, entity status as fallback
   const list = Object.values(entities)
@@ -27,20 +26,20 @@ export default function IconSidebar() {
 
   // user-testing mode (./start_test_user.sh): hide developer-facing
   // sections from the rail so testers see only the product workflow
-  const userTest = import.meta.env.VITE_USER_TEST === '1'
-  // Architecture/Firmware only exist once the mission's Hardware stage is
-  // complete (same rule as the mission flow: at least 2 placed components)
-  const hwStageDone = list.length >= 2
-  const visibleSections = SECTIONS.filter(s => {
-    if (userTest && s.id === 'serialtest') return false
-    if (!hwStageDone && (s.id === 'architecture' || s.id === 'firmware')) return false
-    return true
-  })
+  const userTest = import.meta.env?.VITE_USER_TEST === '1'
+  const visibleSections = userTest ? SECTIONS.filter(s => s.id !== 'serialtest') : SECTIONS
 
-  // never leave the app stranded on a section that just became hidden
-  useEffect(() => {
-    if (!hwStageDone && (activeSection === 'architecture' || activeSection === 'firmware')) setSection('mission')
-  }, [hwStageDone, activeSection, setSection])
+  // Mission gating: every section except Mission stays visibly clickable
+  // but only navigates once the Hardware stage is complete (>= 2 placed
+  // components, same rule as the mission flow). Locked clicks toast.
+  const hwStageDone = list.length >= 2
+  const clickSection = (id) => {
+    if (id !== 'mission' && !hwStageDone) {
+      notify('Crie uma missão primeiro para acessar esta área')
+      return
+    }
+    setSection(id)
+  }
 
   return (
     <aside style={{
@@ -65,7 +64,7 @@ export default function IconSidebar() {
           <button
             key={sec.id}
             title={sec.label}
-            onClick={() => setSection(sec.id)}
+            onClick={() => clickSection(sec.id)}
             style={{
               width: 36, height: 36, borderRadius: 6, border: 'none',
               background: active ? 'var(--navyb2)' : 'transparent',
