@@ -13,7 +13,6 @@ import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import HardwareViews from './components/canvas/HardwareViews'
 import SerialTest from './components/panels/SerialTest'
-import FeatureInfoModal from './components/panels/FeatureInfoModal'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
 
 function HardwareSection({ section, hasEntities }) {
@@ -43,13 +42,13 @@ function Toast() {
   const clearNotice = useForge(s => s.clearNotice)
   useEffect(() => {
     if (!notice) return
-    const id = setTimeout(clearNotice, 2200)
+    const id = setTimeout(clearNotice, 3000)
     return () => clearTimeout(id)
   }, [notice, clearNotice])
   if (!notice) return null
   return (
     <div style={{
-      position: 'absolute', bottom: 38, left: '50%', transform: 'translateX(-50%)',
+      position: 'absolute', bottom: 36, right: 18,
       background: 'var(--navy)', color: 'rgba(255,255,255,.85)',
       padding: '6px 16px', borderRadius: 18, zIndex: 90, pointerEvents: 'none',
       fontFamily: "'Space Mono', monospace", fontSize: 9.5, letterSpacing: '.06em',
@@ -80,7 +79,6 @@ export default function App() {
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             <SectionContent section={activeSection} hasEntities={hasEntities} />
             <Drawer />
-            <FeatureInfoModal />
             <Toast />
           </div>
           <Statusbar />

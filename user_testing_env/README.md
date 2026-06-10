@@ -35,6 +35,21 @@ navegador e imprime as instruções. Para parar: `./stop.sh`.
    **nova sessão de teste**. Grava os eventos pendentes, gera novo
    `session_id` e zera o estado do app.
 
+## Exercício guiado: GPS sem satélites (aula prática)
+
+Para sessões educacionais com hardware real (ESP32 + NEO-6M), use os
+**Cenários de treino** na seção Debug. Cada cenário planta uma causa raiz
+escondida (fios TX/RX não cruzados, baud errado, sem visada do céu,
+alimentação instável, ou cold start normal) e reproduz o log realista do
+dispositivo. O aluno investiga pelo monitor serial, fiação 2D, referência de
+engenharia e assistente de depuração, pede dicas progressivas se precisar e
+submete o diagnóstico — cenários aceitam mais de um caminho de correção.
+
+Fluxo sugerido: "Sortear cenário" (o aluno não vê a causa) → aluno investiga
+e diagnostica no app → aluno reproduz/conserta na bancada física → revelação
+e discussão dos caminhos válidos. Métricas por aluno: tempo até o diagnóstico,
+dicas usadas, tentativas erradas (`scenario_submitted` com `ok:false`).
+
 ## O que é medido
 
 Cada evento tem `{ timestamp, sessionId, eventName, payload }` e é gravado em

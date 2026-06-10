@@ -3,10 +3,11 @@ import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import { DEBUG_GROUPS, DEBUG_TOOLS, toolsForGroup, runDebugTool } from '../../debug/index.js'
 import EmptyState from './EmptyState'
 import LogDoctorCard from './debug/LogDoctorCard'
+import TrainingCard from './debug/TrainingCard'
 
 // interactive tools declare `ui` in the registry; the panel maps it to a
 // dedicated card component here (registry stays pure, panel stays thin)
-const INTERACTIVE_UI = { logdoctor: LogDoctorCard }
+const INTERACTIVE_UI = { logdoctor: LogDoctorCard, training: TrainingCard }
 
 // ──────────────────────────────────────────────────────────────────
 // Debug — a modular diagnostics console. Each card is a pluggable tool

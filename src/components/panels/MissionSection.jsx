@@ -110,7 +110,7 @@ function MiniInput({ label, value, onChange, placeholder, type = 'text', prefix 
 
 // ── stage 1 · competition ─────────────────────────────────────────
 function CompetitionStage() {
-  const { missionPlan, selectFramework, openFeatureInfo } = useForge()
+  const { missionPlan, selectFramework, comingSoon } = useForge()
   const [showReqs, setShowReqs] = useState(false)
   const fw = getFramework(missionPlan.frameworkId)
 
@@ -124,14 +124,14 @@ function CompetitionStage() {
         const soon = !!f.comingSoon
         return (
           <button key={f.id}
-            onClick={() => soon ? openFeatureInfo(`framework_${f.id}`) : selectFramework(f.id)}
-            title={soon ? 'Em desenvolvimento — clique para saber o que está planejado' : f.full}
+            onClick={() => soon ? comingSoon(f.name) : selectFramework(f.id)}
+            title={f.full}
             style={{
               display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
               padding: '8px 10px', borderRadius: 6, marginBottom: 5,
-              border: `1px ${soon ? 'dashed' : 'solid'} ${sel ? 'var(--acc)' : 'var(--rule)'}`,
+              border: `1px solid ${sel ? 'var(--acc)' : 'var(--rule)'}`,
               background: sel ? 'rgba(43,94,167,.06)' : 'var(--paper)',
-              cursor: 'pointer', opacity: soon ? 0.72 : 1, transition: 'all .15s',
+              cursor: 'pointer', transition: 'all .15s',
             }}>
             <span style={{
               width: 28, height: 28, borderRadius: 4, flexShrink: 0, background: 'var(--navy)',
@@ -140,8 +140,8 @@ function CompetitionStage() {
             }}>{f.kind === 'custom' ? '✎' : f.name.slice(0, 2).toUpperCase()}</span>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{f.name}</span>
-              <span style={{ display: 'block', ...mono, fontSize: 8, color: soon ? 'var(--warn2)' : 'var(--ink4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {soon ? 'em desenvolvimento · clique para detalhes' : f.kind === 'custom' ? 'missão livre' : f.full}
+              <span style={{ display: 'block', ...mono, fontSize: 8, color: 'var(--ink4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {f.kind === 'custom' ? 'missão livre' : f.full}
               </span>
             </span>
             {sel && <span style={{ color: 'var(--acc)', fontSize: 12 }}>✓</span>}
@@ -274,29 +274,27 @@ function HardwareStage() {
                 <button key={d.id}
                   onClick={() => toggleHardware(d.id)}
                   onDoubleClick={() => placed && selectEntity(d.id)}
-                  title={soon ? 'Em desenvolvimento — clique para saber o que está planejado' : placed ? 'Clique para remover · duplo clique para inspecionar' : 'Clique para adicionar à placa'}
+                  title={placed ? 'Clique para remover · duplo clique para inspecionar' : 'Clique para adicionar à placa'}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                     padding: '6px 9px', borderRadius: 5, marginBottom: 4, cursor: 'pointer',
-                    border: `1px ${soon ? 'dashed' : 'solid'} ${placed ? 'var(--ok2)' : 'var(--rule)'}`,
+                    border: `1px solid ${placed ? 'var(--ok2)' : 'var(--rule)'}`,
                     background: placed ? 'rgba(58,144,96,.07)' : 'var(--paper)',
-                    opacity: soon ? 0.72 : 1, transition: 'all .15s',
+                    transition: 'all .15s',
                   }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--ink)' }}>{d.friendly}</span>
-                    <span style={{ display: 'block', ...mono, fontSize: 8, color: soon ? 'var(--warn2)' : 'var(--ink4)' }}>
-                      {d.label}{d.protocol && d.protocol !== 'MCU' ? ` · ${d.protocol}` : ''}{soon ? ' · em desenvolvimento' : ''}
+                    <span style={{ display: 'block', ...mono, fontSize: 8, color: 'var(--ink4)' }}>
+                      {d.label}{d.protocol && d.protocol !== 'MCU' ? ` · ${d.protocol}` : ''}
                     </span>
                   </span>
-                  {!soon && <span style={{ ...mono, fontSize: 9, color: 'var(--ink3)', flexShrink: 0 }}>R${eff.price}</span>}
-                  {soon
-                    ? <span style={{ ...mono, fontSize: 8, color: 'var(--ink4)', flexShrink: 0 }}>?</span>
-                    : <span style={{
-                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                        border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
-                        background: placed ? 'var(--ok2)' : 'transparent',
-                        color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>{placed ? '✓' : ''}</span>}
+                  <span style={{ ...mono, fontSize: 9, color: 'var(--ink3)', flexShrink: 0 }}>R${eff.price}</span>
+                  <span style={{
+                    width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                    border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
+                    background: placed ? 'var(--ok2)' : 'transparent',
+                    color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{placed ? '✓' : ''}</span>
                 </button>
               )
             })}

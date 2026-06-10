@@ -45,6 +45,24 @@ function scannedAddresses(text) {
   return out
 }
 
+// does the live wiring validation already point at a specific fault?
+const wiringIssue = (ctx, substr) =>
+  (ctx.live?.validation?.issues || []).find(i => i.source === 'wiring' && i.title.includes(substr))
+
+// max SNR (dBHz) seen across $GPGSV sentences — the sky-view signal
+function maxGsvSnr(text) {
+  let max = null
+  for (const m of text.matchAll(/\$GPGSV,[^*\n]+/g)) {
+    const fields = m[0].split(',')
+    // satellite blocks of 4 fields start at index 4: prn, elev, azim, snr
+    for (let i = 7; i < fields.length; i += 4) {
+      const snr = parseInt(fields[i], 10)
+      if (Number.isFinite(snr)) max = Math.max(max ?? 0, snr)
+    }
+  }
+  return max
+}
+
 // ── signature catalog ───────────────────────────────────────────────
 // Each signature: { id, test(text), diagnose(text, ctx) -> finding|[] }
 const SIGNATURES = [
@@ -179,6 +197,95 @@ const SIGNATURES = [
           : 'O display não apareceu no scan I²C: sem alimentação, SDA/SCL trocados, ou endereço diferente de 0x3C.',
         evidence: [`log: "OLED FAILED"${saw3c ? ' · scan viu o display no barramento' : ' · display ausente do scan'}`],
         fixes: [{ label: 'Conferir fiação do display', kind: 'wiring', action: { type: 'open2d' } }],
+      }]
+    },
+  },
+  // ── GPS / GNSS signatures ─────────────────────────────────────────
+  {
+    id: 'gps_silent',
+    test: (t) => /uart timeout|nenhuma senten[çc]a nmea|0 bytes recebidos/i.test(t),
+    diagnose: (t, ctx) => {
+      const swap = wiringIssue(ctx, 'TX ligado em TX') || wiringIssue(ctx, 'RX ligado em RX')
+      if (swap) {
+        return [{
+          id: uid(), confidence: CONFIDENCE.HIGH, severity: 'error',
+          title: 'GPS mudo: fios TX/RX não cruzados',
+          cause: 'Zero bytes na UART e a fiação do projeto mostra TX ligado em TX. Dois transmissores no mesmo fio — nenhum dado chega ao ESP32. Cruze os fios (TX→GPIO16, RX→GPIO17) ou inverta os pinos no Serial2.begin.',
+          evidence: ['log: timeout de UART sem nenhuma sentença NMEA', `gêmeo digital: "${swap.title}"`],
+          fixes: [
+            { label: 'Corrigir cruzamento na fiação 2D', kind: 'wiring', action: { type: 'open2d' } },
+            fixModule('driver_gps', 'sensor_gps.h'),
+          ],
+        }]
+      }
+      if (has(ctx, 'gps_neo6m') && !wired(ctx, 'gps_neo6m')) {
+        return [{
+          id: uid(), confidence: CONFIDENCE.HIGH, severity: 'error',
+          title: 'GPS mudo: fiação incompleta',
+          cause: 'O firmware espera NMEA mas o GPS não está eletricamente conectado no projeto.',
+          evidence: ['log: timeout de UART', 'gêmeo digital: GPS sem fiação completa'],
+          fixes: [fixAutoWire('gps_neo6m'), fixWire2D()],
+        }]
+      }
+      return [{
+        id: uid(), confidence: CONFIDENCE.MED, severity: 'error',
+        title: 'GPS mudo: nenhum byte na UART',
+        cause: 'Zero bytes não é sinal fraco — é ausência elétrica de dados. Verifique na ordem: TX/RX cruzados de verdade no hardware, alimentação do módulo (LED de power), e se os pinos do Serial2.begin batem com a fiação física.',
+        evidence: ['log: timeout de UART sem nenhuma sentença NMEA'],
+        fixes: [fixWire2D(), fixModule('driver_gps', 'sensor_gps.h'), fixInspect('gps_neo6m')],
+      }]
+    },
+  },
+  {
+    id: 'gps_garbage',
+    test: (t) => /0 senten[çc]as v[áa]lidas|bytes descartados/i.test(t) || /[\u00c0-\u00ff]{6,}/.test(t),
+    diagnose: () => [{
+      id: uid(), confidence: CONFIDENCE.HIGH, severity: 'error',
+      title: 'Baud rate descasado na UART do GPS',
+      cause: 'Bytes chegam em volume constante mas viram caracteres ilegíveis: a velocidade serial do firmware não bate com a do módulo. O NEO-6M sai de fábrica em 9600 baud — alinhe o Serial2.begin (ou reconfigure o módulo via UBX).',
+      evidence: ['log: fluxo contínuo de bytes ilegíveis · parser NMEA descartando tudo'],
+      fixes: [
+        fixModule('driver_gps', 'sensor_gps.h'),
+        fixInspect('gps_neo6m'),
+      ],
+    }],
+  },
+  {
+    id: 'gps_no_sky',
+    test: (t) => /\$GPGGA,[^,]*,,,,,0,/.test(t) && /\$GPGSV/.test(t),
+    diagnose: (t) => {
+      const snr = maxGsvSnr(t)
+      if (snr != null && snr < 20) {
+        return [{
+          id: uid(), confidence: CONFIDENCE.HIGH, severity: 'warn',
+          title: 'Sem fix por falta de visada do céu',
+          cause: `Eletrônica saudável (NMEA válido), mas o SNR máximo é ${snr} dBHz — céu aberto entrega 30–45. Com sinal tão fraco o receptor não fecha os 4 satélites mínimos. Mova a antena para perto de janela/área externa ou use antena externa.`,
+          evidence: [`$GPGSV: SNR máximo ${snr} dBHz`, '$GPGGA com indicador de fix = 0'],
+          fixes: [fixInspect('gps_neo6m')],
+        }]
+      }
+      return [{
+        id: uid(), confidence: CONFIDENCE.MED, severity: 'info',
+        title: 'GPS em aquisição',
+        cause: snr != null
+          ? `SNR razoável (${snr} dBHz) e ainda sem fix — provável cold start em andamento. Sem bateria de backup, ~30–60 s de céu aberto são normais.`
+          : 'NMEA fluindo sem fix. Acompanhe as $GPGSV: satélites/SNR subindo = aquisição normal; estagnado e baixo = problema de antena/visada.',
+        evidence: ['$GPGGA com indicador de fix = 0', '$GPGSV presentes (módulo rastreando)'],
+        fixes: [fixInspect('gps_neo6m')],
+      }]
+    },
+  },
+  {
+    id: 'gps_reset_loop',
+    test: (t) => (t.match(/\$GPTXT,01,01,02,u-blox/gi) || []).length >= 2 || /gps reiniciou/i.test(t),
+    diagnose: (t) => {
+      const undervolt = t.match(/(\d\.\d)\s*V no pico/i)
+      return [{
+        id: uid(), confidence: CONFIDENCE.HIGH, severity: 'error',
+        title: 'GPS reiniciando durante a aquisição — alimentação instável',
+        cause: `O banner de boot do u-blox ($GPTXT) reaparece no meio do rastreio: o módulo está resetando. ${undervolt ? `O trilho 3V3 cai a ${undervolt[1]} V sob pico — abaixo da faixa de operação. ` : ''}A aquisição é o momento de maior consumo; reforce a alimentação (fonte dedicada, capacitor de desacoplamento, USB melhor).`,
+        evidence: ['$GPTXT (banner de boot) repetido no meio da operação', ...(undervolt ? [`tensão sob pico: ${undervolt[1]} V`] : [])],
+        fixes: [fixWire2D(), fixInspect('gps_neo6m')],
       }]
     },
   },

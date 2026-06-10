@@ -97,12 +97,27 @@ Mission templates are *generators* of that state, not just labels.
   `analytics/aggregate.json` with a validation summary.
 - **Log Doctor** (`src/debug/logDoctor.js`): the AI debugging assistant —
   a pure signature catalog (sensor not found, empty I²C scan, brownout,
-  crash, reboot loop, …) cross-referenced with the digital twin for
+  crash, reboot loop, GPS: silent UART / baud garbage / low-SNR no-sky /
+  power reset loop) cross-referenced with the digital twin for
   high-confidence diagnoses + fix actions. Async provider seam like the
   copilot (local heuristics now, LLM later). Registered in the debug
   registry as an interactive tool (`ui: 'logdoctor'` → card mapped in
   `DebugPanel.jsx`); user decisions tracked as `debug_session`,
   `suggestion_accepted/rejected`, `fix_applied`.
+- **Training scenarios** (`src/debug/scenarios.js`): guided troubleshooting
+  exercises ("Cenários de treino", debug group `simulation`). Each plants a
+  hidden root cause — TX/RX straight-through (seeded INTO the twin wiring),
+  baud mismatch, no sky view, power dips, or nominal cold start — and
+  streams a realistic NMEA log (valid checksums) into the serial buffer
+  via `trainingTick`. Students investigate across surfaces, take
+  progressive hints, and submit a diagnosis from a shuffled cause catalog;
+  scenarios accept MULTIPLE valid causes/fixes. Store slice `training` +
+  actions; tracked as `scenario_started/hint/submitted/revealed/stopped`.
+- **GPS NEO-6M is a supported component**: UART pins (TX/RX/VCC/GND) with
+  crossing rules in `wiring.js` (TX-em-TX/RX-em-RX errors, remap warnings,
+  `uartPinsFromWires` → `Serial2.begin` pins in the generated
+  `sensor_gps.h`), engineering reference (TTFF, SNR, backup battery) and
+  honest cold-start readings simulation.
 - Key actions: **`toggleHardware`** (single canonical add/remove — syncs plan +
   entities + revalidates), `selectFramework`, `selectObjective` /
   `setObjectiveMetaField`, `setBudget` / `setOverride`, `notify`,
