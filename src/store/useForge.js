@@ -90,11 +90,11 @@ export const MISSION_TEMPLATES = [
 
 export const SECTIONS = [
   { id: 'mission',      label: 'Mission',      icon: 'target'   },
+  { id: 'serialtest',   label: 'Serial Test',  icon: 'lab'      },
   { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
   { id: 'firmware',     label: 'Firmware',     icon: 'code'     },
   { id: 'debug',        label: 'Debug',        icon: 'bug'      },
   { id: 'telemetry',    label: 'Telemetry',    icon: 'activity' },
-  { id: 'serialtest',   label: 'Serial Test',  icon: 'lab'      },
 ]
 
 // ── helpers ───────────────────────────────────────────────────────
