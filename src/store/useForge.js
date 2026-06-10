@@ -60,7 +60,7 @@ export const COMPONENT_DEFS = {
   gps_neo6m: {
     id: 'gps_neo6m', label: 'NEO-6M', friendly: 'Posição GPS',
     category: 'sensor', protocol: 'UART', voltage: '3.3V', mass: 5, current: 50, price: 25,
-    color: '#2A1414', supported: true,
+    color: '#2A1414', comingSoon: true,
     measures: ['position', 'altitude'],
     caps: ['uart', 'gnss', 'position', 'altitude'],
   },
@@ -504,9 +504,14 @@ const useForge = create((set, get) => {
     toggleHardware: (compId) => {
       const def = COMPONENT_DEFS[compId]
       if (!def) return
-      // coming-soon parts stay explorable: explain instead of blocking
-      if (def.comingSoon) { get().comingSoon(def.friendly || def.label); return }
       const s = get()
+      // unsupported parts look normal but only toast — never enter the
+      // mission. Removal of an already-placed part always works.
+      if (def.comingSoon && !s.entities[compId]) {
+        track('coming_soon_click', { featureId: compId })
+        get().notify(`${def.friendly || def.label} · suporte em desenvolvimento`)
+        return
+      }
       if (s.entities[compId]) {
         // remove cleanly: entity, its wires, plan entry, selection
         const entities = { ...s.entities }; delete entities[compId]
