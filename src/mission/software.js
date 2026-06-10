@@ -180,6 +180,38 @@ void mpu6050_read(float accel[3], float gyro[3]) {
 }`,
   },
 
+  {
+    id: 'driver_gps', label: 'Driver · GPS', file: 'sensor_gps.h', layer: 'adaptive', requires: ['gnss'],
+    desc: 'Receptor NEO-6M via UART2 (NMEA). Confira baud e cruzamento TX/RX.',
+    code: (ctx) => {
+      const u = ctx.uart || { rx: 16, tx: 17 }
+      return `// camada: adaptive — adapte baud/pinos à sua montagem
+${ctxWired(ctx, 'gps_neo6m') ? '' : '// AVISO: GPS ainda sem fiação — conecte VCC/GND e cruze TX/RX na vista 2D\n'}#include <TinyGPSPlus.h>
+
+// NEO-6M fala 9600 8N1 de fábrica. Fios CRUZADOS:
+//   TX do GPS → GPIO${u.rx} (RX2)   ·   RX do GPS → GPIO${u.tx} (TX2)
+#define GPS_BAUD   9600
+#define GPS_RX_PIN ${u.rx}   // pino do ESP32 que RECEBE o TX do GPS
+#define GPS_TX_PIN ${u.tx}   // pino do ESP32 que alimenta o RX do GPS
+
+TinyGPSPlus gps;
+
+void gps_init() {
+  Serial2.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+}
+
+bool gps_read() {
+  while (Serial2.available()) gps.encode(Serial2.read());
+  return gps.location.isValid();
+}
+
+double  gps_lat()  { return gps.location.lat(); }
+double  gps_lng()  { return gps.location.lng(); }
+float   gps_alt()  { return gps.altitude.meters(); }
+uint8_t gps_sats() { return gps.satellites.value(); }`
+    },
+  },
+
   // ── mission-specific ─────────────────────────────────────────────
   {
     id: 'app_environment', label: 'Análise ambiental', file: 'app_environment.h', layer: 'mission', requires: ['temperature'],

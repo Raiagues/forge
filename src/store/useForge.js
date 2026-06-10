@@ -2,12 +2,13 @@ import { create } from 'zustand'
 import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
-  validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, i2cAddressFromWires, sameEnd,
+  validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
   SOFTWARE_MODULES,
 } from '../mission/index.js'
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
 import { runLogDoctor } from '../debug/logDoctor.js'
+import { getScenario, randomScenario, scenarioWires } from '../debug/scenarios.js'
 
 // ──────────────────────────────────────────────────────────────────
 // FORGE store — single source of truth for the digital twin.
@@ -56,7 +57,13 @@ export const COMPONENT_DEFS = {
   },
   // ── coming soon — visible but not placeable yet ──────────────────
   ccs811:      { id: 'ccs811',      label: 'CCS811',       friendly: 'Sensor de CO₂ e qualidade do ar', category: 'sensor',  protocol: 'I2C',  address: '0x5A', voltage: '3.3V', mass: 2,  current: 30,  price: 20, color: '#1A2A1A', comingSoon: true, caps: ['i2c', 'co2', 'tvoc', 'air-quality'] },
-  gps_neo6m:   { id: 'gps_neo6m',   label: 'NEO-6M',       friendly: 'Posição GPS',                     category: 'sensor',  protocol: 'UART', voltage: '3.3V', mass: 5,  current: 50,  price: 25, color: '#2A1414', comingSoon: true, caps: ['uart', 'gnss', 'position', 'altitude'] },
+  gps_neo6m: {
+    id: 'gps_neo6m', label: 'NEO-6M', friendly: 'Posição GPS',
+    category: 'sensor', protocol: 'UART', voltage: '3.3V', mass: 5, current: 50, price: 25,
+    color: '#2A1414', supported: true,
+    measures: ['position', 'altitude'],
+    caps: ['uart', 'gnss', 'position', 'altitude'],
+  },
   lora_sx1276: { id: 'lora_sx1276', label: 'SX1276',       friendly: 'Rádio LoRa de longo alcance',     category: 'comm',    protocol: 'SPI',  voltage: '3.3V', mass: 4,  current: 120, price: 35, color: '#2A1E3A', comingSoon: true, caps: ['spi', 'lora', 'rf', 'long-range'] },
   sd_card:     { id: 'sd_card',     label: 'MicroSD',      friendly: 'Cartão de memória',               category: 'storage', protocol: 'SPI',  voltage: '3.3V', mass: 1,  current: 100, price: 8,  color: '#1E2814', comingSoon: true, caps: ['spi', 'storage', 'logging'] },
   lipo_2000:   { id: 'lipo_2000',   label: 'LiPo 2000mAh', friendly: 'Bateria',                         category: 'power',   protocol: null,   voltage: '3.7V', mass: 40, capacity: 2000, price: 30, color: '#2A1E0A', comingSoon: true, caps: ['power', 'battery'] },
@@ -107,6 +114,20 @@ function genReadings(id, status, seq = 0) {
       return { temperature: `${f(rnd(20, 26))} °C`, pressure: `${f(rnd(675, 690), 0)} hPa`, altitude_baro: `${f(rnd(680, 720), 0)} m` }
     case 'mpu6050':
       return { accel_x: f(rnd(-0.03, 0.03), 3), accel_y: f(rnd(-0.03, 0.03), 3), accel_z: f(rnd(0.97, 1.02), 3), gyro_x: `${f(rnd(-0.4, 0.4), 2)} °/s`, temp: `${f(rnd(28, 34))} °C` }
+    case 'gps_neo6m': {
+      // honest cold-start behaviour: satellites accumulate slowly; a fix
+      // only appears after enough of them are tracked (sky view assumed)
+      const sats = Math.min(9, Math.floor(seq / 6) + Math.round(rnd(0, 2)))
+      const fix = sats >= 4
+      return {
+        fix: fix ? '3D fix' : 'sem fix · buscando',
+        satellites: `${sats} visíveis`,
+        latitude: fix ? `${f(rnd(-23.56, -23.55), 5)}` : '—',
+        longitude: fix ? `${f(rnd(-46.74, -46.73), 5)}` : '—',
+        altitude_gps: fix ? `${f(rnd(720, 760), 0)} m` : '—',
+        uart: '9600 8N1 · NMEA',
+      }
+    }
     case 'esp32':
       return { free_heap: `${f(rnd(208, 232), 0)} kB`, wifi_rssi: `${f(rnd(-62, -48), 0)} dBm`, cpu_temp: `${f(rnd(41, 49))} °C`, uptime: `${seq * 3} s` }
     default:
@@ -258,6 +279,7 @@ const useForge = create((set, get) => {
       live: {
         validation, pins: pins.assignments, eco, wiring,
         i2c: i2cPinsFromWires(s.wires),
+        uart: uartPinsFromWires(s.wires),
         // effective I²C address per sensor, derived from the SDO strap
         addrs: Object.fromEntries(
           componentIds.map(id => [id, i2cAddressFromWires(id, s.wires)]).filter(([, v]) => v),
@@ -300,6 +322,9 @@ const useForge = create((set, get) => {
     // ── Log Doctor (AI debugging assistant) ─────────────────────────
     logDoctor: { running: false, result: null, input: '', source: null, ratings: {} },
 
+    // ── training scenario (guided troubleshooting exercise) ─────────
+    training: { scenarioId: null, startedAt: null, stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false },
+
     // ── navigation / selection ──────────────────────────────────────
     setSection: (id) => {
       const prev = get().activeSection
@@ -323,14 +348,14 @@ const useForge = create((set, get) => {
     notify: (message) => set({ notice: { id: ++noticeSeq, message } }),
     clearNotice: () => set({ notice: null }),
 
-    // Coming-soon items stay clickable: open the contextual explanation
-    // panel instead of a dead control. Every open is tracked.
-    openFeatureInfo: (key) => {
-      const info = getFeatureInfo(key)
-      track('coming_soon_click', { featureId: key })
-      if (info) set({ featureInfo: { key, ...info } })
-      else set({ notice: { id: ++noticeSeq, message: 'em desenvolvimento' } })
+    // Coming-soon items stay clickable: a single unified bottom-right toast,
+    // never a modal. `label` is the user-facing feature name.
+    comingSoon: (label) => {
+      track('coming_soon_click', { featureId: label })
+      set({ notice: { id: ++noticeSeq, message: `${label} · em breve` } })
     },
+    // Back-compat shim: any remaining caller routes to the same toast.
+    openFeatureInfo: (key) => get().comingSoon(getFeatureInfo(key)?.title || key),
     closeFeatureInfo: () => set({ featureInfo: null }),
 
     setHwLink: (link) => {
@@ -454,7 +479,7 @@ const useForge = create((set, get) => {
       const def = COMPONENT_DEFS[compId]
       if (!def) return
       // coming-soon parts stay explorable: explain instead of blocking
-      if (def.comingSoon) { get().openFeatureInfo(compId); return }
+      if (def.comingSoon) { get().comingSoon(def.friendly || def.label); return }
       const s = get()
       if (s.entities[compId]) {
         // remove cleanly: entity, its wires, plan entry, selection
@@ -729,6 +754,83 @@ const useForge = create((set, get) => {
       const finding = s.logDoctor.result?.findings.find(f => f.id === findingId)
       track(accepted ? 'suggestion_accepted' : 'suggestion_rejected', { target: finding?.title || findingId })
       set({ logDoctor: { ...s.logDoctor, ratings: { ...s.logDoctor.ratings, [findingId]: accepted } } })
+    },
+
+    // ────────────────────────────────────────────────────────────────
+    // Training scenarios — guided troubleshooting. The scenario seeds
+    // the twin (including planted wiring faults) and streams a realistic
+    // device log; students investigate and submit a diagnosis. Multiple
+    // accepted causes/fixes per scenario; every step is tracked.
+    // ────────────────────────────────────────────────────────────────
+    startTrainingScenario: (id = null) => {
+      const scenario = id ? getScenario(id) : randomScenario()
+      if (!scenario) return
+      // ensure the exercise hardware is on the board
+      if (!get().entities.esp32) get().toggleHardware('esp32')
+      if (!get().entities.gps_neo6m) get().toggleHardware('gps_neo6m')
+      // seed the twin: replace the GPS wires with the scenario's (which
+      // may contain the planted fault, e.g. TX straight-through)
+      const s = get()
+      const wires = [
+        ...s.wires.filter(w => w.from.comp !== 'gps_neo6m' && w.to.comp !== 'gps_neo6m'),
+        ...scenarioWires(scenario),
+      ]
+      track('scenario_started', { target: scenario.id })
+      set(recomputeLive({
+        wires,
+        training: { scenarioId: scenario.id, startedAt: Date.now(), stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false },
+        serialLog: [{ t: clock(0), m: `cenário de treino iniciado · ${scenario.title}`, cls: 'info' }],
+      }))
+    },
+
+    // advance the scenario log one step; returns the delay until the
+    // next step (ms) or null when the stream is done. Repeating
+    // scenarios loop back past the boot banner, like a real device.
+    trainingTick: () => {
+      const { training } = get()
+      const scenario = getScenario(training.scenarioId)
+      if (!scenario) return null
+      let idx = training.stepIdx
+      if (idx >= scenario.steps.length) {
+        const last = scenario.steps[scenario.steps.length - 1]
+        if (!/repete/.test(last.m)) return null
+        idx = 2 // loop past the boot banner
+      }
+      const step = scenario.steps[idx]
+      get().pushSerial({ m: step.m, cls: step.cls })
+      set(st => ({ training: { ...st.training, stepIdx: idx + 1 } }))
+      const next = scenario.steps[idx + 1] || (/repete/.test(scenario.steps[scenario.steps.length - 1].m) ? scenario.steps[2] : null)
+      return next ? next.d : null
+    },
+
+    useTrainingHint: () => {
+      const { training } = get()
+      const scenario = getScenario(training.scenarioId)
+      if (!scenario || training.hintsUsed >= scenario.hints.length) return
+      track('scenario_hint', { target: scenario.id, hint: training.hintsUsed + 1 })
+      set(st => ({ training: { ...st.training, hintsUsed: st.training.hintsUsed + 1 } }))
+    },
+
+    submitTrainingDiagnosis: (causeId, notes = '') => {
+      const { training } = get()
+      const scenario = getScenario(training.scenarioId)
+      if (!scenario) return
+      const ok = scenario.accepted.includes(causeId)
+      const elapsedS = Math.round((Date.now() - training.startedAt) / 1000)
+      track('scenario_submitted', { target: scenario.id, cause: causeId, ok, elapsedS, hints: training.hintsUsed })
+      set(st => ({ training: { ...st.training, submissions: [...st.training.submissions, { causeId, ok, notes }] } }))
+      return ok
+    },
+
+    revealTraining: () => {
+      const { training } = get()
+      track('scenario_revealed', { target: training.scenarioId, solved: training.submissions.some(s => s.ok) })
+      set(st => ({ training: { ...st.training, revealed: true } }))
+    },
+
+    stopTrainingScenario: () => {
+      track('scenario_stopped', { target: get().training.scenarioId })
+      set({ training: { scenarioId: null, startedAt: null, stepIdx: 0, hintsUsed: 0, submissions: [], revealed: false } })
     },
 
     // execute a suggested fix (wiring action, open code module, inspect)

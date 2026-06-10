@@ -26,6 +26,7 @@ const PIN_ROLE_COLOR = {
   power3v3: '#C8831A', vcc: '#C8831A', gnd: '#3E3A34',
   sda: '#2B5EA7', scl: '#2B5EA7', gpio: '#5A6B7A',
   csb: '#7A736A', sdo: '#7A736A',
+  uart_tx: '#963020', uart_rx: '#963020',
 }
 
 const PIN_SPACING = 24

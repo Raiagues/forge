@@ -38,6 +38,7 @@ export default function FirmwarePanel() {
     missionName: missionPlan.name || mission.label,
     rateHz: parseFloat(objective?.meta?.rateHz) || 1,
     i2c: live?.i2c,
+    uart: live?.uart,
     wiring: live?.wiring,
     addrs: live?.addrs,
   }

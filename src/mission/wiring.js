@@ -20,8 +20,8 @@ export const COMPONENT_PINS = {
     { id: 'GND',    role: 'gnd',      note: 'terra' },
     { id: 'GPIO21', role: 'gpio', i2c: 'sda', note: 'SDA padrão (I²C)' },
     { id: 'GPIO22', role: 'gpio', i2c: 'scl', note: 'SCL padrão (I²C)' },
-    { id: 'GPIO16', role: 'gpio', note: 'RX2 (UART2)' },
-    { id: 'GPIO17', role: 'gpio', note: 'TX2 (UART2)' },
+    { id: 'GPIO16', role: 'gpio', uart: 'rx', note: 'RX2 (UART2) — recebe o TX do periférico' },
+    { id: 'GPIO17', role: 'gpio', uart: 'tx', note: 'TX2 (UART2) — envia para o RX do periférico' },
     { id: 'GPIO18', role: 'gpio', note: 'SCK (VSPI)' },
     { id: 'GPIO19', role: 'gpio', note: 'MISO (VSPI)' },
     { id: 'GPIO23', role: 'gpio', note: 'MOSI (VSPI)' },
@@ -42,6 +42,14 @@ export const COMPONENT_PINS = {
     { id: 'SDA', role: 'sda', note: 'dados I²C' },
     { id: 'SDO', role: 'sdo', note: 'seleção de endereço (AD0) · GND=0x68 · 3V3=0x69' },
   ],
+  // UART device: TX/RX must be CROSSED to the ESP32 (TX→RX2, RX→TX2) —
+  // straight-through TX→TX is the classic bring-up mistake.
+  gps_neo6m: [
+    { id: 'VCC', role: 'vcc', note: 'alimentação (2.7–3.6 V)' },
+    { id: 'GND', role: 'gnd', note: 'terra' },
+    { id: 'TX', role: 'uart_tx', note: 'saída NMEA do GPS → vai ao RX2 do ESP32 (GPIO16)' },
+    { id: 'RX', role: 'uart_rx', note: 'entrada de comandos do GPS → vem do TX2 do ESP32 (GPIO17)' },
+  ],
 }
 
 // I²C address straps: { compId: [addr SDO=GND, addr SDO=3V3] }
@@ -52,22 +60,26 @@ const endKey = (e) => `${e.comp}.${e.pin}`
 export const sameEnd = (a, b) => a.comp === b.comp && a.pin === b.pin
 
 // Standard wiring suggestion per sensor (used by "auto-connect").
+// I2C devices share the default bus; UART devices CROSS to UART2.
 export function autoWiresFor(compId) {
   if (!COMPONENT_PINS[compId] || compId === 'esp32') return []
-  return [
-    { from: { comp: compId, pin: 'VCC' }, to: { comp: 'esp32', pin: '3V3' } },
-    { from: { comp: compId, pin: 'GND' }, to: { comp: 'esp32', pin: 'GND' } },
-    { from: { comp: compId, pin: 'SDA' }, to: { comp: 'esp32', pin: 'GPIO21' } },
-    { from: { comp: compId, pin: 'SCL' }, to: { comp: 'esp32', pin: 'GPIO22' } },
-  ]
+  const W = (pin, espPin) => ({ from: { comp: compId, pin }, to: { comp: 'esp32', pin: espPin } })
+  const pins = COMPONENT_PINS[compId].map(p => p.id)
+  const out = [W('VCC', '3V3'), W('GND', 'GND')]
+  if (pins.includes('SDA')) out.push(W('SDA', 'GPIO21'))
+  if (pins.includes('SCL')) out.push(W('SCL', 'GPIO22'))
+  if (pins.includes('TX')) out.push(W('TX', 'GPIO16'))   // device TX → ESP32 RX2
+  if (pins.includes('RX')) out.push(W('RX', 'GPIO17'))   // device RX → ESP32 TX2
+  return out
 }
 
-// Classify a wire for coloring: power | gnd | i2c | other
+// Classify a wire for coloring: power | gnd | i2c | uart | other
 export function wireNet(w) {
   const roles = [pinDef(w.from.comp, w.from.pin)?.role, pinDef(w.to.comp, w.to.pin)?.role]
   if (roles.includes('power3v3') || roles.includes('vcc')) return 'power'
   if (roles.every(r => r === 'gnd')) return 'gnd'
   if (roles.includes('sda') || roles.includes('scl')) return 'i2c'
+  if (roles.includes('uart_tx') || roles.includes('uart_rx')) return 'uart'
   return 'other'
 }
 
@@ -137,6 +149,44 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
           severity: 'warn', wireIndex: idx, targets: [comp],
           title: `${strapEnd.id} em pino de dados`,
           detail: `${strapEnd.id} é um pino de configuração: ligue-o ao GND ou ao 3V3 para fixar o estado, não a um GPIO.`,
+        })
+      }
+      return
+    }
+    // UART pins: TX/RX must be CROSSED (device TX → ESP32 RX2, device RX
+    // → ESP32 TX2). Straight-through is the classic GPS bring-up mistake.
+    const uartEnd = ['uart_tx', 'uart_rx'].includes(a.role) ? a : (['uart_tx', 'uart_rx'].includes(b.role) ? b : null)
+    if (uartEnd) {
+      const other = uartEnd === a ? b : a
+      if (other.role !== 'gpio') {
+        push({
+          severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: `${uartEnd.id} fora de um GPIO`,
+          detail: `${uartEnd.id} é um sinal serial e precisa ir a um GPIO do ESP32 (padrão: TX→GPIO16, RX→GPIO17).`,
+        })
+      } else if (uartEnd.role === 'uart_tx' && other.uart === 'tx') {
+        push({
+          severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: 'TX ligado em TX — fios UART não cruzados',
+          detail: 'O TX do dispositivo transmite e precisa entrar no RX2 do ESP32 (GPIO16). Dois transmissores no mesmo fio = nenhum dado chega. Cruze: TX→GPIO16, RX→GPIO17.',
+        })
+      } else if (uartEnd.role === 'uart_rx' && other.uart === 'rx') {
+        push({
+          severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: 'RX ligado em RX — fios UART não cruzados',
+          detail: 'O RX do dispositivo recebe e precisa vir do TX2 do ESP32 (GPIO17). Cruze: TX→GPIO16, RX→GPIO17.',
+        })
+      } else if (uartEnd.role === 'uart_rx' && other.inputOnly) {
+        push({
+          severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: `${other.id} é somente entrada`,
+          detail: `O RX do dispositivo precisa ser alimentado por um TX do ESP32 — ${other.id} não tem driver de saída.`,
+        })
+      } else if (!other.uart) {
+        push({
+          severity: 'warn', wireIndex: idx, targets: [w.from.comp],
+          title: `UART remapeada para ${other.id}`,
+          detail: `Funciona — o ESP32 remapeia a UART2 — mas o padrão é GPIO16/17. O código gerado usará ${other.id}.`,
         })
       }
       return
@@ -234,8 +284,9 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
     const st = wiringStatus(id, wires)
     if (!st.wired) {
       const missing = []
+      const isUart = COMPONENT_PINS[id].some(p => p.id === 'TX')
       if (!st.powered) missing.push('alimentação (VCC→3V3, GND→GND)')
-      if (!st.data) missing.push('barramento I²C (SDA→GPIO21, SCL→GPIO22)')
+      if (!st.data) missing.push(isUart ? 'serial UART (TX→GPIO16, RX→GPIO17, cruzados)' : 'barramento I²C (SDA→GPIO21, SCL→GPIO22)')
       push({
         severity: 'warn', targets: [id],
         title: `${defs?.[id]?.label || id} sem fiação`,
@@ -265,9 +316,18 @@ export function wiringStatus(compId, wires = []) {
   }
 
   const powered = ok('VCC', d => d.role === 'power3v3') && ok('GND', d => d.role === 'gnd')
-  // SDA/SCL must land on an I²C-capable GPIO (output driver required)
-  const data = ok('SDA', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'sda'))
-            && ok('SCL', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'scl'))
+
+  const pins = COMPONENT_PINS[compId].map(p => p.id)
+  let data
+  if (pins.includes('TX')) {
+    // UART device: receiving NMEA only needs device TX → an ESP32 RX-capable
+    // GPIO (crossed). Device RX is optional (config commands only).
+    data = ok('TX', d => d.role === 'gpio' && (!d.uart || d.uart === 'rx'))
+  } else {
+    // I²C device: SDA/SCL must land on I²C-capable GPIOs (output required)
+    data = ok('SDA', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'sda'))
+        && ok('SCL', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'scl'))
+  }
   return { powered, data, wired: powered && data }
 }
 
@@ -289,6 +349,23 @@ export function i2cAddressFromWires(compId, wires = []) {
   const d = pinDef(other.comp, other.pin)
   if (d?.role === 'power3v3' || d?.role === 'vcc') return { addr: straps[1], strap: 'SDO=3V3' }
   return { addr: straps[0], strap: 'SDO=GND' }
+}
+
+// UART2 GPIOs the user actually wired (for the code generator):
+// rx = ESP32 pin receiving the device's TX, tx = pin feeding its RX.
+export function uartPinsFromWires(wires = []) {
+  let rx = 16, tx = 17
+  for (const w of wires) {
+    for (const [end, other] of [[w.from, w.to], [w.to, w.from]]) {
+      const d = pinDef(end.comp, end.pin)
+      const od = pinDef(other.comp, other.pin)
+      if (od?.role !== 'gpio') continue
+      const n = parseInt(other.pin.replace('GPIO', ''), 10)
+      if (d?.role === 'uart_tx' && Number.isFinite(n)) rx = n
+      if (d?.role === 'uart_rx' && Number.isFinite(n)) tx = n
+    }
+  }
+  return { rx, tx }
 }
 
 // I²C GPIOs the user actually wired (for the code generator).

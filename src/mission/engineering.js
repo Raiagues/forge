@@ -79,4 +79,34 @@ export const ENGINEERING = {
   },
 }
 
+ENGINEERING.gps_neo6m = {
+  overview: 'Receptor GNSS u-blox NEO-6M. Emite sentenças NMEA pela UART (9600 8N1 padrão) a 1 Hz. A aquisição de satélites depende de visada do céu, qualidade da antena e alimentação estável.',
+  bus: ['UART', '9600 baud padrão · TX/RX CRUZADOS com o ESP32'],
+  ranges: [
+    ['Tensão de operação', '2.7 – 3.6 V (módulo com regulador: 3.3–5 V)'],
+    ['Corrente (aquisição)', '~45–67 mA — picos na busca de satélites'],
+    ['Sensibilidade (rastreio)', '-161 dBm'],
+    ['TTFF cold start', '~27 s típico (céu aberto) · minutos em local ruim'],
+    ['TTFF hot start', '~1 s (com bateria de backup carregada)'],
+    ['Taxa de atualização', '1 Hz (até 5 Hz configurável)'],
+  ],
+  struct: `struct GpsSample {
+  double  lat, lng;     // graus decimais
+  float   altitude;     // m (MSL)
+  uint8_t satellites;   // em uso no fix
+  bool    valid;        // fix 2D/3D obtido
+};`,
+  expected: [
+    ['Céu aberto, cold start', 'fix em ~30–60 s · 6–12 satélites'],
+    ['Perto de janela', 'fix em minutos · 4–6 satélites · SNR baixo'],
+    ['Ambiente interno', 'normalmente SEM fix · 0–3 satélites'],
+  ],
+  notes: [
+    'Sem fix não significa defeito: dentro de prédios o sinal (-130 dBm) raramente chega.',
+    'O LED do módulo pisca apenas QUANDO há fix — LED apagado com NMEA fluindo é normal na busca.',
+    'A bateria de backup mantém efemérides: sem ela todo boot é cold start (~30 s+).',
+    'Sentenças $GPGSV mostram satélites e SNR mesmo sem fix — é o melhor sinal de diagnóstico.',
+  ],
+}
+
 export const engineeringFor = (id) => ENGINEERING[id] || null
