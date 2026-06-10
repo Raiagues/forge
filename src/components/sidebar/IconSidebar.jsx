@@ -22,7 +22,7 @@ export default function IconSidebar() {
   const hasErr = (v?.summary.errors > 0 && list.length > 0) || list.some(e => e.status === STATUS.ERR)
   const hasWarn = (v?.summary.warnings > 0 && list.length > 0) || list.some(e => e.status === STATUS.WARN)
   const issueLevel = hasErr ? 'err' : hasWarn ? 'warn' : null
-  const ISSUE_SECTIONS = { hardware: issueLevel, architecture: issueLevel, debug: issueLevel }
+  const ISSUE_SECTIONS = { architecture: issueLevel, debug: issueLevel }
 
   // user-testing mode (./start_test_user.sh): hide developer-facing
   // sections from the rail so testers see only the product workflow

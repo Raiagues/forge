@@ -6,27 +6,18 @@ import Statusbar   from './components/panels/Statusbar'
 import Drawer      from './components/panels/Drawer'
 import MissionSection from './components/panels/MissionSection'
 import TelemetryPanel from './components/panels/TelemetryPanel'
-import FirmwarePanel  from './components/panels/FirmwarePanel'
 import DebugPanel     from './components/panels/DebugPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
-import HardwareViews from './components/canvas/HardwareViews'
 import SerialTest from './components/panels/SerialTest'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
 
-function HardwareSection({ section, hasEntities }) {
-  if (!hasEntities) return <EmptyState section={section} />
-  return <HardwareViews />
-}
-
 // Section → main-area content. Every section resolves to a real view.
-function SectionContent({ section, hasEntities }) {
+function SectionContent({ section }) {
   switch (section) {
     case 'mission':      return <MissionSection />
-    case 'hardware':     return <HardwareSection section="Hardware" hasEntities={hasEntities} />
     case 'debug':        return <DebugPanel />
     case 'architecture': return <ArchitecturePanel />
-    case 'firmware':     return <FirmwarePanel />
     case 'telemetry':    return <TelemetryPanel />
     case 'serialtest':   return <SerialTest />
     case 'analytics':    return <AnalyticsPanel />
@@ -59,7 +50,6 @@ function Toast() {
 export default function App() {
   const activeSection = useForge(s => s.activeSection)
   const simulateTick  = useForge(s => s.simulateTick)
-  const hasEntities   = useForge(s => Object.keys(s.entities).length > 0)
 
   // global telemetry heartbeat
   useEffect(() => {
@@ -75,7 +65,7 @@ export default function App() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minWidth: 0 }}>
           <Topbar />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            <SectionContent section={activeSection} hasEntities={hasEntities} />
+            <SectionContent section={activeSection} />
             <Drawer />
             <Toast />
           </div>

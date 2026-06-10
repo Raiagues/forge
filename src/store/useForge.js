@@ -91,8 +91,6 @@ export const MISSION_TEMPLATES = [
 export const SECTIONS = [
   { id: 'mission',      label: 'Mission',      icon: 'target'   },
   { id: 'serialtest',   label: 'Serial Test',  icon: 'lab'      },
-  { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
-  { id: 'firmware',     label: 'Firmware',     icon: 'code'     },
   { id: 'debug',        label: 'Debug',        icon: 'bug'      },
   { id: 'telemetry',    label: 'Telemetry',    icon: 'activity' },
 ]
@@ -456,7 +454,7 @@ const useForge = create((set, get) => {
         wires,
         selectedId: null,
         drawerOpen: false,
-        activeSection: 'hardware',
+        activeSection: 'serialtest',
         seq: 0,
         telemetry: [],
         serialLog: [
@@ -743,7 +741,7 @@ const useForge = create((set, get) => {
     setActiveModule: (id) => { track('module_open', { target: id }); set({ activeModuleId: id }) },
     openModuleInFirmware: (id) => {
       track('module_open', { target: id })
-      set({ activeModuleId: id, activeSection: 'firmware' })
+      set({ activeModuleId: id, activeSection: 'serialtest' })
     },
     setFirmwareEdit: (moduleId, code) => set(s => {
       if (s.firmwareEdits[moduleId] == null) track('fw_edit', { target: moduleId })
@@ -806,9 +804,9 @@ const useForge = create((set, get) => {
       track('fix_applied', { target: `${fix.kind} · ${fix.label}`, finding: findingTitle })
       const a = fix.action || {}
       if (a.type === 'autowire') { get().autoWire(a.compId) }
-      else if (a.type === 'open2d') { set({ hardwareView: '2d', activeSection: 'hardware' }) }
+      else if (a.type === 'open2d') { set({ hardwareView: '2d', activeSection: 'serialtest' }) }
       else if (a.type === 'module') { get().openModuleInFirmware(a.moduleId) }
-      else if (a.type === 'inspect') { set({ activeSection: 'hardware' }); get().selectEntity(a.compId) }
+      else if (a.type === 'inspect') { set({ activeSection: 'serialtest' }); get().selectEntity(a.compId) }
       else get().notify('verifique manualmente e rode o diagnóstico de novo')
     },
 
@@ -836,7 +834,7 @@ const useForge = create((set, get) => {
         },
         entities,
         seq: 0, telemetry: [],
-        activeSection: 'hardware',
+        activeSection: 'serialtest',
         workflowStep: 'architecture',
         serialLog: [
           { t: clock(0), m: `arquitetura gerada · ${ids.length} módulos`, cls: 'info' },
