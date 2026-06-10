@@ -25,6 +25,8 @@ const ctxHave = (ctx, id) => (ctx.componentIds || []).includes(id)
 const ctxI2c = (ctx) => ctx.i2c || { sda: 21, scl: 22 }
 // honest generation: drivers warn when the sensor isn't wired yet
 const ctxWired = (ctx, id) => !ctx.wiring || ctx.wiring[id]?.wired
+// I²C address derived from the SDO strap the user actually wired
+const ctxAddr = (ctx, id, fallback) => ctx.addrs?.[id]?.addr || fallback
 
 export const SOFTWARE_MODULES = [
   // ── core ─────────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ float power_voltage() {
     code: (ctx) => `// camada: adaptive — adapte a pressão de referência local
 ${ctxWired(ctx, 'bmp280') ? '' : '// AVISO: BMP280 ainda sem fiação — conecte VCC/GND/SDA/SCL na vista 2D\n'}#include <Adafruit_BMP280.h>
 
-#define BMP_I2C_ADDR    0x76
+#define BMP_I2C_ADDR    ${ctxAddr(ctx, 'bmp280', '0x76')}  // derivado do strap SDO da sua fiação
 #define SEA_LEVEL_HPA   1013.25  // adapte para o dia do voo
 
 Adafruit_BMP280 bmp;  // SDA→GPIO${ctxI2c(ctx).sda} · SCL→GPIO${ctxI2c(ctx).scl} (fiação atual)
@@ -161,10 +163,11 @@ float bmp280_altitude() { return bmp.readAltitude(SEA_LEVEL_HPA); }`,
     code: (ctx) => `// camada: adaptive — calibre com o sensor parado
 ${ctxWired(ctx, 'mpu6050') ? '' : '// AVISO: MPU6050 ainda sem fiação — conecte VCC/GND/SDA/SCL na vista 2D\n'}#include <Adafruit_MPU6050.h>
 
-Adafruit_MPU6050 mpu;  // SDA→GPIO${ctxI2c(ctx).sda} · SCL→GPIO${ctxI2c(ctx).scl} · addr 0x68
+Adafruit_MPU6050 mpu;  // SDA→GPIO${ctxI2c(ctx).sda} · SCL→GPIO${ctxI2c(ctx).scl}
 
 void mpu6050_init() {
-  if (!mpu.begin()) Serial.println("MPU6050 não encontrado!");
+  // endereço derivado do strap SDO/AD0 da sua fiação
+  if (!mpu.begin(${ctxAddr(ctx, 'mpu6050', '0x68')})) Serial.println("MPU6050 não encontrado!");
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
 }

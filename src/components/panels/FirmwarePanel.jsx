@@ -39,6 +39,7 @@ export default function FirmwarePanel() {
     rateHz: parseFloat(objective?.meta?.rateHz) || 1,
     i2c: live?.i2c,
     wiring: live?.wiring,
+    addrs: live?.addrs,
   }
   const generated = moduleCode(current, ctx)
   const code = firmwareEdits[current.id] ?? generated

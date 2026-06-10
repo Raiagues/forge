@@ -28,18 +28,24 @@ export const COMPONENT_PINS = {
     { id: 'GPIO34', role: 'gpio', inputOnly: true, note: 'ADC1_CH6 · somente entrada' },
   ],
   bmp280: [
-    { id: 'VCC', role: 'vcc', note: 'alimentação (3.3V)' },
+    { id: 'VCC', role: 'vcc', note: 'alimentação (1.71–3.6 V)' },
     { id: 'GND', role: 'gnd', note: 'terra' },
     { id: 'SCL', role: 'scl', note: 'clock I²C' },
     { id: 'SDA', role: 'sda', note: 'dados I²C' },
+    { id: 'CSB', role: 'csb', note: 'seleção de protocolo · 3V3 ou solto = I²C' },
+    { id: 'SDO', role: 'sdo', note: 'seleção de endereço · GND=0x76 · 3V3=0x77' },
   ],
   mpu6050: [
-    { id: 'VCC', role: 'vcc', note: 'alimentação (3.3V)' },
+    { id: 'VCC', role: 'vcc', note: 'alimentação (2.375–3.46 V)' },
     { id: 'GND', role: 'gnd', note: 'terra' },
     { id: 'SCL', role: 'scl', note: 'clock I²C' },
     { id: 'SDA', role: 'sda', note: 'dados I²C' },
+    { id: 'SDO', role: 'sdo', note: 'seleção de endereço (AD0) · GND=0x68 · 3V3=0x69' },
   ],
 }
+
+// I²C address straps: { compId: [addr SDO=GND, addr SDO=3V3] }
+const ADDR_STRAPS = { bmp280: ['0x76', '0x77'], mpu6050: ['0x68', '0x69'] }
 
 export const pinDef = (comp, pin) => (COMPONENT_PINS[comp] || []).find(p => p.id === pin) || null
 const endKey = (e) => `${e.comp}.${e.pin}`
@@ -90,30 +96,52 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
     if ((roles === 'gnd+power3v3') || (roles === 'gnd+vcc')) {
       push({
         severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
-        title: 'Curto-circuito: alimentação → GND',
+        title: '3V3 conectado ao GND — curto-circuito',
         detail: `${w.from.pin} (${w.from.comp}) ligado a ${w.to.pin} (${w.to.comp}) cria um curto entre 3.3V e terra. Isso danificaria o hardware real.`,
       })
       return
     }
     // power pin into a data GPIO
-    if ((a.role === 'vcc' && b.role === 'gpio') || (b.role === 'vcc' && a.role === 'gpio')) {
+    if ((a.role === 'vcc' && b.role === 'gpio') || (b.role === 'vcc' && a.role === 'gpio')
+      || (a.role === 'power3v3' && b.role === 'gpio') || (b.role === 'power3v3' && a.role === 'gpio')) {
       push({
         severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
-        title: 'Alimentação em pino de dados',
-        detail: 'VCC deve ir ao pino 3V3 do ESP32, não a um GPIO. Um GPIO não fornece corrente suficiente e pode ser danificado.',
+        title: 'GPIO usado como alimentação — tensão incorreta',
+        detail: 'Pinos de alimentação devem ir ao 3V3 do ESP32, não a um GPIO. Um GPIO não fornece corrente suficiente e pode ser danificado.',
       })
       return
     }
-    // GND must go to GND
-    if ((a.role === 'gnd') !== (b.role === 'gnd')) {
+    // two positive power pins tied together: unusual, not a hard error
+    if (roles === 'vcc+vcc') {
       push({
-        severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
-        title: 'GND mal conectado',
-        detail: 'O pino GND do sensor precisa ir ao GND do ESP32 para fechar o circuito de referência.',
+        severity: 'warn', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+        title: 'Ligação incomum entre alimentações',
+        detail: 'Dois pinos de alimentação ligados entre si não alimentam os sensores. Cada VCC deve ir ao 3V3 do ESP32.',
       })
       return
     }
-    // I²C data pins must land on a GPIO
+    // strap pins (CSB protocol-select, SDO address-select) — evaluated
+    // before the GND rule because GND is a VALID strap target.
+    const strapEnd = ['csb', 'sdo'].includes(a.role) ? a : (['csb', 'sdo'].includes(b.role) ? b : null)
+    if (strapEnd) {
+      const other = strapEnd === a ? b : a
+      const comp = pinDef(w.from.comp, w.from.pin) === strapEnd ? w.from.comp : w.to.comp
+      if (strapEnd.role === 'csb' && other.role === 'gnd') {
+        push({
+          severity: 'warn', wireIndex: idx, targets: [comp],
+          title: 'CSB em GND seleciona modo SPI',
+          detail: 'Com CSB em GND o BMP280 entra em modo SPI. Para I²C, ligue CSB ao 3V3 ou deixe-o solto.',
+        })
+      } else if (!['gnd', 'power3v3', 'vcc'].includes(other.role)) {
+        push({
+          severity: 'warn', wireIndex: idx, targets: [comp],
+          title: `${strapEnd.id} em pino de dados`,
+          detail: `${strapEnd.id} é um pino de configuração: ligue-o ao GND ou ao 3V3 para fixar o estado, não a um GPIO.`,
+        })
+      }
+      return
+    }
+    // I²C data pins must land on an SDA/SCL-capable GPIO (output required)
     const i2cEnd = a.role === 'sda' || a.role === 'scl' ? a : (b.role === 'sda' || b.role === 'scl' ? b : null)
     if (i2cEnd) {
       const other = i2cEnd === a ? b : a
@@ -123,10 +151,16 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
           title: `${i2cEnd.id} fora de um GPIO`,
           detail: `${i2cEnd.id} é um sinal I²C e precisa ir a um GPIO do ESP32 (padrão: SDA→GPIO21, SCL→GPIO22).`,
         })
-      } else if (other.i2c && other.i2c !== i2cEnd.role) {
+      } else if (other.inputOnly) {
         push({
           severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
-          title: 'SDA/SCL invertidos',
+          title: `${other.id} é somente entrada`,
+          detail: `${other.id} não tem driver de saída — o I²C exige um GPIO com saída. Use GPIO21/22 ou outro GPIO comum.`,
+        })
+      } else if (other.i2c && other.i2c !== i2cEnd.role) {
+        push({
+          severity: 'warn', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+          title: 'SDA e SCL invertidos',
           detail: `${i2cEnd.id} foi ligado a ${other.id}, que é o pino ${other.i2c.toUpperCase()} padrão. Troque: SDA→GPIO21, SCL→GPIO22.`,
         })
       } else if (!other.i2c) {
@@ -136,6 +170,34 @@ export function validateWires({ defs, wires = [], componentIds = [] }) {
           detail: `Funciona — o ESP32 permite remapear o barramento — mas o padrão é GPIO21/22. O código gerado usará ${other.id}.`,
         })
       }
+      return
+    }
+    // GND must go to GND
+    if ((a.role === 'gnd') !== (b.role === 'gnd')) {
+      push({
+        severity: 'error', wireIndex: idx, targets: [w.from.comp, w.to.comp],
+        title: 'GND mal conectado',
+        detail: 'O pino GND do sensor precisa ir ao GND do ESP32 para fechar o circuito de referência.',
+      })
+    }
+  })
+
+  // one ESP32 GPIO carrying both SDA and SCL roles across wires
+  const gpioRoles = {}
+  wires.forEach((w, idx) => {
+    for (const [end, other] of [[w.from, w.to], [w.to, w.from]]) {
+      if (end.comp !== 'esp32') continue
+      const d = pinDef(end.comp, end.pin)
+      const od = pinDef(other.comp, other.pin)
+      if (d?.role !== 'gpio' || !od || !['sda', 'scl'].includes(od.role)) continue
+      const prev = gpioRoles[end.pin]
+      if (prev && prev !== od.role) {
+        push({
+          severity: 'error', wireIndex: idx, targets: [other.comp],
+          title: `${end.pin} compartilhado entre SDA e SCL`,
+          detail: `O ${end.pin} já carrega ${prev.toUpperCase()} de outro sensor. SDA e SCL precisam de GPIOs distintos.`,
+        })
+      } else gpioRoles[end.pin] = od.role
     }
   })
 
@@ -203,8 +265,9 @@ export function wiringStatus(compId, wires = []) {
   }
 
   const powered = ok('VCC', d => d.role === 'power3v3') && ok('GND', d => d.role === 'gnd')
-  const data = ok('SDA', d => d.role === 'gpio' && (!d.i2c || d.i2c === 'sda'))
-            && ok('SCL', d => d.role === 'gpio' && (!d.i2c || d.i2c === 'scl'))
+  // SDA/SCL must land on an I²C-capable GPIO (output driver required)
+  const data = ok('SDA', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'sda'))
+            && ok('SCL', d => d.role === 'gpio' && !d.inputOnly && (!d.i2c || d.i2c === 'scl'))
   return { powered, data, wired: powered && data }
 }
 
@@ -212,6 +275,20 @@ export function wiringStatusAll(componentIds, wires) {
   const out = {}
   for (const id of componentIds) out[id] = wiringStatus(id, wires)
   return out
+}
+
+// Effective I²C address of a sensor, derived from how its SDO strap is
+// wired. Breakout boards pull SDO low by default → first address.
+export function i2cAddressFromWires(compId, wires = []) {
+  const straps = ADDR_STRAPS[compId]
+  if (!straps) return null
+  const w = wires.find(w =>
+    (w.from.comp === compId && w.from.pin === 'SDO') || (w.to.comp === compId && w.to.pin === 'SDO'))
+  if (!w) return { addr: straps[0], strap: 'SDO solto (pull-down da placa)' }
+  const other = (w.from.comp === compId && w.from.pin === 'SDO') ? w.to : w.from
+  const d = pinDef(other.comp, other.pin)
+  if (d?.role === 'power3v3' || d?.role === 'vcc') return { addr: straps[1], strap: 'SDO=3V3' }
+  return { addr: straps[0], strap: 'SDO=GND' }
 }
 
 // I²C GPIOs the user actually wired (for the code generator).
