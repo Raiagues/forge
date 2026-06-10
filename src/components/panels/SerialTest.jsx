@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useForge from '../../store/useForge'
 import CodeEditor from '../ui/CodeEditor'
+import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the FORGE
@@ -250,6 +251,7 @@ export default function SerialTest() {
   // single store touchpoint: report the REAL link state so the rest of
   // the platform can honestly distinguish hardware from simulation.
   const setHwLink = useForge(s => s.setHwLink)
+  const wires = useForge(s => s.wires)
   const [connected, setConnected] = useState(false)
   const [code, setCode] = useState(BMP_SKETCH)
   const [flashing, setFlashing] = useState(false)
@@ -260,7 +262,7 @@ export default function SerialTest() {
   const [input, setInput] = useState('')
   const [tab, setTab] = useState('serial')
   const [stages, setStages] = useState({})
-  const [hw, setHw] = useState({ sda: 21, scl: 22, oled: null, bmp: null, i2c: null, oledOk: false })
+  const [hw, setHw] = useState({ sda: 21, scl: 22, oled: null, bmp: null, i2c: null, oledOk: false, found: [] })
   const [chip, setChip] = useState(null)
   const [reading, setReading] = useState(null)
 
@@ -293,12 +295,16 @@ export default function SerialTest() {
       note('Placa reiniciou — recuperando stream serial')
     }
     if (/=== ESP32 START ===/.test(line)) { setStage('active', ST_DONE); setStage('board', ST_DONE); note('Handshake da placa estabelecido') }
-    if (/Scanning I2C/i.test(line)) note('Varredura I2C iniciada')
+    if (/Scanning I2C/i.test(line)) { setHw((h) => ({ ...h, i2c: null, found: [] })); note('Varredura I2C iniciada') }
     let m = line.match(/Found device at (0x[0-9a-fA-F]+)/i)
     if (m) {
       const a = m[1].toLowerCase()
-      if (a === '0x3c' || a === '0x3d') setHw((h) => ({ ...h, oled: a }))
-      if (a === '0x76' || a === '0x77') setHw((h) => ({ ...h, bmp: a }))
+      setHw((h) => ({
+        ...h,
+        found: h.found.includes(a) ? h.found : [...h.found, a],
+        oled: a === '0x3c' || a === '0x3d' ? a : h.oled,
+        bmp: a === '0x76' || a === '0x77' ? a : h.bmp,
+      }))
       note(`Dispositivo I2C em ${a}`)
     }
     m = line.match(/Devices found:\s*(\d+)/i)
@@ -306,7 +312,7 @@ export default function SerialTest() {
     if (/OLED OK/.test(line)) { setHw((h) => ({ ...h, oledOk: true, oled: h.oled || '0x3c' })); note('OLED respondeu em 0x3c') }
     if (/OLED FAILED/.test(line)) setHw((h) => ({ ...h, oledOk: false }))
     if (/BMP280 OK/.test(line)) { setStage('sensor', ST_DONE); setHw((h) => { note(`BMP280 reconhecido em ${h.bmp || '0x76'}`); return { ...h, bmp: h.bmp || '0x76' } }) }
-    if (/BMP280 (NOT FOUND|missing)/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não respondeu — verifique a fiação') }
+    if (/BMP280 (NOT FOUND|missing)/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — diagnóstico cruzado na aba Diagnóstico') }
     m = line.match(/Temp:\s*([\d.]+)\s*C\s*Pressure:\s*([\d.]+)/i)
     if (m) { setReading(`${m[1]} °C · ${m[2]} hPa`); setStage('telem', ST_DONE); note('Telemetria fluindo') }
   }
@@ -395,7 +401,7 @@ export default function SerialTest() {
     if (flashing || detecting) return
     setFlashing(true); setTab('build')
     setStages((s) => ({ board: s.board })) // keep board; re-validate the rest from this flash
-    setHw((h) => ({ ...h, oled: null, bmp: null, i2c: null, oledOk: false }))
+    setHw((h) => ({ ...h, oled: null, bmp: null, i2c: null, oledOk: false, found: [] }))
     setReading(null); notedRef.current = new Set()
     pushLog('── flash iniciado ──')
     try {
@@ -420,6 +426,24 @@ export default function SerialTest() {
   const currentStage = [...STAGES].reverse().find((s) => stages[s.id] === ST_ACTIVE)
     || [...STAGES].reverse().find((s) => stages[s.id] === ST_DONE)
   const doneCount = STAGES.filter((s) => stages[s.id] === ST_DONE).length
+
+  // Cross-referenced diagnosis: sketch #defines × ESP32 pin db × canvas
+  // wiring × real I2C scan. Only runs after a scan completed, and only
+  // while the sensor is not validated — never on speculation.
+  const findings = useMemo(() => {
+    if (hw.i2c == null || hw.bmp) return []
+    return diagnoseI2C({ sketch: code, wires, scan: { complete: true, addresses: hw.found } })
+  }, [hw.i2c, hw.bmp, hw.found, code, wires])
+
+  const FINDING_TAG = {
+    'invalid-pin': 'pino I2C inválido',
+    'pin-mismatch': 'conflito fiação × código',
+    'addr-mismatch': 'endereço divergente',
+    'absent': 'ausente (físico)',
+  }
+  const bmpStatus = hw.bmp ? `${hw.bmp} validado`
+    : findings[0] ? FINDING_TAG[findings[0].kind]
+    : (stages.sensor === ST_ERROR ? 'falha — aguardando varredura' : '—')
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
@@ -531,10 +555,23 @@ export default function SerialTest() {
                 <DiagRow k="placa" v={chip || '—'} />
                 <DiagRow k="porta" v={connected ? '/dev/ttyUSB0 · 115200' : '—'} />
                 <DiagRow k="OLED" v={hw.oledOk ? `${hw.oled} respondeu` : (hw.oled || '—')} />
-                <DiagRow k="BMP280" v={hw.bmp ? `${hw.bmp} validado` : (stages.sensor === ST_ERROR ? 'ausente' : '—')} />
+                <DiagRow k="BMP280" v={bmpStatus} />
                 <DiagRow k="I2C" v={hw.i2c != null ? `${hw.i2c} dispositivo(s)` : '—'} />
                 <DiagRow k="última leitura" v={reading || '—'} />
                 <DiagRow k="etapa atual" v={currentStage ? currentStage.label : '—'} last />
+                {findings.length > 0 && (
+                  <>
+                    <div style={{ height: 10 }} />
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(231,237,247,.35)', marginBottom: 6 }}>diagnóstico cruzado · código × fiação × scan</div>
+                    {findings.map((f, i) => (
+                      <div key={i} style={{ marginBottom: 9, paddingLeft: 9, borderLeft: '2px solid #EE8A6A' }}>
+                        <div style={{ color: '#EE8A6A' }}>{f.what}</div>
+                        <div style={{ color: 'rgba(231,237,247,.58)' }}>{f.why}</div>
+                        <div style={{ color: '#9AD0A8' }}>→ {f.fix}</div>
+                      </div>
+                    ))}
+                  </>
+                )}
                 <div style={{ height: 10 }} />
                 <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(231,237,247,.35)', marginBottom: 6 }}>eventos interpretados</div>
                 {diagLines.length === 0 && <div style={{ color: 'rgba(231,237,247,.28)', fontFamily: "'Space Mono', monospace", fontSize: 11 }}># nenhum evento ainda</div>}
