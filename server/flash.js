@@ -3,7 +3,11 @@
 // The backend owns the ESP32 serial port (via serial_bridge.py) so the browser
 // never touches Web Serial — no popup, hardcoded port, persistent connection.
 //
-//   POST /flash        { code }  → compile + upload, streaming logs as text.
+//   POST /flash        { code } or { files: { name → content } }
+//                                → compile + upload, streaming logs as text.
+//                                  `files` writes the whole generated set
+//                                  (main.ino + headers) into the sketch dir
+//                                  so #include references resolve.
 //   GET  /serial                 → SSE stream of live serial lines.
 //   POST /serial/send  { line }  → write a line to the board.
 //   GET  /detect                 → real esptool chip handshake (is it an ESP32?).
@@ -165,7 +169,14 @@ app.post('/flash', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache')
 
   const code = req.body && typeof req.body.code === 'string' ? req.body.code : ''
-  if (!code.trim()) { res.status(400).end('ERROR: no code provided\n'); return }
+  // multi-file sketch: { files: { 'main.ino': ..., 'sensor_x.h': ... } }
+  // names are restricted to plain basenames (no paths) for safety.
+  const FILE_SAFE = /^[\w.-]+$/
+  const rawFiles = req.body && req.body.files && typeof req.body.files === 'object' ? req.body.files : null
+  const files = rawFiles
+    ? Object.entries(rawFiles).filter(([n, c]) => FILE_SAFE.test(n) && typeof c === 'string' && c.trim())
+    : []
+  if (!files.length && !code.trim()) { res.status(400).end('ERROR: no code provided\n'); return }
 
   const cli = resolveArduinoCli()
   const ok = await new Promise((resolve) => {
@@ -192,7 +203,17 @@ app.post('/flash', async (req, res) => {
     const dir = await mkdtemp(join(tmpdir(), 'forge-flash-'))
     const sketchDir = join(dir, SKETCH)
     await mkdir(sketchDir)
-    await writeFile(join(sketchDir, `${SKETCH}.ino`), code, 'utf8')
+    if (files.length) {
+      // arduino-cli requires the entry sketch to be named after the dir;
+      // every .h lands beside it so the #include references resolve.
+      for (const [name, content] of files) {
+        const target = name.endsWith('.ino') ? `${SKETCH}.ino` : name
+        await writeFile(join(sketchDir, target), content, 'utf8')
+        res.write(`Writing ${name}${target !== name ? ` -> ${target}` : ''}\n`)
+      }
+    } else {
+      await writeFile(join(sketchDir, `${SKETCH}.ino`), code, 'utf8')
+    }
 
     res.write(`Using port ${port}\n`)
     res.write('Compiling...\n')

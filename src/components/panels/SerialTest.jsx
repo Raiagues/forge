@@ -410,8 +410,13 @@ export default function SerialTest() {
     setHw((h) => ({ ...h, oled: null, bmp: null, i2c: null, oledOk: false, found: [] }))
     setReading(null); notedRef.current = new Set()
     pushLog('── flash iniciado ──')
+    // mission mode flashes the whole generated file set (main.ino +
+    // headers) so the #include references resolve in the temp sketch dir
+    const payload = missionMode
+      ? { files: Object.fromEntries(fwFiles.map((f) => [f.file, fileContent(f)])) }
+      : { code }
     try {
-      await streamInto(`${SERVER}/flash`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+      await streamInto(`${SERVER}/flash`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     } catch (err) { pushLog(`ERROR: servidor de flash inacessível — rode ./start.sh (${err.message})`) }
     finally { setFlashing(false) }
   }
