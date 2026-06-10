@@ -20,7 +20,7 @@
 // all derived from the injected defs + wires. Pure: no store/UI imports.
 // ──────────────────────────────────────────────────────────────────
 
-import { pinDef } from './wiring.js'
+import { pinDef, ADDR_STRAPS } from './wiring.js'
 
 export const FILE_GROUPS = [
   { id: 'core',   label: 'Núcleo'  },
@@ -52,6 +52,10 @@ const pinDefines = (i2c) => (i2c.sda == null || i2c.scl == null ? '' : `#ifndef 
 
 `)
 
+// The OTHER strap address of a sensor (HW-611-style modules ship with
+// either SDO/AD0 state from the factory) — null when there is no alt.
+const altStrap = (id, addr) => (ADDR_STRAPS[id] || []).find((a) => a !== addr) || null
+
 // ── per-component driver templates ─────────────────────────────────
 // Keyed by catalog id. Each template contributes: the header body, the
 // fields it adds to the telemetry packet and the read call used by the
@@ -71,10 +75,12 @@ const DRIVER_TEMPLATES = {
       `display.print("T: "); display.print(${pkt}.temperature, 1); display.println(" C");`,
       `display.print("P: "); display.print(${pkt}.pressure, 1); display.println(" hPa");`,
     ],
-    body: ({ def, addr, i2c }) => `#include <Adafruit_BMP280.h>
+    body: ({ def, addr, i2c }) => {
+      const alt = altStrap(def.id, addr)
+      return `#include <Adafruit_BMP280.h>
 
-${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR ${addr}
-
+${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR     ${addr}  // strap SDO da fiação no canvas
+${alt ? `#define ${def.id.toUpperCase()}_ADDR_ALT ${alt}  // strap SDO oposto (módulos HW-611 variam de fábrica)\n` : ''}
 struct Bmp280Reading {
   float temperature;   // °C
   float pressure;      // hPa
@@ -84,13 +90,19 @@ Adafruit_BMP280 _bmp;
 bool ${def.id}_ok = false;
 
 void bmp280_init() {
-  Serial.println("[${def.label}] init @ ${addr}");
-  if (!_bmp.begin(${def.id.toUpperCase()}_ADDR)) {
-    Serial.println("[${def.label}] nao encontrado — verifique a fiação");
+  Serial.println("[${def.label}] init @ ${addr}${alt ? `/${alt}` : ''}");
+  // o endereço depende do pino SDO do módulo — sonde os dois straps
+  if (_bmp.begin(${def.id.toUpperCase()}_ADDR)) {
+    ${def.id}_ok = true;
+    Serial.println("[${def.label}] OK @ ${addr}");
     return;
   }
-  ${def.id}_ok = true;
-  Serial.println("[${def.label}] OK");
+${alt ? `  if (_bmp.begin(${def.id.toUpperCase()}_ADDR_ALT)) {
+    ${def.id}_ok = true;
+    Serial.println("[${def.label}] OK @ ${alt} — strap SDO difere da fiação no canvas");
+    return;
+  }
+` : ''}  Serial.println("[${def.label}] nao encontrado — verifique a fiação");
 }
 
 Bmp280Reading bmp280_read() {
@@ -100,7 +112,8 @@ Bmp280Reading bmp280_read() {
   Serial.print("[${def.label}] T="); Serial.print(r.temperature, 1);
   Serial.print(" P=");               Serial.println(r.pressure, 1);
   return r;
-}`,
+}`
+    },
   },
 
   mpu6050: {
@@ -113,10 +126,12 @@ Bmp280Reading bmp280_read() {
     displayLines: (pkt) => [
       `display.print("AX: "); display.println(${pkt}.accel[0], 2);`,
     ],
-    body: ({ def, addr, i2c }) => `#include <Adafruit_MPU6050.h>
+    body: ({ def, addr, i2c }) => {
+      const alt = altStrap(def.id, addr)
+      return `#include <Adafruit_MPU6050.h>
 
-${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR ${addr}
-
+${pinDefines(i2c)}#define ${def.id.toUpperCase()}_ADDR     ${addr}  // strap AD0 da fiação no canvas
+${alt ? `#define ${def.id.toUpperCase()}_ADDR_ALT ${alt}  // strap AD0 oposto\n` : ''}
 struct Mpu6050Reading {
   float accel[3];   // g
   float gyro[3];    // °/s
@@ -126,15 +141,21 @@ Adafruit_MPU6050 _mpu;
 bool ${def.id}_ok = false;
 
 void mpu6050_init() {
-  Serial.println("[${def.label}] init @ ${addr}");
-  if (!_mpu.begin(${def.id.toUpperCase()}_ADDR)) {
+  Serial.println("[${def.label}] init @ ${addr}${alt ? `/${alt}` : ''}");
+  // o endereço depende do pino AD0 do módulo — sonde os dois straps
+  if (_mpu.begin(${def.id.toUpperCase()}_ADDR)) {
+    ${def.id}_ok = true;
+    Serial.println("[${def.label}] OK @ ${addr}");
+  }${alt ? ` else if (_mpu.begin(${def.id.toUpperCase()}_ADDR_ALT)) {
+    ${def.id}_ok = true;
+    Serial.println("[${def.label}] OK @ ${alt} — strap AD0 difere da fiação no canvas");
+  }` : ''}
+  if (!${def.id}_ok) {
     Serial.println("[${def.label}] nao encontrado — verifique a fiação");
     return;
   }
   _mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   _mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  ${def.id}_ok = true;
-  Serial.println("[${def.label}] OK");
 }
 
 Mpu6050Reading mpu6050_read() {
@@ -145,7 +166,8 @@ Mpu6050Reading mpu6050_read() {
   r.gyro[0]  = g.gyro.x;         r.gyro[1]  = g.gyro.y;         r.gyro[2]  = g.gyro.z;
   Serial.print("[${def.label}] ax="); Serial.println(r.accel[0], 2);
   return r;
-}`,
+}`
+    },
   },
 }
 

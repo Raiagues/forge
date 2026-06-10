@@ -319,9 +319,13 @@ export default function SerialTest() {
     if (m) { const n = +m[1]; setHw((h) => ({ ...h, i2c: n })); note(`Varredura I2C concluída — ${n} dispositivo(s)`) }
     if (/OLED OK/.test(line)) { setHw((h) => ({ ...h, oledOk: true, oled: h.oled || '0x3c' })); note('OLED respondeu em 0x3c') }
     if (/OLED FAILED/.test(line)) setHw((h) => ({ ...h, oledOk: false }))
-    if (/BMP280 OK/.test(line)) { setStage('sensor', ST_DONE); setHw((h) => { note(`BMP280 reconhecido em ${h.bmp || '0x76'}`); return { ...h, bmp: h.bmp || '0x76' } }) }
-    if (/BMP280 (NOT FOUND|missing)/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — veja o painel de diagnóstico') }
-    m = line.match(/Temp:\s*([\d.]+)\s*C\s*Pressure:\s*([\d.]+)/i)
+    // sensor OK/erro — cobre o preset ("BMP280 OK") e o firmware gerado
+    // ("[BMP280] OK @ 0x76"), que reporta o strap que respondeu
+    m = line.match(/\[?BMP280\]? OK(?: @ (0x[0-9a-fA-F]+))?/)
+    if (m) { const at = m[1]?.toLowerCase(); setStage('sensor', ST_DONE); setHw((h) => { note(`BMP280 reconhecido em ${at || h.bmp || '0x76'}`); return { ...h, bmp: at || h.bmp || '0x76' } }) }
+    if (/BMP280 (NOT FOUND|missing)|\[BMP280\] nao encontrado/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — veja o painel de diagnóstico') }
+    // leituras — formato do preset e do firmware gerado
+    m = line.match(/Temp:\s*([\d.-]+)\s*C\s*Pressure:\s*([\d.-]+)/i) || line.match(/\[BMP280\] T=([\d.-]+) P=([\d.-]+)/)
     if (m) { setReading(`${m[1]} °C · ${m[2]} hPa`); setStage('telem', ST_DONE); note('Telemetria fluindo') }
   }
 
