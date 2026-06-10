@@ -7,6 +7,7 @@ import {
 } from '../mission/index.js'
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
+import { runLogDoctor } from '../debug/logDoctor.js'
 
 // ──────────────────────────────────────────────────────────────────
 // FORGE store — single source of truth for the digital twin.
@@ -295,6 +296,9 @@ const useForge = create((set, get) => {
     // ── firmware workspace ───────────────────────────────────────────
     activeModuleId: 'main',
     firmwareEdits: {},         // moduleId → user-edited code (overrides generator)
+
+    // ── Log Doctor (AI debugging assistant) ─────────────────────────
+    logDoctor: { running: false, result: null, input: '', source: null, ratings: {} },
 
     // ── navigation / selection ──────────────────────────────────────
     setSection: (id) => {
@@ -691,6 +695,52 @@ const useForge = create((set, get) => {
       const edits = { ...s.firmwareEdits }; delete edits[moduleId]
       return { firmwareEdits: edits }
     }),
+
+    // ────────────────────────────────────────────────────────────────
+    // Log Doctor — debugging assistant. Thin wrappers over the pure
+    // engine in src/debug/logDoctor.js; every decision the user takes
+    // (run, accept, reject, apply fix) is tracked for validation.
+    // ────────────────────────────────────────────────────────────────
+    runLogDoctorOnText: async (text, source = 'paste') => {
+      const trimmed = (text || '').trim()
+      if (!trimmed) { get().notify('cole um log para analisar'); return }
+      const s = get()
+      const ctx = { entities: s.entities, live: s.live, defs: COMPONENT_DEFS }
+      track('debug_session', { target: source, lines: trimmed.split('\n').length })
+      set({ logDoctor: { ...s.logDoctor, running: true, input: text, source, ratings: {} } })
+      try {
+        const result = await runLogDoctor({ text: trimmed, ctx }, { provider: 'local' })
+        track('debug_result', { target: String(result.findings.length), top: result.findings[0]?.title })
+        set(st => ({ logDoctor: { ...st.logDoctor, running: false, result } }))
+      } catch (err) {
+        track('error', { target: 'log_doctor', message: err.message })
+        set(st => ({ logDoctor: { ...st.logDoctor, running: false, result: { findings: [], summary: `falha na análise: ${err.message}` } } }))
+      }
+    },
+
+    // analyze the in-app serial buffer (simulated or mirrored device log)
+    runLogDoctorOnSerial: () => {
+      const lines = get().serialLog.map(l => l.m).reverse().join('\n')
+      get().runLogDoctorOnText(lines, 'serial')
+    },
+
+    rateDoctorFinding: (findingId, accepted) => {
+      const s = get()
+      const finding = s.logDoctor.result?.findings.find(f => f.id === findingId)
+      track(accepted ? 'suggestion_accepted' : 'suggestion_rejected', { target: finding?.title || findingId })
+      set({ logDoctor: { ...s.logDoctor, ratings: { ...s.logDoctor.ratings, [findingId]: accepted } } })
+    },
+
+    // execute a suggested fix (wiring action, open code module, inspect)
+    applyDoctorFix: (fix, findingTitle) => {
+      track('fix_applied', { target: `${fix.kind} · ${fix.label}`, finding: findingTitle })
+      const a = fix.action || {}
+      if (a.type === 'autowire') { get().autoWire(a.compId) }
+      else if (a.type === 'open2d') { set({ hardwareView: '2d', activeSection: 'hardware' }) }
+      else if (a.type === 'module') { get().openModuleInFirmware(a.moduleId) }
+      else if (a.type === 'inspect') { set({ activeSection: 'hardware' }); get().selectEntity(a.compId) }
+      else get().notify('verifique manualmente e rode o diagnóstico de novo')
+    },
 
     // Architecture generation pipeline → live entities (digital twin).
     generateArchitectureFromPlan: () => {

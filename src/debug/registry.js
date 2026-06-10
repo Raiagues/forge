@@ -22,10 +22,11 @@ export const DEBUG_GROUPS = [
   { id: 'wiring', label: 'Fiação & pinos', desc: 'Conflitos de pino e endereço' },
   { id: 'bringup', label: 'Bring-up', desc: 'Prontidão para subir no hardware real' },
   // ── planned tool families (registered later via registerDebugTool) ──
+  // 'logs' graduated from planned: the Log Doctor assistant lives there.
+  { id: 'logs', label: 'Assistente de depuração', desc: 'Diagnóstico por log do dispositivo + gêmeo digital' },
   { id: 'unit', label: 'Testes unitários', desc: 'Testes por componente', planned: true },
   { id: 'groups', label: 'Testes de grupo', desc: 'Grupos de sensores / módulos', planned: true },
   { id: 'simulation', label: 'Simulação', desc: 'Checagens em hardware simulado', planned: true },
-  { id: 'logs', label: 'Depuração por log', desc: 'Análise de logs do dispositivo', planned: true },
   { id: 'runtime', label: 'Validação em runtime', desc: 'Validações ao vivo durante a missão', planned: true },
 ]
 
@@ -105,6 +106,14 @@ export const DEBUG_TOOLS = [
   { id: 'power_budget', group: 'power', label: 'Orçamento de energia', desc: 'Soma de corrente e checagem de MCU/alimentação.', run: powerTool },
   { id: 'wiring_check', group: 'wiring', label: 'Conflitos de fiação e pinos', desc: 'Problemas de fiação reportados pelo motor de pinos.', run: wiringTool },
   { id: 'bringup_ready', group: 'bringup', label: 'Prontidão de bring-up', desc: 'MCU + sensores + sem erros = pronto para gravar.', run: bringupTool },
+  // Interactive tool: `ui` tells the panel to render a dedicated card
+  // (the registry stays pure — no JSX here). Engine: src/debug/logDoctor.js
+  {
+    id: 'log_doctor', group: 'logs', ui: 'logdoctor',
+    label: 'Diagnóstico por log',
+    desc: 'Cole a saída serial do dispositivo: o assistente cruza os sintomas com o estado real do projeto e aponta a causa provável com correção sugerida.',
+    run: () => ({ status: DSTATUS.IDLE, summary: 'aguardando log para analisar', details: [] }),
+  },
 ]
 
 // Extension seam: future tool families call this to plug in without touching

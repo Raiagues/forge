@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
-import { DEBUG_GROUPS, DEBUG_TOOLS, toolsForGroup, runDebugTool, DSTATUS } from '../../debug/index.js'
+import { DEBUG_GROUPS, DEBUG_TOOLS, toolsForGroup, runDebugTool } from '../../debug/index.js'
 import EmptyState from './EmptyState'
+import LogDoctorCard from './debug/LogDoctorCard'
+
+// interactive tools declare `ui` in the registry; the panel maps it to a
+// dedicated card component here (registry stays pure, panel stays thin)
+const INTERACTIVE_UI = { logdoctor: LogDoctorCard }
 
 // ──────────────────────────────────────────────────────────────────
 // Debug — a modular diagnostics console. Each card is a pluggable tool
@@ -38,7 +43,9 @@ export default function DebugPanel() {
   if (Object.keys(entities).length === 0) return <EmptyState section="Debug" />
 
   const tally = results.reduce((a, { res }) => { a[res.status] = (a[res.status] || 0) + 1; return a }, {})
-  const activeGroups = DEBUG_GROUPS.filter((g) => !g.planned && toolsForGroup(g.id).length)
+  // interactive tools (ui) render their own card; the grid keeps the rest
+  const activeGroups = DEBUG_GROUPS.filter((g) => !g.planned && toolsForGroup(g.id).some((t) => !t.ui))
+  const interactiveTools = DEBUG_TOOLS.filter((t) => t.ui && INTERACTIVE_UI[t.ui])
   const plannedGroups = DEBUG_GROUPS.filter((g) => g.planned)
 
   return (
@@ -59,11 +66,25 @@ export default function DebugPanel() {
         </div>
       </div>
 
+      {/* debugging assistant — interactive tools get a full-width card */}
+      {interactiveTools.map((tool) => {
+        const Ui = INTERACTIVE_UI[tool.ui]
+        return (
+          <div key={tool.id} style={{ marginBottom: 14 }}>
+            <Card title={DEBUG_GROUPS.find((g) => g.id === tool.group)?.label || tool.label} hint={tool.desc}>
+              <div style={{ marginTop: 8 }}>
+                <Ui />
+              </div>
+            </Card>
+          </div>
+        )
+      })}
+
       {/* active tool groups */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {activeGroups.map((g) => (
           <Card key={g.id} title={g.label} hint={g.desc}>
-            {toolsForGroup(g.id).map((tool) => {
+            {toolsForGroup(g.id).filter((t) => !t.ui).map((tool) => {
               const { res } = results.find((r) => r.tool.id === tool.id)
               return <ToolBlock key={tool.id} tool={tool} res={res} />
             })}
