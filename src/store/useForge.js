@@ -89,7 +89,6 @@ export const MISSION_TEMPLATES = [
 
 export const SECTIONS = [
   { id: 'mission',      label: 'Mission',      icon: 'target'   },
-  { id: 'architecture', label: 'Architecture', icon: 'grid'     },
   { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
   { id: 'firmware',     label: 'Firmware',     icon: 'code'     },
   { id: 'debug',        label: 'Debug',        icon: 'bug'      },

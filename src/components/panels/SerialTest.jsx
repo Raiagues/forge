@@ -466,16 +466,23 @@ export default function SerialTest() {
             </div>
           </Card>
 
-          <Card title="Barramento I2C">
-            <Row k="SDA" v={`GPIO${hw.sda}`} />
-            <Row k="SCL" v={`GPIO${hw.scl}`} />
-            <Row k="OLED" v={hw.oledOk ? `${hw.oled} ✓` : (hw.oled || '—')} dot={hw.oledOk ? 'var(--ok2)' : null} />
-            <Row k="BMP280" v={hw.bmp ? `${hw.bmp} ✓` : (stages.sensor === ST_ERROR ? 'ausente' : '—')} dot={hw.bmp ? 'var(--ok2)' : (stages.sensor === ST_ERROR ? 'var(--err2)' : null)} />
-            <Row k="dispositivos" v={hw.i2c != null ? `${hw.i2c}` : '—'} last />
-          </Card>
-
-          <Card title="LED onboard · GPIO2">
-            {LED_LEGEND.map(([k, v], i) => <Row key={k} k={k} v={v} mono last={i === LED_LEGEND.length - 1} />)}
+          <Card title="Sketches">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
+              {PRESETS.map((p) => {
+                const active = activePreset === p.id
+                return (
+                  <button key={p.id} onClick={() => setCode(p.code)} disabled={flashing} style={{
+                    display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', cursor: 'pointer',
+                    padding: '6px 9px', borderRadius: 5,
+                    border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`,
+                    borderLeft: `3px solid ${active ? 'var(--acc)' : 'var(--paper4)'}`,
+                    background: active ? 'rgba(43,94,167,.06)' : 'var(--paper)',
+                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5,
+                    color: active ? 'var(--ink)' : 'var(--ink2)', fontWeight: active ? 500 : 400,
+                  }}>{p.label}</button>
+                )
+              })}
+            </div>
           </Card>
         </div>
 
@@ -488,9 +495,6 @@ export default function SerialTest() {
           {/* editor */}
           <Pane style={{ height: editorH, flexShrink: 0 }}>
             <PaneHeader>
-              <span style={{ display: 'flex', gap: 4 }}>
-                {PRESETS.map((p) => <button key={p.id} onClick={() => setCode(p.code)} disabled={flashing} style={tabBtn(activePreset === p.id)}>{p.label}</button>)}
-              </span>
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, color: 'var(--ink4)' }}>forge_sketch.ino</span>
               <div style={{ flex: 1 }} />
               {flashing && <Spinner label="gravando" />}
