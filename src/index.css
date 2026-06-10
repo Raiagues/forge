@@ -1,0 +1,80 @@
+/* FORGE design tokens — plain CSS, no Tailwind dependency. */
+
+:root {
+  --paper:  #F4EFE6;
+  --paper2: #EBE5DB;
+  --paper3: #E0D9CE;
+  --paper4: #D4CCBF;
+  --ink:    #1A1814;
+  --ink2:   #3E3A34;
+  --ink3:   #7A736A;
+  --ink4:   #ADA69E;
+  --navy:   #18243A;
+  --navy2:  #1F2E49;
+  --navy3:  #263659;
+  --navyt:  rgba(255,255,255,0.80);
+  --navyt2: rgba(255,255,255,0.42);
+  --navyt3: rgba(255,255,255,0.20);
+  --navyb:  rgba(255,255,255,0.06);
+  --navyb2: rgba(255,255,255,0.11);
+  --acc:    #2B5EA7;
+  --acc2:   #4A7DD4;
+  --ok:     #2A6B4A;
+  --ok2:    #3A9060;
+  --warn:   #8A5A14;
+  --warn2:  #C8831A;
+  --err:    #963020;
+  --err2:   #C04030;
+  --rule:   rgba(26,24,20,0.09);
+  --rule2:  rgba(26,24,20,0.05);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; overflow: hidden; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--paper4); border-radius: 2px; }
+
+/* paper grid */
+.paper-grid {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(var(--rule2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule2) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* mono text */
+.mono { font-family: 'Space Mono', monospace; }
+
+/* status badges */
+.badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 8px; letter-spacing: .06em;
+  padding: 2px 7px; border-radius: 2px;
+  border: 1px solid;
+}
+.badge-ok   { background: rgba(42,107,74,.1);  color: var(--ok);   border-color: rgba(42,107,74,.22);  }
+.badge-warn { background: rgba(200,131,26,.1); color: var(--warn2);border-color: rgba(200,131,26,.25); }
+.badge-err  { background: rgba(184,75,44,.1);  color: var(--err2); border-color: rgba(184,75,44,.25);  }
+.badge-off  { background: rgba(26,24,20,.05);  color: var(--ink4); border-color: var(--rule);          }
+
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .25; }
+}
+.pulse { animation: pulse-dot .9s ease-in-out infinite; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin .8s linear infinite; }
