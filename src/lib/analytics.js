@@ -1,17 +1,24 @@
 // ──────────────────────────────────────────────────────────────────
-// Local behavioural analytics for user-testing sessions. No network:
-// events persist in localStorage and are inspected in the developer-only
-// Analytics view (gear icon).
+// Behavioural analytics for user-testing sessions.
+//
+// Two layers:
+//   1. localStorage (always) — inspected in the dev Analytics view.
+//   2. best-effort batched flush to the local backend, which appends
+//      events to analytics/sessions/<sessionId>.jsonl on disk so a
+//      testing day produces copyable files even across browser resets.
 //
 // Event shape (stable, inspected during testing):
 //   { timestamp: ISO string, sessionId: UUID, eventName: string, payload: {} }
-// sessionId is generated once per browser session (sessionStorage).
-// The log is capped at MAX_EVENTS (oldest discarded).
+// sessionId is generated once per browser session (sessionStorage);
+// resetSession() starts a fresh tester with a new id.
+// The local log is capped at MAX_EVENTS (oldest discarded).
 // ──────────────────────────────────────────────────────────────────
 
 const KEY = 'forge_analytics'
 const SID_KEY = 'forge_session_id'
 const MAX_EVENTS = 2000
+const SERVER = 'http://localhost:3001'
+const FLUSH_MS = 3000
 
 function uuid() {
   try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID() } catch { /* fall through */ }
@@ -41,15 +48,67 @@ function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(events)) } catch { /* storage full/unavailable */ }
 }
 
+// ── server flush (file persistence for testing sessions) ──────────
+// Best-effort: if the backend is down, localStorage remains the source
+// of truth and the batch retries on the next flush.
+let pending = []
+let flushTimer = null
+
+async function flushToServer() {
+  flushTimer = null
+  if (!pending.length) return
+  const batch = pending
+  pending = []
+  try {
+    await fetch(`${SERVER}/analytics/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SID, events: batch }),
+    })
+  } catch {
+    pending = [...batch, ...pending].slice(-500)
+  }
+}
+
+function scheduleFlush() {
+  if (!flushTimer) flushTimer = setTimeout(flushToServer, FLUSH_MS)
+}
+
+// flush whatever is left when the tab closes / reloads
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    if (!pending.length) return
+    try {
+      navigator.sendBeacon?.(
+        `${SERVER}/analytics/events`,
+        new Blob([JSON.stringify({ sessionId: SID, events: pending })], { type: 'application/json' }),
+      )
+      pending = []
+    } catch { /* best effort */ }
+  })
+}
+
 export function track(eventName, payload = {}) {
-  events.push({ timestamp: new Date().toISOString(), sessionId: SID, eventName, payload })
+  const event = { timestamp: new Date().toISOString(), sessionId: SID, eventName, payload }
+  events.push(event)
   if (events.length > MAX_EVENTS) events = events.slice(-MAX_EVENTS)
   persist()
+  pending.push(event)
+  scheduleFlush()
 }
 
 export function getEvents() { return [...events] }
 export function clearEvents() { events = []; persist() }
 export function currentSession() { return SID }
+
+// New tester, clean slate: flush remaining events, drop the session id
+// and reload — sessionStorage mints a fresh id and the app state resets.
+export async function resetSession() {
+  track('session_reset')
+  await flushToServer()
+  try { sessionStorage.removeItem(SID_KEY) } catch { /* ignore */ }
+  window.location.reload()
+}
 
 // Full event array, for the "Exportar JSON" download.
 export function exportJSON() { return JSON.stringify(events, null, 2) }

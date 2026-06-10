@@ -28,8 +28,8 @@ export default [
     },
   },
   {
-    // Node-side flash server (Express) — Node globals instead of browser.
-    files: ['server/**/*.js'],
+    // Node-side scripts (Express server, testing-env tooling) — Node globals.
+    files: ['server/**/*.js', 'user_testing_env/**/*.js'],
     languageOptions: { globals: { ...globals.node } },
   },
 ]

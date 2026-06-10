@@ -8,19 +8,23 @@
 //   POST /serial/send  { line }  → write a line to the board.
 //   GET  /detect                 → real esptool chip handshake (is it an ESP32?).
 //
+//   POST /analytics/events       → append events to analytics/sessions/<sid>.jsonl
+//   GET  /analytics/sessions     → list recorded session files
+//   GET  /analytics/export       → merged JSON of every session (for analysis)
+//
 // Flashing transparently stops the bridge (frees the port) and restarts it
 // afterwards, so serial monitoring resumes on its own. One port, no abstractions.
 
 import express from 'express'
 import cors from 'cors'
 import { spawn } from 'node:child_process'
-import { mkdtemp, writeFile, mkdir } from 'node:fs/promises'
+import { mkdtemp, writeFile, mkdir, appendFile, readdir, readFile } from 'node:fs/promises'
 import { existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PORT = 3001
+const PORT = Number(process.env.PORT) || 3001
 const FQBN = 'esp32:esp32:esp32'
 const SKETCH = 'forge_sketch'
 const BAUD = 115200
@@ -209,6 +213,55 @@ app.post('/flash', async (req, res) => {
   } finally {
     if (hadClients) startBridge() // bridge restart reboots the board → serial resumes
     res.end()
+  }
+})
+
+// ── analytics persistence (user-testing sessions) ───────────────────
+// Events arrive in batches from src/lib/analytics.js and land on disk as
+// one JSONL file per session under analytics/sessions/. No database, no
+// cloud — files you can copy after a testing day.
+const ANALYTICS_DIR = join(HERE, '..', 'analytics', 'sessions')
+const SID_SAFE = /^[\w.-]+$/
+
+app.post('/analytics/events', async (req, res) => {
+  const { sessionId, events } = req.body || {}
+  if (!sessionId || !SID_SAFE.test(sessionId) || !Array.isArray(events) || !events.length) {
+    res.status(400).json({ ok: false, error: 'sessionId + events[] required' }); return
+  }
+  try {
+    await mkdir(ANALYTICS_DIR, { recursive: true })
+    const lines = events.map((e) => JSON.stringify(e)).join('\n') + '\n'
+    await appendFile(join(ANALYTICS_DIR, `${sessionId}.jsonl`), lines, 'utf8')
+    res.json({ ok: true, stored: events.length })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/analytics/sessions', async (_req, res) => {
+  try {
+    await mkdir(ANALYTICS_DIR, { recursive: true })
+    const files = (await readdir(ANALYTICS_DIR)).filter((f) => f.endsWith('.jsonl'))
+    res.json({ ok: true, sessions: files.map((f) => f.replace(/\.jsonl$/, '')) })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/analytics/export', async (_req, res) => {
+  try {
+    await mkdir(ANALYTICS_DIR, { recursive: true })
+    const files = (await readdir(ANALYTICS_DIR)).filter((f) => f.endsWith('.jsonl'))
+    const sessions = {}
+    for (const f of files) {
+      const raw = await readFile(join(ANALYTICS_DIR, f), 'utf8')
+      sessions[f.replace(/\.jsonl$/, '')] = raw.trim().split('\n').filter(Boolean).map((l) => {
+        try { return JSON.parse(l) } catch { return null }
+      }).filter(Boolean)
+    }
+    res.json({ exported: new Date().toISOString(), sessionCount: files.length, sessions })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
   }
 })
 

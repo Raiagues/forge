@@ -24,6 +24,11 @@ export default function IconSidebar() {
   const issueLevel = hasErr ? 'err' : hasWarn ? 'warn' : null
   const ISSUE_SECTIONS = { hardware: issueLevel, architecture: issueLevel, debug: issueLevel }
 
+  // user-testing mode (./start_test_user.sh): hide developer-facing
+  // sections from the rail so testers see only the product workflow
+  const userTest = import.meta.env.VITE_USER_TEST === '1'
+  const visibleSections = userTest ? SECTIONS.filter(s => s.id !== 'serialtest') : SECTIONS
+
   return (
     <aside style={{
       width: 48, flexShrink: 0,
@@ -40,7 +45,7 @@ export default function IconSidebar() {
         width: '100%', textAlign: 'center', marginBottom: 6,
       }}>FG</div>
 
-      {SECTIONS.map(sec => {
+      {visibleSections.map(sec => {
         const active = activeSection === sec.id
         const issue  = ISSUE_SECTIONS[sec.id]
         return (

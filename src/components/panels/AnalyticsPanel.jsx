@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { SECTIONS, COMPONENT_DEFS } from '../../store/useForge'
-import { getEvents, clearEvents, summarize, exportJSON, currentSession } from '../../lib/analytics.js'
+import { getEvents, clearEvents, summarize, exportJSON, currentSession, resetSession } from '../../lib/analytics.js'
 import { getFeatureInfo } from '../../lib/futureFeatures.js'
 
 // ──────────────────────────────────────────────────────────────────
@@ -109,6 +109,11 @@ export default function AnalyticsPanel() {
         <div style={{ flex: 1 }} />
         <button onClick={refresh} style={btn}>atualizar</button>
         <button onClick={download} style={btn}>exportar json</button>
+        <button
+          onClick={() => { if (window.confirm('Encerrar a sessão atual e iniciar uma nova? Os eventos são gravados em analytics/.')) resetSession() }}
+          title="Grava os eventos pendentes, gera novo session id e recarrega o app"
+          style={{ ...btn, color: 'var(--acc)' }}
+        >nova sessão de teste</button>
         <button onClick={clear} style={{ ...btn, color: 'var(--err2)' }}>limpar dados</button>
       </div>
       <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', marginBottom: 16 }}>
