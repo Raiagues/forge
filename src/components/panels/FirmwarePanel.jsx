@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import { activeModules, moduleCode, resolveObjective, SOFTWARE_LAYERS } from '../../mission/index.js'
 import EmptyState from './EmptyState'
 import CodeEditor from '../ui/CodeEditor'
+import SerialTest from './SerialTest'
 
 // ──────────────────────────────────────────────────────────────────
 // Firmware — modular workspace. The firmware is NOT one giant file:
@@ -20,6 +21,7 @@ export default function FirmwarePanel() {
     entities, mission, missionPlan, live,
     activeModuleId, setActiveModule, firmwareEdits, setFirmwareEdit, resetFirmwareEdit,
   } = useForge()
+  const [showSerial, setShowSerial] = useState(false)
 
   const componentIds = Object.keys(entities)
   const mods = useMemo(
@@ -91,19 +93,33 @@ export default function FirmwarePanel() {
           ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
           border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
         }}>copiar</button>
+        <button onClick={() => setShowSerial(v => !v)} style={{
+          padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+          ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
+          border: '1px solid var(--rule)',
+          background: showSerial ? 'var(--navy)' : 'var(--paper2)',
+          color: showSerial ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
+        }}>Serial</button>
       </div>
 
-      {/* editable module code — shared syntax-highlighted editor */}
-      <CodeEditor
-        value={code}
-        onChange={v => setFirmwareEdit(current.id, v)}
-        background="#1E283C"
-        style={{ flex: 1, border: '1px solid var(--rule)', borderRadius: 6 }}
-      />
+      {/* editor + optional inline Serial Test bottom panel */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <CodeEditor
+          value={code}
+          onChange={v => setFirmwareEdit(current.id, v)}
+          background="#1E283C"
+          style={{ flex: 1, minHeight: 0, border: '1px solid var(--rule)', borderRadius: 6 }}
+        />
+        {showSerial && (
+          <div style={{ height: 380, flexShrink: 0, marginTop: 8, border: '1px solid var(--rule)', borderRadius: 6, overflow: 'hidden' }}>
+            <SerialTest />
+          </div>
+        )}
+      </div>
 
       <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 6, flexShrink: 0 }}>
         {mods.length} módulos · gerados da missão e do hardware · edite e os ajustes ficam no projeto
-        {' · '}para gravar num ESP32 real use a aba Serial Test
+        {' · '}use o botão Serial para gravar num ESP32 real
       </div>
     </div>
   )
