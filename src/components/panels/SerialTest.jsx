@@ -271,6 +271,7 @@ export default function SerialTest() {
   const [hw, setHw] = useState({ sda: 21, scl: 22, oled: null, bmp: null, i2c: null, oledOk: false, found: [] })
   const [chip, setChip] = useState(null)
   const [reading, setReading] = useState(null)
+  const [expandedStep, setExpandedStep] = useState(null) // completed step re-opened by the user
 
   // drag-resizable regions: the editor flex-fills whatever the console
   // doesn't take, so it always occupies the available vertical space
@@ -437,7 +438,6 @@ export default function SerialTest() {
   const activePreset = PRESETS.find((p) => p.code === code)?.id
   const currentStage = [...STAGES].reverse().find((s) => stages[s.id] === ST_ACTIVE)
     || [...STAGES].reverse().find((s) => stages[s.id] === ST_DONE)
-  const doneCount = STAGES.filter((s) => stages[s.id] === ST_DONE).length
 
   // ── mission firmware mode: the generated multi-file set from the
   // store drives the editor; the preset sketches remain only as a
@@ -469,6 +469,31 @@ export default function SerialTest() {
     : findings[0] ? FINDING_TAG[findings[0].kind]
     : (stages.sensor === ST_ERROR ? 'falha — aguardando varredura' : '—')
 
+  // ── guided bring-up: 4 active steps driven by the same REAL signals
+  // that lit the old checklist. The user always sees exactly one thing
+  // to do next; completed steps collapse to a green one-liner.
+  const validateFailed = stages.sensor === ST_ERROR || (hw.i2c != null && !hw.bmp && findings.length > 0)
+  const guidedSteps = [
+    { id: 'detect', n: 1, title: 'Detectar placa',
+      hint: 'Conecte o ESP32 via USB e clique em Detectar',
+      btn: detecting ? 'detectando…' : 'Detectar placa', action: detect, busy: detecting || flashing,
+      done: stages.board === ST_DONE, summary: chip ? `Placa detectada · ${chip}` : 'Placa detectada' },
+    { id: 'serial', n: 2, title: 'Verificar conexão serial',
+      hint: 'Clique em Conectar para abrir a porta serial',
+      btn: 'Conectar', action: connect, busy: false,
+      done: connected, summary: 'Serial ativo · 115200' },
+    { id: 'flash', n: 3, title: 'Enviar firmware',
+      hint: 'Clique em Flash para enviar o código ao ESP32',
+      btn: flashing ? 'Flashing…' : 'Flash to ESP32', action: flash, busy: flashing || detecting,
+      done: stages.reboot === ST_DONE, summary: 'Firmware enviado · placa reiniciou' },
+    { id: 'validate', n: 4, title: 'Validar sensores',
+      hint: 'Aguardando resposta dos sensores via serial...',
+      done: stages.telem === ST_DONE && stages.sensor === ST_DONE,
+      failed: validateFailed,
+      failures: findings.length ? findings : (validateFailed ? [{ what: 'Sensor não respondeu', fix: 'Verifique alimentação e conexão física' }] : []),
+      summary: reading ? `Sensores validados · ${reading}` : 'Sensores validados' },
+  ]
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
       {/* header / toolbar */}
@@ -493,25 +518,8 @@ export default function SerialTest() {
 
         {/* ── workflow column ─────────────────────────────────────── */}
         <div style={{ width: colW, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', paddingRight: 2 }}>
-          <Card title={`Pipeline · ${doneCount}/${STAGES.length}`}>
-            <div style={{ marginTop: 4 }}>
-              {STAGES.map((s, i) => {
-                const st = stages[s.id] || ST_IDLE
-                return (
-                  <div key={s.id} style={{ display: 'flex', gap: 9, alignItems: 'stretch' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 14 }}>
-                      <StageDot status={st} />
-                      {i < STAGES.length - 1 && <div style={{ flex: 1, width: 2, minHeight: 12, background: st === ST_DONE ? 'var(--ok2)' : 'var(--rule)', opacity: st === ST_DONE ? .45 : 1 }} />}
-                    </div>
-                    <div style={{ flex: 1, paddingBottom: 9, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                      <span style={{ fontSize: 11.5, color: st === ST_IDLE ? 'var(--ink4)' : 'var(--ink)', fontWeight: st === ST_ACTIVE || st === ST_DONE ? 500 : 400 }}>{s.label}</span>
-                      {st === ST_ACTIVE && <span className="pulse" style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.06em', color: 'var(--acc2)' }}>EM CURSO</span>}
-                      {st === ST_ERROR && <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.06em', color: 'var(--err2)' }}>FALHA</span>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+          <Card title={`Bring-up guiado · ${guidedSteps.filter((s) => s.done).length}/${guidedSteps.length}`}>
+            <GuidedSteps steps={guidedSteps} expanded={expandedStep} onToggle={setExpandedStep} />
           </Card>
 
           <Card title="Arquitetura do projeto">
@@ -640,14 +648,73 @@ export default function SerialTest() {
 }
 
 // ── presentational pieces (FORGE card / row idiom) ───────────────────
-function StageDot({ status }) {
-  if (status === 'done') return <Glyph bg="var(--ok2)" glyph="✓" />
-  if (status === 'error') return <Glyph bg="var(--err2)" glyph="✕" />
-  if (status === 'active') return <span className="pulse" style={{ display: 'block', width: 12, height: 12, borderRadius: '50%', background: 'var(--acc2)', boxShadow: '0 0 0 3px rgba(74,125,212,.18)' }} />
-  return <span style={{ display: 'block', width: 12, height: 12, borderRadius: '50%', background: 'transparent', border: '1.5px solid var(--ink4)' }} />
-}
-function Glyph({ bg, glyph }) {
-  return <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 12, height: 12, borderRadius: '50%', background: bg, color: '#fff', fontSize: 8, fontWeight: 700 }}>{glyph}</span>
+
+// Guided bring-up flow: one prominent current step with a single action;
+// completed steps collapse to clickable green one-liners (re-expand to
+// re-run); future steps stay hidden until the current one completes.
+function GuidedSteps({ steps, expanded, onToggle }) {
+  const currentIdx = steps.findIndex((s) => !s.done)
+  const mono9 = { fontFamily: "'Space Mono', monospace", fontSize: 9 }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
+      {steps.map((s, i) => {
+        if (currentIdx !== -1 && i > currentIdx) return null // futuros: ocultos
+        const isOpen = i === currentIdx || expanded === s.id
+
+        // completed + collapsed → green one-liner, clickable to re-open
+        if (!isOpen) {
+          return (
+            <button key={s.id} onClick={() => onToggle(s.id)}
+              title="Clique para reabrir e reexecutar"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left',
+                padding: '5px 9px', borderRadius: 5, cursor: 'pointer',
+                border: '1px solid rgba(58,144,96,.35)', background: 'rgba(58,144,96,.07)',
+                color: 'var(--ok2)', fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+              }}>
+              <span style={{ fontWeight: 700, flexShrink: 0 }}>✓</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.summary}</span>
+            </button>
+          )
+        }
+
+        // current step (or re-opened completed step) — prominent
+        return (
+          <div key={s.id} style={{
+            border: `1px solid ${s.failed ? 'rgba(192,64,48,.4)' : 'var(--acc)'}`, borderRadius: 6,
+            background: s.failed ? 'rgba(192,64,48,.05)' : 'rgba(43,94,167,.05)', padding: '9px 11px',
+          }}>
+            <div style={{ ...mono9, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: s.failed ? 'var(--err2)' : 'var(--acc2)', marginBottom: 3 }}>
+              Passo {s.n} de {steps.length}
+            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{s.title}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.failed ? 8 : 0 }}>{s.hint}</div>
+            {s.failed && (s.failures || []).map((f, fi) => (
+              <div key={fi} style={{ ...mono9, lineHeight: 1.55, marginBottom: 7, paddingLeft: 8, borderLeft: '2px solid var(--err2)' }}>
+                <div style={{ color: 'var(--err2)' }}>{f.what}</div>
+                <div style={{ color: 'var(--ink3)' }}>→ {f.fix}</div>
+              </div>
+            ))}
+            {s.btn && (
+              <button onClick={s.action} disabled={s.busy} style={{
+                width: '100%', padding: '7px 12px', borderRadius: 5, border: 'none',
+                cursor: s.busy ? 'default' : 'pointer',
+                background: s.busy ? 'var(--paper4)' : 'var(--navy)', color: 'rgba(255,255,255,.9)',
+                fontSize: 11.5, fontFamily: "'Space Grotesk', sans-serif",
+              }}>{s.btn}</button>
+            )}
+            {s.done && expanded === s.id && (
+              <button onClick={() => onToggle(null)} style={{
+                width: '100%', marginTop: 6, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
+                border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink4)',
+                ...mono9, fontSize: 8.5, letterSpacing: '.05em', textTransform: 'uppercase',
+              }}>recolher</button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 function Card({ title, children }) {
   return (
