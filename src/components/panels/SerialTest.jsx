@@ -272,9 +272,10 @@ export default function SerialTest() {
   const [chip, setChip] = useState(null)
   const [reading, setReading] = useState(null)
 
-  // drag-resizable regions
+  // drag-resizable regions: the editor flex-fills whatever the console
+  // doesn't take, so it always occupies the available vertical space
   const [colW, setColW] = useState(252)
-  const [editorH, setEditorH] = useState(240)
+  const [consoleH, setConsoleH] = useState(200)
 
   const esRef = useRef(null)
   const serialEndRef = useRef(null)
@@ -424,10 +425,10 @@ export default function SerialTest() {
   // ── custom splitters (no browser resize handles) ───────────────────
   const startDrag = (kind) => (e) => {
     e.preventDefault()
-    const x0 = e.clientX, y0 = e.clientY, w0 = colW, h0 = editorH
+    const x0 = e.clientX, y0 = e.clientY, w0 = colW, h0 = consoleH
     const move = (ev) => {
       if (kind === 'col') setColW(clamp(w0 + ev.clientX - x0, 208, 420))
-      else setEditorH(clamp(h0 + ev.clientY - y0, 130, 560))
+      else setConsoleH(clamp(h0 - (ev.clientY - y0), 90, 520)) // dragging up grows the console
     }
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up)
@@ -551,8 +552,8 @@ export default function SerialTest() {
         {/* ── editor + console ────────────────────────────────────── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
 
-          {/* editor */}
-          <Pane style={{ height: editorH, flexShrink: 0 }}>
+          {/* editor — fills all the vertical space the console leaves */}
+          <Pane style={{ flex: 1, minHeight: 120 }}>
             <PaneHeader>
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, color: 'var(--ink4)' }}>{editorName}</span>
               {missionMode && fwEdits[activeFile.file] != null && (
@@ -569,8 +570,8 @@ export default function SerialTest() {
           {/* editor/console resize handle */}
           <Handle dir="h" onPointerDown={startDrag('editor')} />
 
-          {/* single tabbed console */}
-          <Pane style={{ flex: 1, minHeight: 80 }}>
+          {/* single tabbed console — fixed, drag the divider to resize */}
+          <Pane style={{ height: consoleH, flexShrink: 0 }}>
             <PaneHeader>
               <span style={{ display: 'flex', gap: 4 }}>
                 {TABS.map((tb) => <button key={tb.id} onClick={() => setTab(tb.id)} style={tabBtn(tab === tb.id)}>{tb.label}</button>)}
