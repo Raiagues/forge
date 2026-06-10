@@ -497,10 +497,14 @@ export default function SerialTest() {
       hint: 'Clique em Conectar para abrir a porta serial',
       btn: 'Conectar', action: connect, busy: false,
       done: connected, summary: 'Serial ativo · 115200' },
+    // done ONLY on a real flash success ("Flash complete" → upload DONE).
+    // The reboot marker is NOT used here: opening the serial port also
+    // resets the board, which used to self-complete this step and hide
+    // the inline Flash button before the user ever saw it.
     { id: 'flash', n: 3, title: 'Enviar firmware',
-      hint: 'Clique em Flash para enviar o código ao ESP32',
+      hint: 'O código gerado está pronto. Clique para enviar ao ESP32.',
       btn: flashing ? 'Flashing…' : 'Flash to ESP32', action: flash, busy: flashing || detecting,
-      done: stages.reboot === ST_DONE, summary: 'Firmware enviado · placa reiniciou' },
+      done: stages.upload === ST_DONE, summary: 'Firmware enviado ao ESP32' },
     { id: 'validate', n: 4, title: 'Validar sensores',
       hint: 'Aguardando resposta dos sensores via serial...',
       done: stages.telem === ST_DONE && stages.sensor === ST_DONE,
