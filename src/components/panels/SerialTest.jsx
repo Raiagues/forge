@@ -16,7 +16,7 @@ import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
 // soft navy editor and ONE tabbed console (Serial · Build · Diagnostics).
 // ──────────────────────────────────────────────────────────────────
 
-const SERVER = 'http://localhost:3001'
+const SERVER = import.meta.env.VITE_FLASH_SERVER || 'http://localhost:3001'
 
 // Soft navy-tinted dark — harmonises with the navy chrome, not a black terminal.
 const EDITOR_BG = '#1E283C'

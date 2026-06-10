@@ -17,7 +17,7 @@
 const KEY = 'forge_analytics'
 const SID_KEY = 'forge_session_id'
 const MAX_EVENTS = 2000
-const SERVER = 'http://localhost:3001'
+const SERVER = import.meta.env.VITE_FLASH_SERVER || 'http://localhost:3001'
 const FLUSH_MS = 3000
 
 function uuid() {
