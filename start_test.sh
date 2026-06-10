@@ -22,7 +22,8 @@ bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 stop_test() {
   if [ -f "$PIDFILE" ]; then
     while read -r pid; do
-      kill "$pid" 2>/dev/null || true
+      # each entry is a process-group leader (setsid): kill the whole group
+      kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
     done < "$PIDFILE"
     rm -f "$PIDFILE"
     bold "Test instance stopped."
@@ -50,11 +51,11 @@ fi
 # ── 2 · run from the copy on test ports ─────────────────────────────
 cd "$SNAPSHOT"
 bold "Starting test flash server on port ${TEST_SERVER_PORT}…"
-PORT="$TEST_SERVER_PORT" node server/flash.js > .forge-test-server.log 2>&1 &
+setsid env PORT="$TEST_SERVER_PORT" node server/flash.js > .forge-test-server.log 2>&1 &
 echo $! > "$PIDFILE"
 
 bold "Starting test frontend on port ${TEST_PORT}…"
-VITE_FLASH_SERVER="http://localhost:${TEST_SERVER_PORT}" \
+setsid env VITE_FLASH_SERVER="http://localhost:${TEST_SERVER_PORT}" \
   npx vite --port "$TEST_PORT" --strictPort > .forge-test-dev.log 2>&1 &
 echo $! >> "$PIDFILE"
 
