@@ -178,7 +178,7 @@ export default function SchematicView() {
           viewBox={`0 0 ${width} ${height}`}
           style={{ width: '100%', height: '100%', display: 'block' }}
           onMouseMove={(e) => { if (pending) setMouse(toSvg(e)) }}
-          onClick={() => setSelWire(null)}
+          onClick={() => { setSelWire(null); if (selectedId) selectEntity(null) }}
         >
           {/* wires */}
           {wires.map((w, i) => {

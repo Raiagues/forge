@@ -356,7 +356,8 @@ const useForge = create((set, get) => {
       if (prev && prev !== id) track('section_dwell', { section: prev, durationMs: Date.now() - sectionEnterAt })
       sectionEnterAt = Date.now()
       track('nav_click', { section: id })
-      set({ activeSection: id })
+      // navigating always closes the contextual drawer
+      set({ activeSection: id, drawerOpen: false, selectedId: null })
     },
     selectEntity: (id) => {
       if (id) track('panel_toggle', { panel: 'inspector', action: 'open' })
@@ -370,7 +371,8 @@ const useForge = create((set, get) => {
       set({ navWidth: clamped })
     },
 
-    notify: (message) => set({ notice: { id: ++noticeSeq, message } }),
+    // toasts take the user's attention — the drawer yields to them
+    notify: (message) => set({ notice: { id: ++noticeSeq, message }, drawerOpen: false, selectedId: null }),
     clearNotice: () => set({ notice: null }),
     markFirstStageConfirmed: () => { if (!get().firstStageConfirmed) set({ firstStageConfirmed: true }) },
 
@@ -378,7 +380,7 @@ const useForge = create((set, get) => {
     // never a modal. `label` is the user-facing feature name.
     comingSoon: (label) => {
       track('coming_soon_click', { featureId: label })
-      set({ notice: { id: ++noticeSeq, message: `${label} · em breve` } })
+      set({ notice: { id: ++noticeSeq, message: `${label} · em breve` }, drawerOpen: false, selectedId: null })
     },
     // Back-compat shim: any remaining caller routes to the same toast.
     openFeatureInfo: (key) => get().comingSoon(getFeatureInfo(key)?.title || key),
