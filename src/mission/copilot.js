@@ -70,7 +70,8 @@ export function analyzeMission({ defs, framework, componentIds = [], plan = {} }
     id: uid('to'), kind: 'tradeoff', severity: 'info',
     title: 'WiFi vs. alcance',
     detail: 'WiFi entrega alta taxa porém alcance curto. Para enlaces de vários km, LoRa complementa o WiFi com baixa taxa e longo alcance.',
-    actions: defs.lora_sx1276 ? [{ label: 'Adicionar LoRa SX1276', type: 'add', componentId: 'lora_sx1276' }] : [],
+    actions: defs.lora_sx1276 && !defs.lora_sx1276.comingSoon
+      ? [{ label: 'Adicionar LoRa SX1276', type: 'add', componentId: 'lora_sx1276' }] : [],
   })
   if (lora && !wifi && framework?.id === 'obsat') findings.push({
     id: uid('to'), kind: 'tradeoff', severity: 'warn',

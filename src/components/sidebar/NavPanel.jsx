@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import useForge, { COMPONENT_DEFS, MISSION_TEMPLATES, STATUS } from '../../store/useForge'
-import { WORKFLOW_STEPS, FRAMEWORK_LIST } from '../../mission/index.js'
+import useForge, { COMPONENT_DEFS, STATUS } from '../../store/useForge'
+import { getFramework, getObjective, SOURCE_LABEL } from '../../mission/index.js'
 
 const STATUS_COLOR = {
   [STATUS.OK]: 'var(--ok2)', [STATUS.WARN]: 'var(--warn2)',
@@ -70,92 +70,61 @@ function GhostButton({ label, onClick }) {
 }
 
 // ── per-section nav content ───────────────────────────────────────
+// Mission nav = live mission summary. The builder itself lives in the
+// center workspace (MissionSection); this rail mirrors its state.
 function MissionNav() {
-  const {
-    missionPlan, workflowStep, setWorkflowStep, selectFramework,
-    validation, entities, telemetry, runCopilot,
-  } = useForge()
+  const { missionPlan, live, entities, runCopilot } = useForge()
+  const fw = getFramework(missionPlan.frameworkId)
+  const obj = getObjective(missionPlan.objectiveId)
+  const v = live?.validation
+  const eco = live?.eco || { massG: 0, priceBRL: 0, currentmA: 0 }
 
-  // No framework chosen yet → quick framework picker.
-  if (!missionPlan.frameworkId) {
+  if (!fw) {
     return (
-      <>
-        <SectionLabel>Frameworks</SectionLabel>
-        {FRAMEWORK_LIST.map(fw => (
-          <NavItem key={fw.id} label={fw.name} right={fw.kind === 'custom' ? '✎' : '★'} onClick={() => selectFramework(fw.id)} />
-        ))}
-        <div style={{ height: 12 }} />
-        <SectionLabel>Perfis rápidos</SectionLabel>
-        <QuickProfiles />
-      </>
+      <div style={{ padding: '8px', fontSize: 11, color: 'var(--navyt3)', lineHeight: 1.6 }}>
+        Escolha a competição no painel central para começar a missão.
+      </div>
     )
   }
 
-  // Framework selected → 10-step workflow rail with completion state.
-  const ctx = {
-    plan: missionPlan, defs: COMPONENT_DEFS,
-    entitiesCount: Object.keys(entities).length,
-    telemetryCount: telemetry.length, validation,
-  }
-  const errors = validation?.summary.errors || 0
-  const warnings = validation?.summary.warnings || 0
-
   return (
     <>
-      <SectionLabel>Workflow</SectionLabel>
-      {WORKFLOW_STEPS.map(step => {
-        const done = step.isComplete(ctx)
-        const active = workflowStep === step.id
-        return (
-          <button key={step.id} onClick={() => setWorkflowStep(step.id)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-            padding: '5px 8px', borderRadius: 5, border: 'none', marginBottom: 1, cursor: 'pointer',
-            background: active ? 'var(--navyb2)' : 'transparent',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--navyb)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = active ? 'var(--navyb2)' : 'transparent' }}>
-            <span style={{
-              width: 16, height: 16, borderRadius: '50%', flexShrink: 0, fontFamily: "'Space Mono', monospace",
-              fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: `1px solid ${done ? 'var(--ok2)' : 'var(--navyt3)'}`,
-              background: done ? 'var(--ok2)' : 'transparent',
-              color: done ? '#10241A' : 'var(--navyt2)',
-            }}>{done ? '✓' : step.n}</span>
-            <span style={{ flex: 1, fontSize: 12, color: active ? 'var(--navyt)' : 'var(--navyt2)', fontWeight: active ? 500 : 400 }}>{step.label}</span>
-          </button>
-        )
-      })}
+      <SectionLabel>Missão</SectionLabel>
+      <Readout rows={[
+        ['competição', fw.name],
+        ['objetivo', obj ? obj.label.split(' ')[0] : '—'],
+        ['módulos', Object.keys(entities).length],
+      ]} />
 
       <div style={{ height: 10 }} />
-      <SectionLabel>Validação</SectionLabel>
+      <SectionLabel>Validação ao vivo</SectionLabel>
       <Readout rows={[
-        ['requisitos', validation ? validation.summary.rules : '—'],
-        ['erros', errors, errors ? 'var(--err2)' : 'var(--ok2)'],
-        ['avisos', warnings, warnings ? 'var(--warn2)' : 'var(--navyt2)'],
-        ['massa', `${validation ? validation.summary.massG : 0} g`],
+        ['requisitos', v ? v.summary.rules : '—'],
+        ['erros', v?.summary.errors ?? 0, v?.summary.errors ? 'var(--err2)' : 'var(--ok2)'],
+        ['avisos', v?.summary.warnings ?? 0, v?.summary.warnings ? 'var(--warn2)' : 'var(--navyt2)'],
+      ]} />
+
+      <div style={{ height: 10 }} />
+      <SectionLabel>Economia</SectionLabel>
+      <Readout rows={[
+        ['massa', `${eco.massG} g`],
+        ['custo', `R$ ${eco.priceBRL}`, missionPlan.budgetBRL && eco.priceBRL > missionPlan.budgetBRL ? 'var(--err2)' : undefined],
+        ['consumo', `${eco.currentmA.toFixed(0)} mA`],
       ]} />
       <GhostButton label="◇ Pedir análise ao copiloto" onClick={() => runCopilot('analysis')} />
     </>
   )
 }
 
-function QuickProfiles() {
-  const loadTemplate = useForge(s => s.loadTemplate)
-  return MISSION_TEMPLATES.map(t => (
-    <NavItem key={t.id} label={`${t.icon} ${t.label}`} onClick={() => loadTemplate(t.id)} />
-  ))
-}
-
 function HardwareNav() {
-  const { entities, selectedId, selectEntity, addEntity } = useForge()
+  const { entities, selectedId, selectEntity, toggleHardware, notify } = useForge()
   const groups = { mcu: [], sensor: [], comm: [], storage: [], power: [] }
   Object.values(entities).forEach(e => { if (groups[e.def.category]) groups[e.def.category].push(e) })
-  const GROUP_LABELS = { mcu: 'MCU', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
+  const GROUP_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
   const missing = Object.values(COMPONENT_DEFS).filter(d => !entities[d.id])
 
   if (Object.keys(entities).length === 0) {
-    return <div style={{ padding: '8px', fontSize: 11, color: 'var(--navyt3)', lineHeight: 1.6 }}>Carregue uma missão para popular o hardware.</div>
+    return <div style={{ padding: '8px', fontSize: 11, color: 'var(--navyt3)', lineHeight: 1.6 }}>Monte a missão na seção Mission para popular o hardware.</div>
   }
 
   return (
@@ -164,15 +133,20 @@ function HardwareNav() {
         <div key={cat} style={{ marginBottom: 12 }}>
           <SectionLabel>{GROUP_LABELS[cat]}</SectionLabel>
           {items.map(e => (
-            <NavItem key={e.id} label={e.def.label} active={selectedId === e.id}
-              dot={STATUS_COLOR[e.status]} onClick={() => selectEntity(e.id)} />
+            <NavItem key={e.id} label={e.def.friendly || e.def.label} active={selectedId === e.id}
+              dot={STATUS_COLOR[e.status]} right={e.def.label} onClick={() => selectEntity(e.id)} />
           ))}
         </div>
       ))}
       {missing.length > 0 && (
         <>
           <SectionLabel>Adicionar componente</SectionLabel>
-          {missing.map(d => <NavItem key={d.id} label={`+ ${d.label}`} onClick={() => addEntity(d.id)} />)}
+          {missing.map(d => (
+            <NavItem key={d.id}
+              label={d.comingSoon ? `${d.friendly || d.label}` : `+ ${d.friendly || d.label}`}
+              right={d.comingSoon ? 'em breve' : d.label}
+              onClick={() => d.comingSoon ? notify(`${d.friendly || d.label} · em breve`) : toggleHardware(d.id)} />
+          ))}
         </>
       )}
     </>
@@ -231,35 +205,21 @@ function FirmwareNav() {
 }
 
 function DebugNav() {
-  const { entities, selectEntity, selectedId, runScan, isScanning } = useForge()
+  const { entities, selectEntity, runScan, isScanning, live } = useForge()
   const list = Object.values(entities)
   if (!list.length) return <Empty />
-  const issues = list.filter(e => e.status === STATUS.ERR || e.status === STATUS.WARN)
+  const issues = (live?.validation?.issues || []).filter(i => i.severity !== 'info')
   return (
     <>
       <SectionLabel>Problemas</SectionLabel>
       {issues.length === 0 && <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--ok2)' }}>Nenhum problema ativo</div>}
-      {issues.map(e => (
-        <NavItem key={e.id} label={e.def.label} active={selectedId === e.id}
-          dot={STATUS_COLOR[e.status]} onClick={() => selectEntity(e.id)} />
+      {issues.map((iss, i) => (
+        <NavItem key={i} label={iss.title}
+          right={SOURCE_LABEL[iss.source] || iss.source}
+          dot={iss.severity === 'error' ? 'var(--err2)' : 'var(--warn2)'}
+          onClick={() => iss.targets?.[0] && selectEntity(iss.targets[0])} />
       ))}
       <GhostButton label={isScanning ? 'Verificando…' : 'Rodar I2C/SPI scan'} onClick={runScan} />
-    </>
-  )
-}
-
-function SerialNav() {
-  const { serialLog, clearSerial } = useForge()
-  return (
-    <>
-      <SectionLabel>Conexão</SectionLabel>
-      <Readout rows={[
-        ['porta', 'COM3'],
-        ['baud', '115200'],
-        ['linhas', serialLog.length],
-        ['estado', 'aberto', 'var(--ok2)'],
-      ]} />
-      <GhostButton label="Limpar console" onClick={clearSerial} />
     </>
   )
 }
@@ -268,10 +228,10 @@ function TelemetryNav() {
   const { entities, telemetry, seq } = useForge()
   if (!Object.keys(entities).length) return <Empty />
   const metrics = [
-    entities.bme280 && 'Temperatura',
-    entities.ccs811 && 'CO₂',
-    entities.lipo_2000 && 'Bateria',
-    entities.lora_sx1276 && 'RSSI LoRa',
+    entities.bmp280 && 'Temperatura',
+    entities.bmp280 && 'Pressão',
+    entities.mpu6050 && 'Aceleração Z',
+    entities.esp32 && 'Heap livre',
   ].filter(Boolean)
   return (
     <>
@@ -311,6 +271,18 @@ function SerialTestNav() {
   )
 }
 
+function AnalyticsNav() {
+  return (
+    <>
+      <SectionLabel>Sessão de testes</SectionLabel>
+      <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--navyt2)', lineHeight: 1.7 }}>
+        Eventos de uso registrados localmente: cliques, navegação, fiação, tentativas e falhas.
+        Use após a sessão com usuários para priorizar o desenvolvimento.
+      </div>
+    </>
+  )
+}
+
 function Empty() {
   return <div style={{ padding: '8px', fontSize: 11, color: 'var(--navyt3)', lineHeight: 1.6 }}>Carregue uma missão para começar.</div>
 }
@@ -321,9 +293,9 @@ const NAV_CONTENT = {
   hardware:     HardwareNav,
   firmware:     FirmwareNav,
   debug:        DebugNav,
-  serial:       SerialNav,
   telemetry:    TelemetryNav,
   serialtest:   SerialTestNav,
+  analytics:    AnalyticsNav,
 }
 
 // ── resize handle ─────────────────────────────────────────────────
@@ -359,7 +331,7 @@ function ResizeHandle() {
 }
 
 export default function NavPanel() {
-  const { project, activeSection, connectionStatus, navWidth } = useForge()
+  const { project, activeSection, hwLink, navWidth } = useForge()
   const Content = NAV_CONTENT[activeSection]
 
   return (
@@ -381,16 +353,16 @@ export default function NavPanel() {
         {Content ? <Content /> : null}
       </div>
 
-      {/* footer: connection */}
+      {/* footer: HONEST physical link state — never fake-positive */}
       <div style={{ padding: '10px 12px', borderTop: '1px solid var(--navyb)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: '.06em' }}>
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: connectionStatus === 'connected' ? 'var(--ok2)' : 'var(--err2)',
-            boxShadow: connectionStatus === 'connected' ? '0 0 4px var(--ok2)' : 'none',
+            background: hwLink.connected ? 'var(--ok2)' : 'var(--navyt3)',
+            boxShadow: hwLink.connected ? '0 0 4px var(--ok2)' : 'none',
           }} />
           <span style={{ color: 'var(--navyt2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {connectionStatus === 'connected' ? 'ESP32 · COM3 · 115200' : 'Desconectado'}
+            {hwLink.connected ? `ESP32 real · ${hwLink.port || 'serial'}` : 'Sem hardware físico · simulação'}
           </span>
         </div>
       </div>

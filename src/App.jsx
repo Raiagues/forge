@@ -1,4 +1,4 @@
-import { useEffect, Suspense } from 'react'
+import { useEffect } from 'react'
 import useForge from './store/useForge'
 import IconSidebar from './components/sidebar/IconSidebar'
 import NavPanel    from './components/sidebar/NavPanel'
@@ -7,41 +7,55 @@ import Statusbar   from './components/panels/Statusbar'
 import Drawer      from './components/panels/Drawer'
 import MissionSection from './components/panels/MissionSection'
 import TelemetryPanel from './components/panels/TelemetryPanel'
-import SerialPanel    from './components/panels/SerialPanel'
 import FirmwarePanel  from './components/panels/FirmwarePanel'
+import DebugPanel     from './components/panels/DebugPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
-import ForgeCanvas from './components/canvas/ForgeCanvas'
+import HardwareViews from './components/canvas/HardwareViews'
 import SerialTest from './components/panels/SerialTest'
+import FeatureInfoModal from './components/panels/FeatureInfoModal'
+import AnalyticsPanel from './components/panels/AnalyticsPanel'
 
-function CanvasView({ section, hasEntities }) {
+function HardwareSection({ section, hasEntities }) {
   if (!hasEntities) return <EmptyState section={section} />
-  return (
-    <Suspense fallback={
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: 'var(--ink4)', letterSpacing: '.1em' }}>
-          carregando cena 3D…
-        </span>
-      </div>
-    }>
-      <ForgeCanvas />
-    </Suspense>
-  )
+  return <HardwareViews />
 }
 
 // Section → main-area content. Every section resolves to a real view.
 function SectionContent({ section, hasEntities }) {
   switch (section) {
     case 'mission':      return <MissionSection />
-    case 'hardware':     return <CanvasView section="Hardware" hasEntities={hasEntities} />
-    case 'debug':        return <CanvasView section="Debug" hasEntities={hasEntities} />
+    case 'hardware':     return <HardwareSection section="Hardware" hasEntities={hasEntities} />
+    case 'debug':        return <DebugPanel />
     case 'architecture': return <ArchitecturePanel />
     case 'firmware':     return <FirmwarePanel />
-    case 'serial':       return <SerialPanel />
     case 'telemetry':    return <TelemetryPanel />
     case 'serialtest':   return <SerialTest />
+    case 'analytics':    return <AnalyticsPanel />
     default:             return <EmptyState section={section} />
   }
+}
+
+// Lightweight contextual toast — fed by store.notice (e.g. "em breve",
+// hardware added). Auto-dismisses; never interrupts the flow.
+function Toast() {
+  const notice = useForge(s => s.notice)
+  const clearNotice = useForge(s => s.clearNotice)
+  useEffect(() => {
+    if (!notice) return
+    const id = setTimeout(clearNotice, 2200)
+    return () => clearTimeout(id)
+  }, [notice, clearNotice])
+  if (!notice) return null
+  return (
+    <div style={{
+      position: 'absolute', bottom: 38, left: '50%', transform: 'translateX(-50%)',
+      background: 'var(--navy)', color: 'rgba(255,255,255,.85)',
+      padding: '6px 16px', borderRadius: 18, zIndex: 90, pointerEvents: 'none',
+      fontFamily: "'Space Mono', monospace", fontSize: 9.5, letterSpacing: '.06em',
+      boxShadow: '0 4px 14px rgba(26,24,20,.18)', whiteSpace: 'nowrap',
+    }}>{notice.message}</div>
+  )
 }
 
 export default function App() {
@@ -66,6 +80,8 @@ export default function App() {
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             <SectionContent section={activeSection} hasEntities={hasEntities} />
             <Drawer />
+            <FeatureInfoModal />
+            <Toast />
           </div>
           <Statusbar />
         </div>

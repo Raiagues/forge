@@ -13,8 +13,8 @@ export default function EmptyState({ section }) {
           textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 10,
         }}>{section}</div>
         <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 16 }}>
-          Nenhuma missão carregada. Escolha um template em <strong style={{ color: 'var(--ink2)' }}>Mission</strong> para
-          gerar o hardware, as conexões e a telemetria.
+          Nenhuma missão em andamento. Monte a missão em <strong style={{ color: 'var(--ink2)' }}>Mission</strong> —
+          competição, objetivo e hardware — e o restante da plataforma acompanha.
         </div>
         <button
           onClick={() => setSection('mission')}

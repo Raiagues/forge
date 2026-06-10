@@ -1,119 +1,108 @@
-import { useMemo, useState } from 'react'
-import useForge from '../../store/useForge'
+import { useMemo } from 'react'
+import useForge, { COMPONENT_DEFS } from '../../store/useForge'
+import { activeModules, moduleCode, resolveObjective, SOFTWARE_LAYERS } from '../../mission/index.js'
 import EmptyState from './EmptyState'
+import CodeEditor from '../ui/CodeEditor'
 
-// Build a plausible Arduino sketch from whatever parts the mission loaded.
-// Pure function of the entity set — regenerates as hardware changes.
-function generateFirmware(entities, mission) {
-  const have = (id) => !!entities[id]
-  const L = []
-  const p = (s = '') => L.push(s)
+// ──────────────────────────────────────────────────────────────────
+// Firmware — modular workspace. The firmware is NOT one giant file:
+// each hardware driver / system service / mission app is its own
+// logical module (main.ino + .h files) generated from the mission and
+// editable per-module. Edits persist in the store; "reset" returns a
+// module to its generated state.
+// ──────────────────────────────────────────────────────────────────
 
-  p(`// ${mission.label || 'FORGE mission'} — auto-generated firmware`)
-  p(`// target: ESP32-WROOM-32 · ${Object.keys(entities).length} components`)
-  p()
-  p('#include <Wire.h>')
-  if (have('bme280'))      p('#include <Adafruit_BME280.h>')
-  if (have('mpu6050'))     p('#include <Adafruit_MPU6050.h>')
-  if (have('ccs811'))      p('#include <Adafruit_CCS811.h>')
-  if (have('gps_neo6m'))   p('#include <TinyGPSPlus.h>')
-  if (have('lora_sx1276')) p('#include <LoRa.h>')
-  if (have('sd_card'))     p('#include <SD.h>')
-  p()
-  p('#define I2C_SDA 21')
-  p('#define I2C_SCL 22')
-  if (have('gps_neo6m')) { p('#define GPS_RX 16'); p('#define GPS_TX 17') }
-  if (have('lora_sx1276')) { p('#define LORA_CS 5'); p('#define LORA_RST 14'); p('#define LORA_DIO0 26') }
-  if (have('sd_card')) p('#define SD_CS 15')
-  p()
-  if (have('bme280'))    p('Adafruit_BME280 bme;')
-  if (have('mpu6050'))   p('Adafruit_MPU6050 mpu;')
-  if (have('ccs811'))    p('Adafruit_CCS811 ccs;')
-  if (have('gps_neo6m')) p('TinyGPSPlus gps;')
-  p()
-  p('void setup() {')
-  p('  Serial.begin(115200);')
-  p('  Wire.begin(I2C_SDA, I2C_SCL);')
-  if (have('bme280'))  p('  if (!bme.begin(0x76)) Serial.println("BME280 not found");')
-  if (have('mpu6050')) p('  if (!mpu.begin()) Serial.println("MPU6050 not found");')
-  if (have('ccs811'))  p('  if (!ccs.begin()) Serial.println("CCS811 not found");')
-  if (have('gps_neo6m')) p('  Serial2.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);')
-  if (have('lora_sx1276')) {
-    p('  LoRa.setPins(LORA_CS, LORA_RST, LORA_DIO0);')
-    p('  if (!LoRa.begin(915E6)) Serial.println("LoRa init failed");')
-  }
-  if (have('sd_card')) p('  if (!SD.begin(SD_CS)) Serial.println("SD mount failed");')
-  p('  Serial.println("FORGE node ready");')
-  p('}')
-  p()
-  p('void loop() {')
-  if (have('bme280')) {
-    p('  float t = bme.readTemperature();')
-    p('  float p = bme.readPressure() / 100.0F;')
-    p('  float h = bme.readHumidity();')
-  }
-  if (have('ccs811')) p('  if (ccs.available()) ccs.readData();')
-  if (have('gps_neo6m')) p('  while (Serial2.available()) gps.encode(Serial2.read());')
-  if (have('lora_sx1276')) {
-    p('  LoRa.beginPacket();')
-    if (have('bme280')) p('  LoRa.printf("T=%.1f P=%.0f H=%.0f", t, p, h);')
-    else                p('  LoRa.print("FORGE telemetry");')
-    p('  LoRa.endPacket();')
-  }
-  if (have('sd_card')) p('  // append sample to log_xxxx.csv on SD')
-  p('  delay(1000);')
-  p('}')
-  return L.join('\n')
-}
+const mono = { fontFamily: "'Space Mono', monospace" }
+const LAYER_COLOR = Object.fromEntries(SOFTWARE_LAYERS.map(l => [l.id, l.color]))
 
 export default function FirmwarePanel() {
-  const { entities, mission } = useForge()
-  const [copied, setCopied] = useState(false)
-  const code = useMemo(() => generateFirmware(entities, mission), [entities, mission])
+  const {
+    entities, mission, missionPlan, live,
+    activeModuleId, setActiveModule, firmwareEdits, setFirmwareEdit, resetFirmwareEdit,
+  } = useForge()
 
-  if (Object.keys(entities).length === 0) return <EmptyState section="Firmware" />
+  const componentIds = Object.keys(entities)
+  const mods = useMemo(
+    () => activeModules({ defs: COMPONENT_DEFS, componentIds, objectiveId: missionPlan.objectiveId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(componentIds), missionPlan.objectiveId],
+  )
 
-  const lines = code.split('\n')
-  const copy = () => {
-    navigator.clipboard?.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400) }).catch(() => {})
+  if (componentIds.length === 0) return <EmptyState section="Firmware" />
+
+  const current = mods.find(m => m.id === activeModuleId) || mods[0]
+  const objective = resolveObjective(missionPlan)
+  // the generated code reflects the ACTUAL wiring the user made
+  const ctx = {
+    componentIds,
+    missionName: missionPlan.name || mission.label,
+    rateHz: parseFloat(objective?.meta?.rateHz) || 1,
+    i2c: live?.i2c,
+    wiring: live?.wiring,
   }
+  const generated = moduleCode(current, ctx)
+  const code = firmwareEdits[current.id] ?? generated
+  const edited = firmwareEdits[current.id] != null && firmwareEdits[current.id] !== generated
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexShrink: 0 }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink2)' }}>main.ino</span>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)' }}>{lines.length} linhas · ESP32 · Arduino</span>
-        <div style={{ flex: 1 }} />
-        <button onClick={copy} style={{
-          padding: '4px 12px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
-          fontFamily: "'Space Mono', monospace", letterSpacing: '.06em', textTransform: 'uppercase',
-          border: '1px solid var(--rule)', background: copied ? 'var(--ok)' : 'var(--paper2)',
-          color: copied ? '#fff' : 'var(--ink3)',
-        }}>{copied ? 'copiado ✓' : 'copiar'}</button>
+      {/* file tabs — one logical module per file */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+        {mods.map(m => {
+          const active = m.id === current.id
+          return (
+            <button key={m.id} onClick={() => setActiveModule(m.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
+              ...mono, fontSize: 9.5,
+              border: '1px solid var(--rule)',
+              background: active ? 'var(--navy)' : 'var(--paper2)',
+              color: active ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: LAYER_COLOR[m.layer], flexShrink: 0 }} />
+              {m.file}{firmwareEdits[m.id] != null ? ' •' : ''}
+            </button>
+          )
+        })}
       </div>
 
-      <div style={{
-        flex: 1, overflow: 'auto', background: '#14110D', borderRadius: 6,
-        border: '1px solid var(--rule)', padding: '12px 0',
-      }}>
-        <pre style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 11.5, lineHeight: 1.65 }}>
-          {lines.map((ln, i) => (
-            <div key={i} style={{ display: 'flex', padding: '0 14px' }}>
-              <span style={{ color: 'rgba(255,255,255,.22)', width: 30, textAlign: 'right', marginRight: 14, flexShrink: 0, userSelect: 'none' }}>{i + 1}</span>
-              <code style={{ color: colorFor(ln), whiteSpace: 'pre-wrap' }}>{ln || ' '}</code>
-            </div>
-          ))}
-        </pre>
+      {/* module identity strip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{current.label}</span>
+        <span style={{
+          ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+          padding: '1px 6px', borderRadius: 2,
+          background: `${LAYER_COLOR[current.layer]}22`, color: LAYER_COLOR[current.layer],
+        }}>
+          {current.layer === 'core' ? 'core — não modifique' : current.layer === 'adaptive' ? 'adaptive — adapte para a missão' : 'mission — construa livremente'}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--ink3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.desc}</span>
+        {edited && (
+          <button onClick={() => resetFirmwareEdit(current.id)} style={{
+            padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+            ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
+            border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--warn2)',
+          }}>↺ regenerar</button>
+        )}
+        <button onClick={() => navigator.clipboard?.writeText(code).catch(() => {})} style={{
+          padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+          ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
+          border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
+        }}>copiar</button>
+      </div>
+
+      {/* editable module code — shared syntax-highlighted editor */}
+      <CodeEditor
+        value={code}
+        onChange={v => setFirmwareEdit(current.id, v)}
+        background="#1E283C"
+        style={{ flex: 1, border: '1px solid var(--rule)', borderRadius: 6 }}
+      />
+
+      <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 6, flexShrink: 0 }}>
+        {mods.length} módulos · gerados da missão e do hardware · edite e os ajustes ficam no projeto
+        {' · '}para gravar num ESP32 real use a aba Serial Test
       </div>
     </div>
   )
-}
-
-// Minimal syntax tinting — enough to read like an editor without a lexer.
-function colorFor(line) {
-  const t = line.trim()
-  if (t.startsWith('//')) return 'rgba(255,255,255,.34)'
-  if (t.startsWith('#include') || t.startsWith('#define')) return '#C8831A'
-  if (/\b(void|float|if|while|return|begin)\b/.test(t)) return '#7FB5E6'
-  return 'rgba(255,255,255,.82)'
 }

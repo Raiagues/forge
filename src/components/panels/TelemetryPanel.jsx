@@ -55,10 +55,10 @@ export default function TelemetryPanel() {
   const col = (key) => telemetry.map(t => t[key])
 
   const charts = [
-    entities.bme280     && { label: 'Temperatura', key: 'temp', color: 'var(--err2)', unit: '°C',  domain: [15, 30] },
-    entities.ccs811     && { label: 'CO₂',         key: 'co2',  color: 'var(--ok2)',  unit: 'ppm', domain: [380, 700] },
-    entities.lipo_2000  && { label: 'Bateria',     key: 'batt', color: 'var(--acc2)', unit: '%',   domain: [0, 100] },
-    entities.lora_sx1276&& { label: 'RSSI LoRa',   key: 'rssi', color: 'var(--warn2)',unit: 'dBm', domain: [-120, -60] },
+    entities.bmp280  && { label: 'Temperatura',  key: 'temp',  color: 'var(--err2)', unit: '°C',  domain: [15, 30] },
+    entities.bmp280  && { label: 'Pressão',      key: 'press', color: 'var(--acc2)', unit: 'hPa', domain: [650, 720] },
+    entities.mpu6050 && { label: 'Aceleração Z', key: 'accel', color: 'var(--warn2)',unit: 'g',   domain: [0.9, 1.1] },
+    entities.esp32   && { label: 'Heap livre',   key: 'heap',  color: 'var(--ok2)',  unit: 'kB',  domain: [180, 260] },
   ].filter(Boolean)
 
   return (

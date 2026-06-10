@@ -52,43 +52,46 @@ export const OBSAT = {
   ],
   requirements: [
     {
-      id: 'obsat-mcu', kind: 'count', category: 'mcu', min: 1, max: 1, severity: 'error',
+      id: 'obsat-mcu', kind: 'count', category: 'mcu', min: 1, max: 1, severity: 'error', source: 'competition',
       title: 'Exatamente um computador de bordo',
       detail: 'A missão precisa de um microcontrolador como computador de bordo (e apenas um barramento principal).',
       suggest: ['esp32'],
     },
     {
-      id: 'obsat-wifi', kind: 'capability', capability: 'wifi', mode: 'any', severity: 'error',
-      title: 'Comunicação WiFi obrigatória',
+      id: 'obsat-wifi', kind: 'capability', capability: 'wifi', mode: 'any', severity: 'error', source: 'comm',
+      title: 'Telemetria WiFi obrigatória',
       detail: 'O OBSAT exige transmissão do pacote de telemetria por WiFi para a estação base. ' +
         'O computador de bordo precisa ter rádio WiFi.',
-      suggest: ['esp32', 'esp8266'],
+      suggest: ['esp32'],
     },
     {
-      id: 'obsat-power', kind: 'system', category: 'power', severity: 'error',
-      title: 'Fonte de energia obrigatória',
-      detail: 'É necessária uma bateria/fonte que garanta autonomia durante a janela de operação.',
-      suggest: ['lipo_2000'],
+      // Power modelling is intentionally light for now — the battery
+      // module is "coming soon", so this stays informational.
+      id: 'obsat-power', kind: 'system', category: 'power', severity: 'info', source: 'competition',
+      title: 'Fonte de energia',
+      detail: 'O voo exige bateria com autonomia para a janela de operação. O módulo de energia chega em breve ao FORGE.',
+      suggest: [],
     },
     {
-      id: 'obsat-telemetry', kind: 'capability', capability: ['temperature', 'pressure'], mode: 'all', severity: 'warn',
+      id: 'obsat-telemetry', kind: 'capability', capability: ['temperature', 'pressure'], mode: 'all', severity: 'warn', source: 'competition',
       title: 'Telemetria de temperatura e pressão',
       detail: 'O pacote padrão inclui temperatura e pressão. Sem esses sensores o pacote fica incompleto.',
-      suggest: ['bme280'],
+      suggest: ['bmp280'],
     },
     {
-      id: 'obsat-mass', kind: 'mass', maxG: 250, severity: 'error',
+      id: 'obsat-mass', kind: 'mass', maxG: 250, severity: 'error', source: 'budget',
       title: 'Massa do payload ≤ 250 g',
       detail: 'A soma das massas dos componentes não pode ultrapassar o limite do edital.',
     },
-    {
-      id: 'obsat-logging', kind: 'capability', capability: 'storage', mode: 'any', severity: 'info',
-      title: 'Backup de dados recomendado',
-      detail: 'Gravar os dados localmente (cartão SD) protege a missão contra perda de enlace.',
-      suggest: ['sd_card'],
-    },
   ],
 }
+
+// Coming-soon competitions — rendered disabled in the picker. New
+// competitions are added here as pure data (same shape as OBSAT).
+export const COMING_SOON_FRAMEWORKS = [
+  { id: 'lasc',   kind: 'competition', name: 'LASC',   full: 'Latin American Space Challenge', tagline: 'CanSats e foguetes — em breve no FORGE.', comingSoon: true },
+  { id: 'cansat', kind: 'competition', name: 'CanSat', full: 'CanSat Brasil',                  tagline: 'Satélite-lata em queda livre — em breve no FORGE.', comingSoon: true },
+]
 
 export const CUSTOM = {
   id: 'custom',
@@ -129,7 +132,7 @@ export const CUSTOM = {
       id: 'custom-sensor', kind: 'system', category: 'sensor', severity: 'warn',
       title: 'Nenhum sensor científico',
       detail: 'Uma missão científica precisa de ao menos um sensor para coletar dados.',
-      suggest: ['bme280', 'mpu6050'],
+      suggest: ['bmp280', 'mpu6050'],
     },
   ],
 }

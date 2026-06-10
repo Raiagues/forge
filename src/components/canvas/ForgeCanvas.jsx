@@ -1,8 +1,9 @@
 import { useRef, useState, useCallback } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
-import { OrbitControls, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei'
+import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import useForge, { STATUS } from '../../store/useForge'
+import { issuesForComponent, SOURCE_LABEL, pinSummary } from '../../mission/index.js'
 
 // ── status → color map ────────────────────────────────────────────
 const STATUS_COLOR = {
@@ -55,8 +56,38 @@ function PCBBoard() {
   )
 }
 
+// ── inline validation badge (floats above a chip) ─────────────────
+// Shows WHERE the issue comes from (competition / objective / budget /
+// comm / dependency / wiring) directly on the affected hardware.
+function IssueBadge({ issues, size }) {
+  if (!issues.length) return null
+  const worst = issues.some(i => i.severity === 'error') ? 'error' : 'warn'
+  const color = worst === 'error' ? '#C04030' : '#C8831A'
+  const first = issues[0]
+  return (
+    <Html position={[0, size[1] + 0.55, 0]} center distanceFactor={9} zIndexRange={[20, 0]}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        background: 'rgba(244,239,230,.95)', border: `1px solid ${color}`,
+        borderLeft: `3px solid ${color}`, borderRadius: 4,
+        padding: '3px 7px', pointerEvents: 'none', whiteSpace: 'nowrap',
+        fontFamily: "'Space Mono', monospace", fontSize: 9,
+        boxShadow: '0 2px 8px rgba(26,24,20,.12)',
+      }}>
+        <span style={{
+          fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+          color: '#F4EFE6', background: color, borderRadius: 2, padding: '1px 4px',
+        }}>{SOURCE_LABEL[first.source] || first.source}</span>
+        <span style={{ color: '#1A1814' }}>
+          {first.title}{issues.length > 1 ? ` +${issues.length - 1}` : ''}
+        </span>
+      </div>
+    </Html>
+  )
+}
+
 // ── single component chip ─────────────────────────────────────────
-function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd }) {
+function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [] }) {
   const meshRef = useRef()
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -66,7 +97,12 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd }) {
 
   const { def, position, status } = entity
   const baseColor = CATEGORY_COLOR[def.category] || '#2A2A2A'
-  const statusColor = STATUS_COLOR[status]
+  // validation issues override the visual status so problems read inline
+  const hasErr  = issues.some(i => i.severity === 'error')
+  const hasWarn = issues.some(i => i.severity === 'warn')
+  const effStatus = status === STATUS.SCANNING ? status
+                  : hasErr ? STATUS.ERR : hasWarn ? STATUS.WARN : status
+  const statusColor = STATUS_COLOR[effStatus]
   const isScanning = status === STATUS.SCANNING
 
   // component size by category
@@ -160,8 +196,24 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd }) {
       {/* label billboard - always faces camera */}
       <ChipLabel text={def.label} size={size} status={status} />
 
+      {/* inline validation feedback */}
+      <IssueBadge issues={issues} size={size} />
+
+      {/* friendly name on hover/selection — human meaning first */}
+      {(hovered || isSelected) && (
+        <Html position={[0, -0.18, size[2] / 2 + 0.32]} center distanceFactor={9} zIndexRange={[10, 0]}>
+          <div style={{
+            fontFamily: "'Space Mono', monospace", fontSize: 9, whiteSpace: 'nowrap',
+            color: '#3E3A34', background: 'rgba(244,239,230,.9)', pointerEvents: 'none',
+            border: '1px solid rgba(26,24,20,.09)', borderRadius: 3, padding: '2px 6px',
+          }}>
+            {def.friendly || def.label}<span style={{ color: '#ADA69E' }}> · {def.label}</span>
+          </div>
+        </Html>
+      )}
+
       {/* error glow halo */}
-      {status === STATUS.ERR && (
+      {(effStatus === STATUS.ERR) && (
         <pointLight position={[0, 0.3, 0]} color="#C04030" intensity={0.8} distance={1.8} />
       )}
     </group>
@@ -203,7 +255,11 @@ function ChipLabel({ size, status }) {
 }
 
 // ── bus wires between components ─────────────────────────────────
-function BusWires({ entities }) {
+// HONEST wiring display: a solid protocol-colored wire only when the
+// user actually connected the pins; a faint dashed line otherwise
+// (suggested route, not a real connection). Pin labels come from the
+// real wires when connected.
+function BusWires({ entities, pinMap, selectedId, wiring }) {
   const mcu = entities['esp32']
   if (!mcu) return null
 
@@ -212,6 +268,7 @@ function BusWires({ entities }) {
 
   Object.entries(entities).forEach(([id, e]) => {
     if (id === 'esp32' || !e.def.protocol || e.def.protocol === 'MCU') return
+    const wired = !!wiring?.[id]?.wired
     const color = e.def.protocol === 'I2C' ? '#2B5EA7'
                 : e.def.protocol === 'SPI' ? '#2A6B4A'
                 : e.def.protocol === 'UART' ? '#963020'
@@ -225,10 +282,33 @@ function BusWires({ entities }) {
     const pts   = curve.getPoints(16)
     const geo   = new THREE.BufferGeometry().setFromPoints(pts)
 
+    let lineObj
+    if (wired) {
+      lineObj = new THREE.Line(geo, new THREE.LineBasicMaterial({
+        color, linewidth: 1, transparent: true, opacity: e.status === STATUS.ERR ? 0.9 : 0.6,
+      }))
+    } else {
+      lineObj = new THREE.Line(geo, new THREE.LineDashedMaterial({
+        color: '#7A736A', dashSize: 0.16, gapSize: 0.14, transparent: true, opacity: 0.3,
+      }))
+      lineObj.computeLineDistances()
+    }
+
+    const pins = pinSummary(pinMap?.[id] || [])
     lines.push(
-      <primitive key={id} object={
-        new THREE.Line(geo, new THREE.LineBasicMaterial({ color, linewidth: 1, transparent: true, opacity: e.status === STATUS.ERR ? 0.9 : 0.55 }))
-      } />
+      <group key={id}>
+        <primitive object={lineObj} />
+        {selectedId === id && (
+          <Html position={[mid.x, mid.y + 0.12, mid.z]} center distanceFactor={9} zIndexRange={[5, 0]}>
+            <div style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap',
+              color: wired ? color : '#7A736A', background: 'rgba(244,239,230,.92)', pointerEvents: 'none',
+              border: `1px ${wired ? 'solid' : 'dashed'} ${wired ? color : '#ADA69E'}`,
+              borderRadius: 3, padding: '1px 6px', opacity: .92,
+            }}>{wired ? `${e.def.protocol} · ${pins}` : 'não conectado · rota sugerida'}</div>
+          </Html>
+        )}
+      </group>
     )
   })
   return <>{lines}</>
@@ -249,7 +329,8 @@ function IsoCamera() {
 
 // ── Main canvas ───────────────────────────────────────────────────
 export default function ForgeCanvas() {
-  const { entities, selectedId, selectEntity, updatePosition } = useForge()
+  const { entities, selectedId, selectEntity, updatePosition, live } = useForge()
+  const validation = live?.validation
 
   return (
     <Canvas
@@ -286,7 +367,7 @@ export default function ForgeCanvas() {
       />
 
       <PCBBoard />
-      <BusWires entities={entities} />
+      <BusWires entities={entities} pinMap={live?.pins} selectedId={selectedId} wiring={live?.wiring} />
 
       {Object.entries(entities).map(([id, entity]) => (
         <ComponentMesh
@@ -296,6 +377,7 @@ export default function ForgeCanvas() {
           isSelected={selectedId === id}
           onSelect={selectEntity}
           onDragEnd={updatePosition}
+          issues={issuesForComponent(validation, id)}
         />
       ))}
 

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import useForge from '../../store/useForge'
+import CodeEditor from '../ui/CodeEditor'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the FORGE
@@ -245,6 +247,9 @@ const S_PREFIX = { rx: '‹', tx: '»', sys: '#' }
 const ST_IDLE = 'idle', ST_ACTIVE = 'active', ST_DONE = 'done', ST_ERROR = 'error'
 
 export default function SerialTest() {
+  // single store touchpoint: report the REAL link state so the rest of
+  // the platform can honestly distinguish hardware from simulation.
+  const setHwLink = useForge(s => s.setHwLink)
   const [connected, setConnected] = useState(false)
   const [code, setCode] = useState(BMP_SKETCH)
   const [flashing, setFlashing] = useState(false)
@@ -320,21 +325,28 @@ export default function SerialTest() {
     if (esRef.current) return
     const es = new EventSource(`${SERVER}/serial`)
     esRef.current = es
-    es.onopen = () => { setConnected(true); pushSerial('sys', 'monitor conectado · porta gerida pelo backend (sem popup)') }
+    es.onopen = () => {
+      setConnected(true)
+      setHwLink({ connected: true, port: 'bridge · 115200' })
+      pushSerial('sys', 'monitor conectado · porta gerida pelo backend (sem popup)')
+    }
     es.onmessage = (ev) => {
       const line = ev.data
       if (line.startsWith('#')) { pushSerial('sys', line.replace(/^#\s?/, '')); return }
       pushSerial('rx', line); ingestSerial(line)
     }
     es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) setConnected(false)
-      else pushSerial('sys', 'servidor serial indisponível — rode ./start.sh')
+      if (es.readyState === EventSource.CLOSED) {
+        setConnected(false)
+        setHwLink({ connected: false, port: '' })
+      } else pushSerial('sys', 'servidor serial indisponível — rode ./start.sh')
     }
   }
 
   function disconnect() {
     esRef.current?.close(); esRef.current = null
     setConnected(false)
+    setHwLink({ connected: false, port: '' })
     pushSerial('sys', 'monitor desconectado')
   }
 
@@ -478,10 +490,7 @@ export default function SerialTest() {
               {flashing && <Spinner label="gravando" />}
               <button onClick={flash} disabled={flashing || detecting} style={solidBtn(flashing || detecting)}>{flashing ? 'Flashing…' : 'Flash to ESP32'}</button>
             </PaneHeader>
-            <textarea
-              value={code} onChange={(e) => setCode(e.target.value)} disabled={flashing} spellCheck={false}
-              style={{ flex: 1, width: '100%', resize: 'none', boxSizing: 'border-box', background: EDITOR_BG, color: PANEL_INK, border: 'none', outline: 'none', padding: '10px 13px', fontFamily: "'Space Mono', monospace", fontSize: 11.5, lineHeight: 1.6, tabSize: 2, ...SOFT_GRID }}
-            />
+            <CodeEditor value={code} onChange={setCode} disabled={flashing} background={EDITOR_BG} style={{ flex: 1, minHeight: 0 }} />
           </Pane>
 
           {/* editor/console resize handle */}

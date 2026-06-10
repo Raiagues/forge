@@ -1,15 +1,21 @@
 import { create } from 'zustand'
 import {
-  getFramework, validateDesign, runCopilot, generateArchitecture,
+  getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
+  getObjective, resolveObjective, assignPins, economics,
+  validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, sameEnd,
+  SOFTWARE_MODULES,
 } from '../mission/index.js'
+import { track } from '../lib/analytics.js'
+import { getFeatureInfo } from '../lib/futureFeatures.js'
 
 // ──────────────────────────────────────────────────────────────────
 // FORGE store — single source of truth for the digital twin.
 //
-// Everything the UI shows is derived from this store. Mission
-// templates are *generators*: loadTemplate() builds entities,
-// connections, telemetry history and the serial log so that the
-// 3D scene, the drawers, the nav lists and every panel stay in sync.
+// Everything the UI shows is derived from this store. The mission
+// builder progressively fills `missionPlan`; hardware toggles create
+// real entities on the PCB immediately; `live` (validation + pin map)
+// is recomputed on every relevant change so feedback stays inline and
+// alive while the user builds.
 // ──────────────────────────────────────────────────────────────────
 
 export const STATUS = { IDLE: 'idle', OK: 'ok', WARN: 'warn', ERR: 'err', SCANNING: 'scanning' }
@@ -22,63 +28,56 @@ const BUS_PINS = {
   UART: ['TX → GPIO16', 'RX → GPIO17'],
 }
 
+// Catalog. `friendly` is the human-meaning name shown FIRST in the UI;
+// the part number stays as secondary technical identity. Only the parts
+// with `supported: true` can be placed today — everything else renders
+// as "coming soon" (deliberately restricted hardware set).
 export const COMPONENT_DEFS = {
-  esp32:      { id: 'esp32',      label: 'ESP32-WROOM-32', category: 'mcu',     protocol: 'MCU',  voltage: '3.3V', mass: 8,  current: 240, color: '#2B3F7A', caps: ['mcu','wifi','bluetooth','i2c','spi','uart','adc'] },
-  esp8266:    { id: 'esp8266',    label: 'ESP8266',        category: 'mcu',     protocol: 'MCU',  voltage: '3.3V', mass: 7,  current: 170, color: '#2B3F7A', caps: ['mcu','wifi','i2c','spi','uart','adc'] },
-  rp2040:     { id: 'rp2040',     label: 'RP2040 (Pico)',  category: 'mcu',     protocol: 'MCU',  voltage: '3.3V', mass: 6,  current: 90,  color: '#3A2B4A', caps: ['mcu','i2c','spi','uart','adc'] },
-  bme280:     { id: 'bme280',     label: 'BME280',         category: 'sensor',  protocol: 'I2C',  address: '0x76', voltage: '3.3V', mass: 2, current: 3,   color: '#1E3A28', measures: ['temperature','pressure','humidity'], caps: ['i2c','temperature','pressure','humidity'] },
-  mpu6050:    { id: 'mpu6050',    label: 'MPU6050',        category: 'sensor',  protocol: 'I2C',  address: '0x68', voltage: '3.3V', mass: 3, current: 3.9, color: '#2A2014', measures: ['accelerometer','gyroscope'], caps: ['i2c','imu','accel','gyro'] },
-  gps_neo6m:  { id: 'gps_neo6m',  label: 'GPS NEO-6M',     category: 'sensor',  protocol: 'UART', voltage: '3.3V', mass: 5,  current: 50,  color: '#2A1414', measures: ['position','altitude'], caps: ['uart','gnss','position','altitude'] },
-  ccs811:     { id: 'ccs811',     label: 'CCS811',         category: 'sensor',  protocol: 'I2C',  address: '0x5A', voltage: '3.3V', mass: 2, current: 30,  color: '#1A2A1A', measures: ['co2','tvoc'], caps: ['i2c','co2','tvoc','air-quality'] },
-  lora_sx1276:{ id: 'lora_sx1276',label: 'LoRa SX1276',    category: 'comm',    protocol: 'SPI',  voltage: '3.3V', mass: 4,  current: 120, color: '#2A1E3A', measures: ['rssi','snr'], caps: ['spi','lora','rf','long-range'] },
-  sd_card:    { id: 'sd_card',    label: 'MicroSD',        category: 'storage', protocol: 'SPI',  voltage: '3.3V', mass: 1,  current: 100, color: '#1E2814', caps: ['spi','storage','logging'] },
-  lipo_2000:  { id: 'lipo_2000',  label: 'LiPo 2000mAh',   category: 'power',   protocol: null,   voltage: '3.7V', mass: 40, capacity: 2000, color: '#2A1E0A', caps: ['power','battery'] },
+  esp32: {
+    id: 'esp32', label: 'ESP32-WROOM-32D', friendly: 'Computador de bordo',
+    category: 'mcu', protocol: 'MCU', voltage: '3.3V', mass: 8, current: 240, price: 45,
+    color: '#2B3F7A', supported: true,
+    caps: ['mcu', 'wifi', 'bluetooth', 'i2c', 'spi', 'uart', 'adc'],
+  },
+  bmp280: {
+    id: 'bmp280', label: 'BMP280', friendly: 'Sensor de temperatura + pressão',
+    category: 'sensor', protocol: 'I2C', address: '0x76', voltage: '3.3V', mass: 2, current: 3, price: 15,
+    color: '#1E3A28', supported: true,
+    measures: ['temperature', 'pressure'],
+    caps: ['i2c', 'temperature', 'pressure', 'altitude'],
+  },
+  mpu6050: {
+    id: 'mpu6050', label: 'MPU6050', friendly: 'Giroscópio + acelerômetro',
+    category: 'sensor', protocol: 'I2C', address: '0x68', voltage: '3.3V', mass: 3, current: 3.9, price: 12,
+    color: '#2A2014', supported: true,
+    measures: ['accelerometer', 'gyroscope'],
+    caps: ['i2c', 'imu', 'accel', 'gyro'],
+  },
+  // ── coming soon — visible but not placeable yet ──────────────────
+  ccs811:      { id: 'ccs811',      label: 'CCS811',       friendly: 'Sensor de CO₂ e qualidade do ar', category: 'sensor',  protocol: 'I2C',  address: '0x5A', voltage: '3.3V', mass: 2,  current: 30,  price: 20, color: '#1A2A1A', comingSoon: true, caps: ['i2c', 'co2', 'tvoc', 'air-quality'] },
+  gps_neo6m:   { id: 'gps_neo6m',   label: 'NEO-6M',       friendly: 'Posição GPS',                     category: 'sensor',  protocol: 'UART', voltage: '3.3V', mass: 5,  current: 50,  price: 25, color: '#2A1414', comingSoon: true, caps: ['uart', 'gnss', 'position', 'altitude'] },
+  lora_sx1276: { id: 'lora_sx1276', label: 'SX1276',       friendly: 'Rádio LoRa de longo alcance',     category: 'comm',    protocol: 'SPI',  voltage: '3.3V', mass: 4,  current: 120, price: 35, color: '#2A1E3A', comingSoon: true, caps: ['spi', 'lora', 'rf', 'long-range'] },
+  sd_card:     { id: 'sd_card',     label: 'MicroSD',      friendly: 'Cartão de memória',               category: 'storage', protocol: 'SPI',  voltage: '3.3V', mass: 1,  current: 100, price: 8,  color: '#1E2814', comingSoon: true, caps: ['spi', 'storage', 'logging'] },
+  lipo_2000:   { id: 'lipo_2000',   label: 'LiPo 2000mAh', friendly: 'Bateria',                         category: 'power',   protocol: null,   voltage: '3.7V', mass: 40, capacity: 2000, price: 30, color: '#2A1E0A', comingSoon: true, caps: ['power', 'battery'] },
 }
 
+export const SUPPORTED_IDS = Object.values(COMPONENT_DEFS).filter(d => d.supported).map(d => d.id)
+
+// Legacy quick profiles (kept as data; the builder flow is now primary).
 export const MISSION_TEMPLATES = [
   {
     id: 'atmospheric',
     label: 'Monitoramento atmosférico',
     icon: '🌬️',
-    description: 'CO₂, temperatura, pressão e umidade em altitude estratosférica.',
+    description: 'Temperatura, pressão e dinâmica de voo em altitude estratosférica.',
     altitude: '30 km',
-    components: ['esp32','bme280','ccs811','mpu6050','lora_sx1276','sd_card','lipo_2000'],
+    components: ['esp32', 'bmp280', 'mpu6050'],
     objectives: [
-      'Registrar perfil vertical de CO₂ até 30 km',
-      'Medir temperatura, pressão e umidade a 1 Hz',
-      'Transmitir telemetria via LoRa durante todo o voo',
-      'Gravar dados brutos em cartão SD como backup',
+      'Medir temperatura e pressão a 1 Hz durante todo o voo',
+      'Registrar perfil vertical de temperatura até 30 km',
+      'Estimar dinâmica do payload com IMU de 6 eixos',
     ],
-    constraints: 'Massa < 250 g · Consumo médio < 400 mA · Autonomia ≥ 3 h',
-  },
-  {
-    id: 'positioning',
-    label: 'Rastreamento GPS',
-    icon: '📡',
-    description: 'GPS em tempo real com telemetria LoRa e log de trajetória.',
-    altitude: '25 km',
-    components: ['esp32','gps_neo6m','mpu6050','lora_sx1276','sd_card','lipo_2000'],
-    objectives: [
-      'Obter fixo GPS e registrar trajetória completa',
-      'Estimar atitude com IMU de 6 eixos',
-      'Transmitir posição via LoRa a cada 5 s',
-      'Permitir recuperação por última posição conhecida',
-    ],
-    constraints: 'Massa < 220 g · Atualização GPS ≥ 1 Hz · Link LoRa ≥ 10 km',
-  },
-  {
-    id: 'environmental',
-    label: 'Qualidade do ar',
-    icon: '🌿',
-    description: 'CO₂, VOCs e dados meteorológicos básicos.',
-    altitude: '12 km',
-    components: ['esp32','bme280','ccs811','lora_sx1276','sd_card','lipo_2000'],
-    objectives: [
-      'Mapear concentração de VOCs por altitude',
-      'Correlacionar CO₂ com temperatura e umidade',
-      'Transmitir índice de qualidade do ar via LoRa',
-    ],
-    constraints: 'Massa < 230 g · Sensor CCS811 aquecido ≥ 20 min antes do voo',
+    constraints: 'Massa < 250 g · Telemetria WiFi (OBSAT)',
   },
 ]
 
@@ -88,7 +87,6 @@ export const SECTIONS = [
   { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
   { id: 'firmware',     label: 'Firmware',     icon: 'code'     },
   { id: 'debug',        label: 'Debug',        icon: 'bug'      },
-  { id: 'serial',       label: 'Serial',       icon: 'terminal' },
   { id: 'telemetry',    label: 'Telemetry',    icon: 'activity' },
   { id: 'serialtest',   label: 'Serial Test',  icon: 'lab'      },
 ]
@@ -101,85 +99,34 @@ const clock = (offsetSec = 0) => {
   return d.toTimeString().slice(0, 8)
 }
 
-// Default status per component so a freshly loaded mission already has
-// a realistic mix of healthy / warning / failed parts to inspect.
-function defaultStatus(id) {
-  if (id === 'gps_neo6m') return STATUS.ERR
-  if (id === 'mpu6050')   return STATUS.WARN
-  return STATUS.OK
-}
-
 // Live readings generator. `seq` is a monotonic tick counter so values
-// like uptime / packet counts advance instead of jittering randomly.
+// like uptime advance instead of jittering randomly.
 function genReadings(id, status, seq = 0) {
   switch (id) {
-    case 'bme280':
-      return { temperature: `${f(rnd(20, 26))} °C`, pressure: `${f(rnd(675, 690), 0)} hPa`, humidity: `${f(rnd(33, 47))} %` }
+    case 'bmp280':
+      return { temperature: `${f(rnd(20, 26))} °C`, pressure: `${f(rnd(675, 690), 0)} hPa`, altitude_baro: `${f(rnd(680, 720), 0)} m` }
     case 'mpu6050':
       return { accel_x: f(rnd(-0.03, 0.03), 3), accel_y: f(rnd(-0.03, 0.03), 3), accel_z: f(rnd(0.97, 1.02), 3), gyro_x: `${f(rnd(-0.4, 0.4), 2)} °/s`, temp: `${f(rnd(28, 34))} °C` }
-    case 'ccs811':
-      return { co2: `${f(rnd(410, 620), 0)} ppm`, tvoc: `${f(rnd(8, 45), 0)} ppb` }
-    case 'gps_neo6m': {
-      // ERR = no fix yet: searching, low satellites, coordinates dashed.
-      const sats = Math.max(0, Math.round(rnd(0, 3)))
-      return {
-        fix: 'no fix · searching',
-        satellites: `${sats} / 4 min`,
-        latitude: '—',
-        longitude: '—',
-        altitude: '—',
-        signal: `${f(rnd(8, 18), 0)} dBHz`,
-        uart: '9600 8N1 · 0 NMEA',
-      }
-    }
-    case 'lora_sx1276':
-      return { rssi: `${f(rnd(-108, -72), 0)} dBm`, snr: `${f(rnd(6, 11))} dB`, frequency: '915.0 MHz', sf: 'SF9 / BW125', tx_count: `${seq * 1} pkt`, last_ack: 'OK' }
-    case 'sd_card':
-      return { capacity: '8 GB', free: `${f(rnd(7.3, 7.6))} GB`, files: `${4 + seq} logs`, write: `${f(rnd(2, 6))} kB/s` }
-    case 'lipo_2000': {
-      const pct = Math.max(40, 96 - seq * 0.3)
-      return { voltage: `${f(rnd(3.86, 4.05), 2)} V`, charge: `${f(pct, 0)} %`, draw: `${f(rnd(280, 380), 0)} mA`, temp: `${f(rnd(24, 31))} °C` }
-    }
     case 'esp32':
-      return { free_heap: `${f(rnd(208, 232), 0)} kB`, cpu: '240 MHz', cpu_temp: `${f(rnd(41, 49))} °C`, uptime: `${seq * 3} s` }
+      return { free_heap: `${f(rnd(208, 232), 0)} kB`, wifi_rssi: `${f(rnd(-62, -48), 0)} dBm`, cpu_temp: `${f(rnd(41, 49))} °C`, uptime: `${seq * 3} s` }
     default:
       return {}
   }
 }
 
 function genLogs(id) {
-  if (id === 'gps_neo6m') return [
-    { t: clock(2),  m: 'UART timeout 500ms · retry 3/3', cls: 'err' },
-    { t: clock(4),  m: 'no NMEA sentence received', cls: 'err' },
-    { t: clock(6),  m: 'UART init GPIO16/17 · 9600 baud', cls: 'info' },
+  if (id === 'bmp280') return [
+    { t: clock(2), m: 'T=24.1 P=682 OK', cls: 'ok' },
+    { t: clock(5), m: '0x76 ACK · chip id 0x58 OK', cls: 'ok' },
   ]
   if (id === 'mpu6050') return [
-    { t: clock(3),  m: 'accel noise above threshold (σ=0.018)', cls: 'warn' },
-    { t: clock(5),  m: 'WHO_AM_I = 0x68 OK', cls: 'ok' },
-    { t: clock(6),  m: 'I2C 0x68 ACK', cls: 'ok' },
-  ]
-  if (id === 'bme280') return [
-    { t: clock(2),  m: 'T=24.1 P=682 H=37.8', cls: 'ok' },
-    { t: clock(5),  m: '0x76 ACK · chip id 0x60 OK', cls: 'ok' },
-  ]
-  if (id === 'ccs811') return [
-    { t: clock(4),  m: 'app start · drive mode 1', cls: 'ok' },
-    { t: clock(8),  m: 'warming up sensor (20 min)', cls: 'warn' },
-  ]
-  if (id === 'lora_sx1276') return [
-    { t: clock(2),  m: 'TX packet #seq · ACK', cls: 'ok' },
-    { t: clock(6),  m: 'SX1276 v1.2 detected on SPI', cls: 'ok' },
-  ]
-  if (id === 'lipo_2000') return [
-    { t: clock(7),  m: 'pack 4.01V · 92% · nominal', cls: 'ok' },
-  ]
-  if (id === 'sd_card') return [
-    { t: clock(5),  m: 'mounted FAT32 · log_0007.csv', cls: 'ok' },
+    { t: clock(3), m: 'WHO_AM_I = 0x68 OK', cls: 'ok' },
+    { t: clock(6), m: 'I2C 0x68 ACK', cls: 'ok' },
   ]
   if (id === 'esp32') return [
-    { t: clock(5),  m: 'boot OK · IDF v5.1', cls: 'ok' },
-    { t: clock(4),  m: 'I2C init SDA=21 SCL=22', cls: 'info' },
-    { t: clock(3),  m: 'SPI init · LoRa + SD', cls: 'info' },
+    { t: clock(5), m: 'boot OK · IDF v5.1', cls: 'ok' },
+    { t: clock(4), m: 'I2C init SDA=21 SCL=22', cls: 'info' },
+    { t: clock(3), m: 'WiFi STA conectando…', cls: 'info' },
   ]
   return [{ t: clock(1), m: 'init OK', cls: 'ok' }]
 }
@@ -198,7 +145,6 @@ function genConnections(id) {
 
 function makeEntity(compId, position, seq = 0) {
   const def = COMPONENT_DEFS[compId]
-  const status = defaultStatus(compId)
   return {
     id: compId,
     type: compId,
@@ -206,8 +152,8 @@ function makeEntity(compId, position, seq = 0) {
     protocol: def.protocol,
     position,
     rotation: [0, 0, 0],
-    status,
-    readings: genReadings(compId, status, seq),
+    status: STATUS.OK,
+    readings: genReadings(compId, STATUS.OK, seq),
     connections: genConnections(compId),
     logs: genLogs(compId),
   }
@@ -222,16 +168,26 @@ function layoutFor(components) {
   components.forEach((id) => {
     if (id === hub) { pos[id] = [0, 0, 0]; return }
     const col = i % cols, row = Math.floor(i / cols)
-    pos[id] = [col * 2.6 - 2.6, 0, row * 2.0 - 2.0]
+    pos[id] = [col * 2.6 - 2.6, 0, row * 2.0 + 1.6]
     i++
   })
   return pos
 }
 
+// Free slot for an incrementally added part (avoid overlapping the hub).
+function nextFreePosition(entities, def) {
+  if (def.category === 'mcu') return [0, 0, 0]
+  const taken = Object.values(entities).map(e => e.position)
+  const slots = [
+    [-2.6, 0, 1.6], [0, 0, 1.6], [2.6, 0, 1.6],
+    [-2.6, 0, -1.8], [2.6, 0, -1.8], [0, 0, -1.8],
+  ]
+  const free = slots.find(s => !taken.some(t => Math.abs(t[0] - s[0]) < 1 && Math.abs(t[2] - s[2]) < 1))
+  return free || [rnd(-2.5, 2.5), 0, rnd(-1.5, 2)]
+}
+
 const INITIAL_SERIAL = [
-  { t: clock(2), m: 'GPS UART timeout 500ms', cls: 'err' },
-  { t: clock(4), m: 'I2C 0x76 BME280 OK', cls: 'ok' },
-  { t: clock(5), m: 'I2C 0x68 MPU6050 ACK', cls: 'ok' },
+  { t: clock(4), m: 'I2C bus pronto · SDA=21 SCL=22', cls: 'info' },
   { t: clock(7), m: 'ESP32 boot OK · IDF v5.1', cls: 'ok' },
 ]
 
@@ -245,296 +201,497 @@ function loadNavWidth() {
   return 210
 }
 
-const useForge = create((set, get) => ({
-  project: { name: 'PISCE', competition: 'OBSAT · Fase 2', daysLeft: 26 },
-  mission: { id: null, label: '', description: '', objectives: [], constraints: '', altitude: '—' },
-  entities: {},
-  activeSection: 'mission',
-  selectedId: null,
-  drawerOpen: false,
-  isScanning: false,
-  connectionStatus: 'connected',
-  navWidth: loadNavWidth(),
-  seq: 0,
-  telemetry: [],            // rolling time-series for the Telemetry charts
-  serialLog: INITIAL_SERIAL,
+const EMPTY_PLAN = {
+  frameworkId: null,
+  name: '',
+  objectives: [],
+  objectiveId: null,        // single primary scientific objective
+  objectiveMeta: {},        // user edits over the objective's metadata
+  budgetBRL: null,          // user-defined budget (R$)
+  overrides: {},            // compId → { price, mass, current } user edits
+  environment: { platform: '', altitude: '', tempRange: '', notes: '' },
+  components: [],           // planned component ids (mirrors entities)
+  software: [],             // chosen software module ids
+  custom: { description: '' },
+}
 
-  // ── mission planning layer (drives the whole platform) ──────────
-  missionPlan: {
-    frameworkId: null,
-    name: '',
-    objectives: [],
-    environment: { platform: '', altitude: '', tempRange: '', notes: '' },
-    components: [],          // planned component ids (pre-architecture)
-    software: [],            // chosen software module ids
-    custom: { description: '' },
-  },
-  workflowStep: 'framework',
-  validation: null,          // last validation result (validation engine)
-  copilot: { open: false, running: false, result: null, mode: null },
+let noticeSeq = 0
+let sectionEnterAt = Date.now() // for section_dwell analytics
 
-  // ── navigation / selection ──────────────────────────────────────
-  setSection: (id) => set({ activeSection: id }),
-  selectEntity: (id) => set({ selectedId: id, drawerOpen: !!id }),
-  closeDrawer: () => set({ drawerOpen: false, selectedId: null }),
+const useForge = create((set, get) => {
 
-  setNavWidth: (w) => {
-    const clamped = Math.min(360, Math.max(170, Math.round(w)))
-    try { localStorage.setItem(NAV_KEY, String(clamped)) } catch { /* ignore */ }
-    set({ navWidth: clamped })
-  },
-
-  // ── mission template = full state generator ─────────────────────
-  loadTemplate: (templateId) => {
-    const tmpl = MISSION_TEMPLATES.find(t => t.id === templateId)
-    if (!tmpl) return
-    const pos = layoutFor(tmpl.components)
-    const entities = {}
-    tmpl.components.forEach((compId) => { entities[compId] = makeEntity(compId, pos[compId], 0) })
-
-    set({
-      mission: {
-        id: templateId,
-        label: tmpl.label,
-        description: tmpl.description,
-        objectives: tmpl.objectives,
-        constraints: tmpl.constraints,
-        altitude: tmpl.altitude,
-      },
-      entities,
-      selectedId: null,
-      drawerOpen: false,
-      activeSection: 'hardware',
-      seq: 0,
-      telemetry: [],
-      serialLog: [
-        { t: clock(0), m: `mission '${tmpl.label}' loaded · ${tmpl.components.length} parts`, cls: 'info' },
-        ...INITIAL_SERIAL,
-      ],
+  // Recompute live validation + pin suggestions + REAL wiring state.
+  // Called by every action that changes the design — keeps inline
+  // feedback current and entity statuses honest (a sensor only shows
+  // as connected when its pins are actually wired).
+  const recomputeLive = (partial = {}) => {
+    const s = { ...get(), ...partial }
+    const componentIds = Object.keys(s.entities)
+    const framework = getFramework(s.missionPlan.frameworkId)
+    const objective = resolveObjective(s.missionPlan)
+    const pins = assignPins(COMPONENT_DEFS, componentIds)
+    const wiringIssues = validateWires({ defs: COMPONENT_DEFS, wires: s.wires, componentIds })
+    // the wiring engine owns the "sensors without MCU" rule — keep only
+    // bus-level conflicts (e.g. duplicate I²C address) from the suggester
+    const pinIssues = pins.issues.filter(i => !i.title.startsWith('Sensores sem'))
+    const wiring = wiringStatusAll(componentIds, s.wires)
+    const validation = validateLive({
+      defs: COMPONENT_DEFS, framework, objective,
+      componentIds, overrides: s.missionPlan.overrides,
+      budgetBRL: s.missionPlan.budgetBRL,
+      pinIssues: [...pinIssues, ...wiringIssues],
+      softwareIds: s.missionPlan.software, modules: SOFTWARE_MODULES,
     })
-  },
+    const eco = economics({ defs: COMPONENT_DEFS, componentIds, overrides: s.missionPlan.overrides })
 
-  clearMission: () => set({
+    // honest entity status: wired (simulated OK) vs not connected (idle)
+    const entities = {}
+    for (const id of componentIds) {
+      const e = s.entities[id]
+      entities[id] = e.status === STATUS.SCANNING ? e
+        : { ...e, status: wiring[id]?.wired ? STATUS.OK : STATUS.IDLE }
+    }
+
+    return {
+      ...partial,
+      entities,
+      live: { validation, pins: pins.assignments, eco, wiring, i2c: i2cPinsFromWires(s.wires) },
+    }
+  }
+
+  return {
+    project: { name: 'PISCE', competition: 'OBSAT · Fase 2', daysLeft: 26 },
     mission: { id: null, label: '', description: '', objectives: [], constraints: '', altitude: '—' },
-    entities: {}, selectedId: null, drawerOpen: false, telemetry: [], activeSection: 'mission',
-  }),
+    entities: {},
+    activeSection: 'mission',
+    selectedId: null,
+    drawerOpen: false,
+    isScanning: false,
+    // honest physical link state: only true when a REAL ESP32 is connected
+    // via Web Serial (Serial Test tab). Everything else is simulation.
+    hwLink: { connected: false, port: '' },
+    navWidth: loadNavWidth(),
+    seq: 0,
+    telemetry: [],            // rolling time-series for the Telemetry charts
+    serialLog: INITIAL_SERIAL,
+    notice: null,             // lightweight contextual toast { id, message }
+    featureInfo: null,        // coming-soon explanation panel { key, ...info }
+    hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
+    wires: [],                // user-made pin connections [{from:{comp,pin},to:{comp,pin}}]
 
-  // ── hardware editing ────────────────────────────────────────────
-  addEntity: (compId) => {
-    if (get().entities[compId]) return
-    const n = Object.keys(get().entities).length
-    const pos = [(n % 3) * 2.6 - 2.6, 0, Math.floor(n / 3) * 2.0 - 2.0]
-    set(s => ({ entities: { ...s.entities, [compId]: makeEntity(compId, pos, s.seq) } }))
-  },
-  removeEntity: (compId) => set(s => {
-    const e = { ...s.entities }; delete e[compId]
-    const sel = s.selectedId === compId ? null : s.selectedId
-    return { entities: e, selectedId: sel, drawerOpen: sel ? s.drawerOpen : false }
-  }),
-
-  updatePosition: (id, pos) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], position: pos } } }) : s),
-  updateRotation: (id, rot) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], rotation: rot } } }) : s),
-  updateStatus:   (id, status) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], status } } }) : s),
-
-  // ── I2C/SPI scan simulation ─────────────────────────────────────
-  runScan: () => {
-    const { entities } = get()
-    if (get().isScanning || Object.keys(entities).length === 0) return
-    set({ isScanning: true })
-    get().pushSerial({ m: 'I2C/SPI scan 0x08–0x77 started', cls: 'info' })
-    Object.keys(entities).forEach(id => {
-      if (['I2C', 'SPI'].includes(entities[id].def.protocol)) get().updateStatus(id, STATUS.SCANNING)
-    })
-    setTimeout(() => {
-      Object.keys(get().entities).forEach(id => {
-        const e = get().entities[id]
-        if (e.status === STATUS.SCANNING) {
-          const final = defaultStatus(id)
-          get().updateStatus(id, final)
-          const def = e.def
-          get().pushSerial({
-            m: `${def.protocol} ${def.address || ''} ${def.label} ${final === STATUS.OK ? 'OK' : final.toUpperCase()}`.replace(/\s+/g, ' ').trim(),
-            cls: final === STATUS.OK ? 'ok' : final === STATUS.WARN ? 'warn' : 'err',
-          })
-        }
-      })
-      get().pushSerial({ m: 'scan complete', cls: 'info' })
-      set({ isScanning: false })
-    }, 2200)
-  },
-
-  // ── live tick: readings + telemetry history + serial heartbeat ──
-  simulateTick: () => {
-    const { entities, seq } = get()
-    if (Object.keys(entities).length === 0) return
-    const nextSeq = seq + 1
-    const next = {}
-    Object.keys(entities).forEach(id => {
-      const e = entities[id]
-      // refresh readings for everything except parts mid-scan
-      next[id] = e.status === STATUS.SCANNING ? e : { ...e, readings: genReadings(id, e.status, nextSeq) }
-    })
-
-    // telemetry sample (only fields that exist in the current mission)
-    const num = (v) => parseFloat(String(v)) || 0
-    const sample = {
-      t: nextSeq,
-      temp: next.bme280 ? num(next.bme280.readings.temperature) : null,
-      co2:  next.ccs811 ? num(next.ccs811.readings.co2) : null,
-      batt: next.lipo_2000 ? num(next.lipo_2000.readings.charge) : null,
-      rssi: next.lora_sx1276 ? num(next.lora_sx1276.readings.rssi) : null,
-    }
-    const telemetry = [...get().telemetry, sample].slice(-48)
-
-    set({ entities: next, seq: nextSeq, telemetry })
-  },
-
-  pushSerial: (entry) => set(s => ({
-    serialLog: [{ t: clock(0), ...entry }, ...s.serialLog].slice(0, 200),
-  })),
-  clearSerial: () => set({ serialLog: [] }),
-
-  setMissionField: (field, value) => set(s => ({ mission: { ...s.mission, [field]: value } })),
-
-  // ────────────────────────────────────────────────────────────────
-  // Mission planning workflow — thin actions that delegate all logic
-  // to the engines in src/mission/*. The catalog is injected so the
-  // engines stay decoupled from the store.
-  // ────────────────────────────────────────────────────────────────
-  selectFramework: (id) => {
-    const fw = getFramework(id)
-    if (!fw) return
-    set({
-      missionPlan: {
-        frameworkId: id,
-        name: fw.name,
-        objectives: [],
-        environment: { ...fw.environment },
-        components: [...(fw.starter || [])],
-        software: [],
-        custom: { description: '' },
-      },
-      workflowStep: 'framework',
-      validation: null,
-      copilot: { open: false, running: false, result: null, mode: null },
-    })
-  },
-
-  exitFramework: () => set({
-    missionPlan: {
-      frameworkId: null, name: '', objectives: [],
-      environment: { platform: '', altitude: '', tempRange: '', notes: '' },
-      components: [], software: [], custom: { description: '' },
-    },
-    workflowStep: 'framework', validation: null,
+    // ── mission planning layer (drives the whole platform) ──────────
+    missionPlan: { ...EMPTY_PLAN },
+    workflowStep: 'framework',
+    validation: null,          // last on-demand validation (copilot/legacy)
+    live: { validation: null, pins: {}, eco: { massG: 0, priceBRL: 0, currentmA: 0 } },
     copilot: { open: false, running: false, result: null, mode: null },
-  }),
 
-  setWorkflowStep: (id) => set({ workflowStep: id }),
+    // ── firmware workspace ───────────────────────────────────────────
+    activeModuleId: 'main',
+    firmwareEdits: {},         // moduleId → user-edited code (overrides generator)
 
-  addObjective: (text) => set(s => text.trim()
-    ? { missionPlan: { ...s.missionPlan, objectives: [...s.missionPlan.objectives, text.trim()] } } : s),
-  updateObjective: (i, text) => set(s => {
-    const objectives = s.missionPlan.objectives.slice(); objectives[i] = text
-    return { missionPlan: { ...s.missionPlan, objectives } }
-  }),
-  removeObjective: (i) => set(s => ({
-    missionPlan: { ...s.missionPlan, objectives: s.missionPlan.objectives.filter((_, j) => j !== i) },
-  })),
+    // ── navigation / selection ──────────────────────────────────────
+    setSection: (id) => {
+      const prev = get().activeSection
+      if (prev && prev !== id) track('section_dwell', { section: prev, durationMs: Date.now() - sectionEnterAt })
+      sectionEnterAt = Date.now()
+      track('nav_click', { section: id })
+      set({ activeSection: id })
+    },
+    selectEntity: (id) => {
+      if (id) track('panel_toggle', { panel: 'inspector', action: 'open' })
+      set({ selectedId: id, drawerOpen: !!id })
+    },
+    closeDrawer: () => { track('panel_toggle', { panel: 'inspector', action: 'close' }); set({ drawerOpen: false, selectedId: null }) },
 
-  setEnvField: (k, v) => set(s => ({
-    missionPlan: { ...s.missionPlan, environment: { ...s.missionPlan.environment, [k]: v } },
-  })),
-  setCustomDescription: (text) => set(s => ({
-    missionPlan: { ...s.missionPlan, custom: { ...s.missionPlan.custom, description: text } },
-  })),
+    setNavWidth: (w) => {
+      const clamped = Math.min(360, Math.max(170, Math.round(w)))
+      try { localStorage.setItem(NAV_KEY, String(clamped)) } catch { /* ignore */ }
+      set({ navWidth: clamped })
+    },
 
-  togglePlanComponent: (id) => set(s => {
-    const has = s.missionPlan.components.includes(id)
-    const components = has
-      ? s.missionPlan.components.filter(c => c !== id)
-      : [...s.missionPlan.components, id]
-    return { missionPlan: { ...s.missionPlan, components }, validation: null }
-  }),
-  togglePlanSoftware: (id) => set(s => {
-    const has = s.missionPlan.software.includes(id)
-    const software = has
-      ? s.missionPlan.software.filter(m => m !== id)
-      : [...s.missionPlan.software, id]
-    return { missionPlan: { ...s.missionPlan, software } }
-  }),
+    notify: (message) => set({ notice: { id: ++noticeSeq, message } }),
+    clearNotice: () => set({ notice: null }),
 
-  runValidation: () => {
-    const { missionPlan } = get()
-    const framework = getFramework(missionPlan.frameworkId)
-    const validation = validateDesign({
-      defs: COMPONENT_DEFS, framework,
-      componentIds: missionPlan.components, plan: missionPlan,
-    })
-    set({ validation })
-    return validation
-  },
+    // Coming-soon items stay clickable: open the contextual explanation
+    // panel instead of a dead control. Every open is tracked.
+    openFeatureInfo: (key) => {
+      const info = getFeatureInfo(key)
+      track('coming_soon_click', { featureId: key })
+      if (info) set({ featureInfo: { key, ...info } })
+      else set({ notice: { id: ++noticeSeq, message: 'em desenvolvimento' } })
+    },
+    closeFeatureInfo: () => set({ featureInfo: null }),
 
-  openCopilot: () => set(s => ({ copilot: { ...s.copilot, open: true } })),
-  closeCopilot: () => set(s => ({ copilot: { ...s.copilot, open: false } })),
+    setHwLink: (link) => {
+      track('hw_link', { target: link.connected ? 'connected' : 'disconnected' })
+      set({ hwLink: link })
+    },
 
-  runCopilot: async (mode = 'analysis') => {
-    const { missionPlan } = get()
-    const framework = getFramework(missionPlan.frameworkId)
-    set(s => ({ copilot: { ...s.copilot, open: true, running: true, mode } }))
-    try {
-      const result = await runCopilot(
-        { defs: COMPONENT_DEFS, framework, componentIds: missionPlan.components, plan: missionPlan },
-        { provider: 'local', mode },
-      )
-      set({ copilot: { open: true, running: false, result, mode } })
-    } catch (err) {
-      set({ copilot: { open: true, running: false, mode, result: {
-        mode, summary: { headline: `Copiloto indisponível: ${err.message}` }, findings: [],
-      } } })
-    }
-  },
+    setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },
 
-  // Apply a copilot finding action (e.g. add a suggested component).
-  applyFinding: (action) => {
-    if (!action || action.type !== 'add') return
-    set(s => s.missionPlan.components.includes(action.componentId) ? s : {
-      missionPlan: { ...s.missionPlan, components: [...s.missionPlan.components, action.componentId] },
-      validation: null,
-    })
-  },
+    // ── manual wiring (2D schematic) ─────────────────────────────────
+    // Wires persist even when electrically wrong — the error must be
+    // SEEN (red wire + explanation), not silently rejected.
+    addWire: (from, to) => {
+      if (!from || !to || sameEnd(from, to)) return
+      const s = get()
+      const dup = s.wires.some(w =>
+        (sameEnd(w.from, from) && sameEnd(w.to, to)) || (sameEnd(w.from, to) && sameEnd(w.to, from)))
+      if (dup) { get().notify('fio já existe'); return }
+      const wires = [...s.wires, { from, to }]
+      const next = recomputeLive({ wires })
+      const newIssue = next.live.validation.issues.find(i => i.wireIndex === wires.length - 1)
+      track('wire', {
+        target: `${from.comp}.${from.pin}→${to.comp}.${to.pin}`,
+        ok: !newIssue || newIssue.severity !== 'error',
+      })
+      if (newIssue?.severity === 'error') track('wire_invalid', { target: newIssue.title })
+      set(next)
+      get().pushSerial({
+        m: `wire ${from.comp}.${from.pin} → ${to.comp}.${to.pin}${newIssue ? ` · ${newIssue.title}` : ' OK'}`,
+        cls: newIssue?.severity === 'error' ? 'err' : newIssue ? 'warn' : 'ok',
+      })
+    },
+    removeWire: (idx) => {
+      const wires = get().wires.filter((_, i) => i !== idx)
+      track('wire_remove', { target: String(idx) })
+      set(recomputeLive({ wires }))
+    },
+    clearAllWires: () => { track('wire_clear'); set(recomputeLive({ wires: [] })) },
 
-  // Architecture generation pipeline → live entities (digital twin).
-  generateArchitectureFromPlan: () => {
-    const { missionPlan } = get()
-    const framework = getFramework(missionPlan.frameworkId)
-    const ids = generateArchitecture({
-      defs: COMPONENT_DEFS, framework, componentIds: missionPlan.components,
-    })
-    const pos = layoutFor(ids)
-    const entities = {}
-    ids.forEach(id => { entities[id] = makeEntity(id, pos[id], 0) })
-    set({
-      missionPlan: { ...missionPlan, components: ids },
-      mission: {
-        id: missionPlan.frameworkId,
-        label: missionPlan.name || (framework ? framework.name : 'Missão'),
-        description: framework ? framework.tagline : '',
-        objectives: missionPlan.objectives,
-        constraints: framework?.payload?.note || '',
-        altitude: missionPlan.environment.altitude || (framework?.environment?.altitude ?? '—'),
-      },
-      entities,
-      seq: 0, telemetry: [],
-      activeSection: 'hardware',
-      workflowStep: 'architecture',
-      serialLog: [
-        { t: clock(0), m: `arquitetura gerada · ${ids.length} módulos`, cls: 'info' },
-        ...INITIAL_SERIAL,
-      ],
-    })
-    return ids
-  },
-}))
+    // Standard wiring for one sensor in one click (still real wires).
+    autoWire: (compId) => {
+      const s = get()
+      const candidates = autoWiresFor(compId).filter(nw =>
+        !s.wires.some(w => sameEnd(w.from, nw.from) || sameEnd(w.to, nw.from)))
+      if (!candidates.length) return
+      track('wire_auto', { target: compId })
+      set(recomputeLive({ wires: [...s.wires, ...candidates] }))
+      get().pushSerial({ m: `auto-wire ${compId}: ${candidates.length} fios`, cls: 'info' })
+    },
+
+    // ── mission template = full state generator (legacy quick profile) ─
+    loadTemplate: (templateId) => {
+      const tmpl = MISSION_TEMPLATES.find(t => t.id === templateId)
+      if (!tmpl) return
+      const ids = tmpl.components.filter(id => COMPONENT_DEFS[id]?.supported)
+      const pos = layoutFor(ids)
+      const entities = {}
+      ids.forEach((compId) => { entities[compId] = makeEntity(compId, pos[compId], 0) })
+      // quick profiles come pre-wired (standard mapping) — still real wires
+      const wires = ids.flatMap(id => autoWiresFor(id))
+      track('template_load', { target: templateId })
+
+      set(recomputeLive({
+        mission: {
+          id: templateId, label: tmpl.label, description: tmpl.description,
+          objectives: tmpl.objectives, constraints: tmpl.constraints, altitude: tmpl.altitude,
+        },
+        missionPlan: { ...get().missionPlan, components: ids },
+        entities,
+        wires,
+        selectedId: null,
+        drawerOpen: false,
+        activeSection: 'hardware',
+        seq: 0,
+        telemetry: [],
+        serialLog: [
+          { t: clock(0), m: `mission '${tmpl.label}' loaded · ${ids.length} parts`, cls: 'info' },
+          ...INITIAL_SERIAL,
+        ],
+      }))
+    },
+
+    clearMission: () => set(recomputeLive({
+      mission: { id: null, label: '', description: '', objectives: [], constraints: '', altitude: '—' },
+      entities: {}, wires: [], selectedId: null, drawerOpen: false, telemetry: [], activeSection: 'mission',
+      missionPlan: { ...EMPTY_PLAN },
+    })),
+
+    // ── hardware editing (single canonical toggle) ───────────────────
+    // Adding/removing hardware updates BOTH the plan and the live PCB so
+    // the canvas builds up incrementally while the user configures.
+    toggleHardware: (compId) => {
+      const def = COMPONENT_DEFS[compId]
+      if (!def) return
+      // coming-soon parts stay explorable: explain instead of blocking
+      if (def.comingSoon) { get().openFeatureInfo(compId); return }
+      const s = get()
+      if (s.entities[compId]) {
+        // remove cleanly: entity, its wires, plan entry, selection
+        const entities = { ...s.entities }; delete entities[compId]
+        const components = s.missionPlan.components.filter(c => c !== compId)
+        const wires = s.wires.filter(w => w.from.comp !== compId && w.to.comp !== compId)
+        const sel = s.selectedId === compId ? null : s.selectedId
+        track('component_remove', { componentId: compId })
+        set(recomputeLive({
+          entities, wires, selectedId: sel, drawerOpen: sel ? s.drawerOpen : false,
+          missionPlan: { ...s.missionPlan, components },
+        }))
+        get().pushSerial({ m: `− ${def.label} removido`, cls: 'info' })
+      } else {
+        const pos = nextFreePosition(s.entities, def)
+        const entities = { ...s.entities, [compId]: makeEntity(compId, pos, s.seq) }
+        const components = [...s.missionPlan.components.filter(c => c !== compId), compId]
+        track('component_add', { componentId: compId, componentType: def.category })
+        set(recomputeLive({ entities, missionPlan: { ...s.missionPlan, components } }))
+        get().pushSerial({ m: `+ ${def.label} na placa · aguardando fiação`, cls: 'info' })
+      }
+    },
+
+    addEntity: (compId) => { if (!get().entities[compId]) get().toggleHardware(compId) },
+    removeEntity: (compId) => { if (get().entities[compId]) get().toggleHardware(compId) },
+
+    updatePosition: (id, pos) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], position: pos } } }) : s),
+    updateRotation: (id, rot) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], rotation: rot } } }) : s),
+    updateStatus:   (id, status) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], status } } }) : s),
+
+    // ── I2C scan simulation — honest: unwired sensors do NOT ACK ────
+    runScan: () => {
+      const { entities } = get()
+      if (get().isScanning || Object.keys(entities).length === 0) return
+      track('scan')
+      set({ isScanning: true })
+      get().pushSerial({ m: 'I2C scan 0x08–0x77 started (simulação)', cls: 'info' })
+      Object.keys(entities).forEach(id => {
+        if (['I2C', 'SPI'].includes(entities[id].def.protocol)) get().updateStatus(id, STATUS.SCANNING)
+      })
+      setTimeout(() => {
+        const wiring = get().live?.wiring || {}
+        Object.keys(get().entities).forEach(id => {
+          const e = get().entities[id]
+          if (e.status === STATUS.SCANNING) {
+            const wired = wiring[id]?.wired
+            get().updateStatus(id, wired ? STATUS.OK : STATUS.IDLE)
+            const def = e.def
+            get().pushSerial({
+              m: wired
+                ? `${def.protocol} ${def.address || ''} ${def.label} ACK`.replace(/\s+/g, ' ').trim()
+                : `${def.address || ''} ${def.label} sem resposta · sensor não conectado`.trim(),
+              cls: wired ? 'ok' : 'err',
+            })
+          }
+        })
+        get().pushSerial({ m: 'scan complete', cls: 'info' })
+        set({ isScanning: false })
+      }, 2200)
+    },
+
+    // ── live tick: readings + telemetry history ─────────────────────
+    // Honest simulation: only WIRED sensors produce readings. An unwired
+    // sensor shows no data — never a fake-positive value.
+    simulateTick: () => {
+      const { entities, seq, live } = get()
+      if (Object.keys(entities).length === 0) return
+      const nextSeq = seq + 1
+      const next = {}
+      Object.keys(entities).forEach(id => {
+        const e = entities[id]
+        const wired = live?.wiring?.[id]?.wired
+        next[id] = e.status === STATUS.SCANNING ? e
+          : { ...e, readings: wired ? genReadings(id, e.status, nextSeq) : {} }
+      })
+
+      const num = (v) => parseFloat(String(v)) || 0
+      const wiredOk = (id) => live?.wiring?.[id]?.wired && next[id]
+      const sample = {
+        t: nextSeq,
+        temp:  wiredOk('bmp280') ? num(next.bmp280.readings.temperature) : null,
+        press: wiredOk('bmp280') ? num(next.bmp280.readings.pressure) : null,
+        accel: wiredOk('mpu6050') ? num(next.mpu6050.readings.accel_z) : null,
+        heap:  wiredOk('esp32') ? num(next.esp32.readings.free_heap) : null,
+      }
+      const telemetry = [...get().telemetry, sample].slice(-48)
+
+      set({ entities: next, seq: nextSeq, telemetry })
+    },
+
+    pushSerial: (entry) => set(s => ({
+      serialLog: [{ t: clock(0), ...entry }, ...s.serialLog].slice(0, 200),
+    })),
+    clearSerial: () => set({ serialLog: [] }),
+
+    setMissionField: (field, value) => set(s => ({ mission: { ...s.mission, [field]: value } })),
+
+    // ────────────────────────────────────────────────────────────────
+    // Mission builder — competition → objective → details → hardware.
+    // Thin actions; all rules live in src/mission/*.
+    // ────────────────────────────────────────────────────────────────
+    selectFramework: (id) => {
+      const fw = getFramework(id)
+      if (!fw) { get().openFeatureInfo(`framework_${id}`); return }
+      track('framework', { target: id })
+      set(recomputeLive({
+        missionPlan: {
+          ...EMPTY_PLAN,
+          frameworkId: id,
+          name: '',
+          environment: { ...fw.environment },
+          components: [],
+        },
+        workflowStep: 'framework',
+        validation: null,
+        copilot: { open: false, running: false, result: null, mode: null },
+      }))
+    },
+
+    exitFramework: () => set(recomputeLive({
+      missionPlan: { ...EMPTY_PLAN },
+      entities: {}, selectedId: null, drawerOpen: false, telemetry: [], seq: 0,
+      workflowStep: 'framework', validation: null,
+      copilot: { open: false, running: false, result: null, mode: null },
+    })),
+
+    setWorkflowStep: (id) => set({ workflowStep: id }),
+
+    // single primary scientific objective (radio behaviour)
+    selectObjective: (id) => {
+      const obj = getObjective(id)
+      if (!obj) return
+      track('objective', { target: id })
+      set(s => recomputeLive({
+        missionPlan: {
+          ...s.missionPlan,
+          objectiveId: s.missionPlan.objectiveId === id ? null : id,
+          objectiveMeta: {},   // edits reset when switching objective
+        },
+      }))
+    },
+    setObjectiveMetaField: (key, value) => set(s => recomputeLive({
+      missionPlan: { ...s.missionPlan, objectiveMeta: { ...s.missionPlan.objectiveMeta, [key]: value } },
+    })),
+
+    setPlanName: (name) => set(s => ({ missionPlan: { ...s.missionPlan, name } })),
+    setBudget: (value) => set(s => recomputeLive({
+      missionPlan: { ...s.missionPlan, budgetBRL: value === '' || value == null ? null : Math.max(0, Number(value) || 0) },
+    })),
+
+    // editable mission economics: per-part price/mass/current overrides
+    setOverride: (compId, field, value) => set(s => {
+      const cur = s.missionPlan.overrides[compId] || {}
+      const next = { ...cur }
+      if (value === '' || value == null) delete next[field]
+      else next[field] = Math.max(0, Number(value) || 0)
+      const overrides = { ...s.missionPlan.overrides, [compId]: next }
+      if (Object.keys(next).length === 0) delete overrides[compId]
+      return recomputeLive({ missionPlan: { ...s.missionPlan, overrides } })
+    }),
+
+    // legacy objective text list (kept for copilot context)
+    addObjective: (text) => set(s => text.trim()
+      ? { missionPlan: { ...s.missionPlan, objectives: [...s.missionPlan.objectives, text.trim()] } } : s),
+    updateObjective: (i, text) => set(s => {
+      const objectives = s.missionPlan.objectives.slice(); objectives[i] = text
+      return { missionPlan: { ...s.missionPlan, objectives } }
+    }),
+    removeObjective: (i) => set(s => ({
+      missionPlan: { ...s.missionPlan, objectives: s.missionPlan.objectives.filter((_, j) => j !== i) },
+    })),
+
+    setEnvField: (k, v) => set(s => ({
+      missionPlan: { ...s.missionPlan, environment: { ...s.missionPlan.environment, [k]: v } },
+    })),
+    setCustomDescription: (text) => set(s => ({
+      missionPlan: { ...s.missionPlan, custom: { ...s.missionPlan.custom, description: text } },
+    })),
+
+    togglePlanComponent: (id) => get().toggleHardware(id),
+    togglePlanSoftware: (id) => set(s => {
+      const has = s.missionPlan.software.includes(id)
+      const software = has
+        ? s.missionPlan.software.filter(m => m !== id)
+        : [...s.missionPlan.software, id]
+      return recomputeLive({ missionPlan: { ...s.missionPlan, software } })
+    }),
+
+    runValidation: () => {
+      const { missionPlan } = get()
+      const framework = getFramework(missionPlan.frameworkId)
+      const validation = validateDesign({
+        defs: COMPONENT_DEFS, framework,
+        componentIds: missionPlan.components, plan: missionPlan,
+      })
+      set({ validation })
+      return validation
+    },
+
+    openCopilot: () => set(s => ({ copilot: { ...s.copilot, open: true } })),
+    closeCopilot: () => set(s => ({ copilot: { ...s.copilot, open: false } })),
+
+    runCopilot: async (mode = 'analysis') => {
+      track('copilot', { target: mode })
+      const { missionPlan } = get()
+      const framework = getFramework(missionPlan.frameworkId)
+      set(s => ({ copilot: { ...s.copilot, open: true, running: true, mode } }))
+      try {
+        const result = await runCopilot(
+          { defs: COMPONENT_DEFS, framework, componentIds: missionPlan.components, plan: missionPlan },
+          { provider: 'local', mode },
+        )
+        set({ copilot: { open: true, running: false, result, mode } })
+      } catch (err) {
+        set({ copilot: { open: true, running: false, mode, result: {
+          mode, summary: { headline: `Copiloto indisponível: ${err.message}` }, findings: [],
+        } } })
+      }
+    },
+
+    // Apply a copilot/validation finding action (e.g. add a component).
+    applyFinding: (action) => {
+      if (!action || action.type !== 'add') return
+      if (!get().entities[action.componentId]) get().toggleHardware(action.componentId)
+    },
+
+    // ── firmware workspace ───────────────────────────────────────────
+    setActiveModule: (id) => { track('module_open', { target: id }); set({ activeModuleId: id }) },
+    openModuleInFirmware: (id) => {
+      track('module_open', { target: id })
+      set({ activeModuleId: id, activeSection: 'firmware' })
+    },
+    setFirmwareEdit: (moduleId, code) => set(s => {
+      if (s.firmwareEdits[moduleId] == null) track('fw_edit', { target: moduleId })
+      return { firmwareEdits: { ...s.firmwareEdits, [moduleId]: code } }
+    }),
+    resetFirmwareEdit: (moduleId) => set(s => {
+      const edits = { ...s.firmwareEdits }; delete edits[moduleId]
+      return { firmwareEdits: edits }
+    }),
+
+    // Architecture generation pipeline → live entities (digital twin).
+    generateArchitectureFromPlan: () => {
+      const { missionPlan } = get()
+      const framework = getFramework(missionPlan.frameworkId)
+      const ids = generateArchitecture({
+        defs: COMPONENT_DEFS, framework, componentIds: missionPlan.components,
+      }).filter(id => COMPONENT_DEFS[id]?.supported)
+      const pos = layoutFor(ids)
+      const entities = {}
+      ids.forEach(id => { entities[id] = makeEntity(id, pos[id], 0) })
+      track('generate_architecture', { target: String(ids.length) })
+      set(recomputeLive({
+        missionPlan: { ...missionPlan, components: ids },
+        wires: ids.flatMap(id => autoWiresFor(id)),
+        mission: {
+          id: missionPlan.frameworkId,
+          label: missionPlan.name || (framework ? framework.name : 'Missão'),
+          description: framework ? framework.tagline : '',
+          objectives: missionPlan.objectives,
+          constraints: framework?.payload?.note || '',
+          altitude: missionPlan.environment.altitude || (framework?.environment?.altitude ?? '—'),
+        },
+        entities,
+        seq: 0, telemetry: [],
+        activeSection: 'hardware',
+        workflowStep: 'architecture',
+        serialLog: [
+          { t: clock(0), m: `arquitetura gerada · ${ids.length} módulos`, cls: 'info' },
+          ...INITIAL_SERIAL,
+        ],
+      }))
+      return ids
+    },
+  }
+})
 
 export default useForge

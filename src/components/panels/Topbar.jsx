@@ -9,8 +9,9 @@ export default function Topbar() {
   const sectionLabels = {
     mission: 'Mission', architecture: 'Architecture',
     hardware: 'Hardware', firmware: 'Firmware',
-    debug: 'Debug', serial: 'Serial Monitor', telemetry: 'Telemetry',
+    debug: 'Debug', telemetry: 'Telemetry',
     serialtest: 'Serial Test',
+    analytics: 'Analytics · dev',
   }
 
   return (

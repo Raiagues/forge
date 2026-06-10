@@ -1,11 +1,68 @@
-import useForge, { STATUS } from '../../store/useForge'
+import { useState } from 'react'
+import useForge, { STATUS, COMPONENT_DEFS } from '../../store/useForge'
+import { SOFTWARE_LAYERS, activeModules } from '../../mission/index.js'
 import EmptyState from './EmptyState'
 
 const BUS_COLOR = { I2C: '#2B5EA7', SPI: '#2A6B4A', UART: '#963020', PWR: '#8A5A14', MCU: '#2B3F7A' }
 const STATUS_COLOR = { [STATUS.OK]: '#3A9060', [STATUS.WARN]: '#C8831A', [STATUS.ERR]: '#C04030', [STATUS.SCANNING]: '#4A7DD4', [STATUS.IDLE]: '#7A736A' }
+const mono = { fontFamily: "'Space Mono', monospace" }
+
+// ── software architecture: modular blocks grouped by layer ────────
+// Core (rarely touched) · Adaptive (reusable base) · Mission (custom).
+function SoftwareArchitecture() {
+  const { entities, missionPlan, openModuleInFirmware } = useForge()
+  const mods = activeModules({
+    defs: COMPONENT_DEFS,
+    componentIds: Object.keys(entities),
+    objectiveId: missionPlan.objectiveId,
+  })
+
+  return (
+    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {SOFTWARE_LAYERS.map(layer => {
+        const layerMods = mods.filter(m => m.layer === layer.id)
+        return (
+          <div key={layer.id} style={{
+            flex: '1 1 220px', minWidth: 220, border: '1px solid var(--rule)', borderRadius: 8,
+            background: 'var(--paper2)', overflow: 'hidden',
+          }}>
+            <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--rule)', borderTop: `2px solid ${layer.color}` }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{layer.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 2 }}>{layer.desc}</div>
+            </div>
+            <div style={{ padding: '8px 10px' }}>
+              {layerMods.length === 0 && (
+                <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', padding: '6px 2px' }}>
+                  nenhum módulo ativo nesta camada
+                </div>
+              )}
+              {layerMods.map(m => (
+                <button key={m.id} onClick={() => openModuleInFirmware(m.id)} style={{
+                  display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
+                  border: '1px solid var(--rule)', borderLeft: `3px solid ${layer.color}`,
+                  background: 'var(--paper)', borderRadius: 5, padding: '8px 10px', marginBottom: 6,
+                  transition: 'all .14s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--paper3)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--paper)'}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{m.label}</span>
+                    <span style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginLeft: 'auto' }}>{m.file}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 3 }}>{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function ArchitecturePanel() {
-  const { entities, selectedId, selectEntity } = useForge()
+  const { entities, selectedId, selectEntity, live } = useForge()
+  const [view, setView] = useState('hardware')
   const list = Object.values(entities)
   if (list.length === 0) return <EmptyState section="Architecture" />
 
@@ -19,9 +76,9 @@ export default function ArchitecturePanel() {
     return { e, x: cx + Math.cos(ang) * 250, y: cy + Math.sin(ang) * 165 }
   })
 
-  // budgets
-  const totalCurrent = list.reduce((s, e) => s + (e.def.current || 0), 0)
-  const totalMass = list.reduce((s, e) => s + (e.def.mass || 0), 0)
+  // budgets — override-aware totals from the live economics
+  const totalCurrent = live?.eco?.currentmA ?? list.reduce((s, e) => s + (e.def.current || 0), 0)
+  const totalMass = live?.eco?.massG ?? list.reduce((s, e) => s + (e.def.mass || 0), 0)
   const cap = entities.lipo_2000?.def.capacity || 0
   const hours = totalCurrent > 0 && cap ? (cap / totalCurrent).toFixed(1) : '—'
 
@@ -51,11 +108,26 @@ export default function ArchitecturePanel() {
 
   return (
     <div style={{ height: '100%', overflow: 'auto', padding: '16px 22px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>Arquitetura do sistema</h2>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)' }}>diagrama de blocos · clique para inspecionar</span>
+        <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)' }}>
+          {view === 'hardware' ? 'diagrama de blocos · clique para inspecionar' : 'módulos de firmware · clique para abrir o código'}
+        </span>
+        <div style={{ flex: 1 }} />
+        {['hardware', 'software'].map(v => (
+          <button key={v} onClick={() => setView(v)} style={{
+            padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
+            ...mono, fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase',
+            border: '1px solid var(--rule)',
+            background: view === v ? 'var(--navy)' : 'var(--paper2)',
+            color: view === v ? 'rgba(255,255,255,.8)' : 'var(--ink3)',
+          }}>{v}</button>
+        ))}
       </div>
 
+      {view === 'software' && <SoftwareArchitecture />}
+
+      {view === 'hardware' && (
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: W, border: '1px solid var(--rule)', borderRadius: 8, background: 'var(--paper2)' }}>
           {nodes.map(({ e, x, y }) => {
@@ -93,6 +165,7 @@ export default function ArchitecturePanel() {
           </Card>
         </div>
       </div>
+      )}
     </div>
   )
 }

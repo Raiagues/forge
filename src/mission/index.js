@@ -3,6 +3,10 @@
 
 export * from './capabilities.js'
 export * from './frameworks.js'
+export * from './objectives.js'
+export * from './pins.js'
+export * from './wiring.js'
+export * from './engineering.js'
 export * from './workflow.js'
 export * from './software.js'
 export * from './validation.js'

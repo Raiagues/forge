@@ -1,11 +1,11 @@
 import useForge, { STATUS } from '../../store/useForge'
 
 export default function Statusbar() {
-  const { entities, project, seq } = useForge()
+  const { entities, project, seq, live, missionPlan, hwLink } = useForge()
   const list = Object.values(entities)
   const ok  = list.filter(e => e.status === STATUS.OK).length
-  const err = list.filter(e => e.status === STATUS.ERR)
-  const warn = list.filter(e => e.status === STATUS.WARN).length
+  const v = live?.validation
+  const eco = live?.eco
 
   return (
     <div style={{
@@ -16,12 +16,20 @@ export default function Statusbar() {
       fontFamily: "'Space Mono', monospace", fontSize: 8,
       letterSpacing: '.06em', color: 'var(--ink4)',
     }}>
-      <Item dot="var(--ok2)">{ok} operaciona{ok !== 1 ? 'is' : 'l'}</Item>
-      {warn > 0 && <Item dot="var(--warn2)">{warn} aviso{warn !== 1 ? 's' : ''}</Item>}
-      {err.map(e => (
-        <Item key={e.id} dot="var(--err2)">{e.def.label} · falha</Item>
-      ))}
+      <span style={{
+        padding: '1px 6px', borderRadius: 2, letterSpacing: '.08em', textTransform: 'uppercase',
+        background: hwLink.connected ? 'rgba(58,144,96,.14)' : 'rgba(26,24,20,.07)',
+        color: hwLink.connected ? 'var(--ok2)' : 'var(--ink4)',
+      }}>{hwLink.connected ? 'hardware real' : 'simulação'}</span>
+      <Item dot="var(--ok2)">{ok} conectado{ok !== 1 ? 's' : ''}</Item>
+      {v?.summary.warnings > 0 && <Item dot="var(--warn2)">{v.summary.warnings} aviso{v.summary.warnings !== 1 ? 's' : ''}</Item>}
+      {v?.summary.errors > 0 && <Item dot="var(--err2)">{v.summary.errors} erro{v.summary.errors !== 1 ? 's' : ''}</Item>}
       <div style={{ flex: 1 }} />
+      {eco && list.length > 0 && (
+        <span style={{ color: missionPlan.budgetBRL && eco.priceBRL > missionPlan.budgetBRL ? 'var(--err2)' : 'var(--ink4)' }}>
+          {eco.massG}g · {eco.currentmA.toFixed(0)}mA · R${eco.priceBRL}{missionPlan.budgetBRL ? `/${missionPlan.budgetBRL}` : ''}
+        </span>
+      )}
       {seq > 0 && <span>t+{seq * 3}s · live</span>}
       <span>{project.competition} · {project.daysLeft} dias</span>
     </div>

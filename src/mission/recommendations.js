@@ -35,9 +35,10 @@ function capsFromText(text) {
 }
 
 // pick the lightest catalog part that provides a capability
+// (coming-soon parts are never recommended — the user can't add them yet)
 function partForCapability(defs, cap, excludeIds = []) {
   const cands = componentsWithCapability(defs, cap)
-    .filter((d) => !excludeIds.includes(d.id))
+    .filter((d) => !excludeIds.includes(d.id) && !d.comingSoon)
     .sort((a, b) => (a.mass || 0) - (b.mass || 0))
   return cands[0] || null
 }
@@ -67,9 +68,10 @@ export function recommend({ defs, plan = {}, framework = null }) {
     }
   }
 
-  // ensure core systems
+  // ensure core systems (only ones the user can actually add today)
   const ensure = (category, fallbackId) => {
-    if (byCategory(design, category).length === 0 && !seen.has(fallbackId) && defs[fallbackId]) {
+    if (byCategory(design, category).length === 0 && !seen.has(fallbackId)
+        && defs[fallbackId] && !defs[fallbackId].comingSoon) {
       seen.add(fallbackId)
       missing.push({ id: fallbackId, label: defs[fallbackId].label, capability: category, reason: category, category })
     }

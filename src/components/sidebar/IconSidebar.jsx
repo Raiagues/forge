@@ -1,4 +1,5 @@
 import useForge, { SECTIONS, STATUS } from '../../store/useForge'
+import { track } from '../../lib/analytics.js'
 
 const ICONS = {
   target:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
@@ -13,12 +14,13 @@ const ICONS = {
 }
 
 export default function IconSidebar() {
-  const { activeSection, setSection, entities } = useForge()
+  const { activeSection, setSection, entities, live } = useForge()
 
-  // derive a single issue indicator from real entity statuses
+  // issue indicator: live validation first, entity status as fallback
   const list = Object.values(entities)
-  const hasErr = list.some(e => e.status === STATUS.ERR)
-  const hasWarn = list.some(e => e.status === STATUS.WARN)
+  const v = live?.validation
+  const hasErr = (v?.summary.errors > 0 && list.length > 0) || list.some(e => e.status === STATUS.ERR)
+  const hasWarn = (v?.summary.warnings > 0 && list.length > 0) || list.some(e => e.status === STATUS.WARN)
   const issueLevel = hasErr ? 'err' : hasWarn ? 'warn' : null
   const ISSUE_SECTIONS = { hardware: issueLevel, architecture: issueLevel, debug: issueLevel }
 
@@ -76,13 +78,20 @@ export default function IconSidebar() {
 
       <div style={{ flex: 1 }} />
 
-      {/* settings */}
-      <button style={{
-        width: 36, height: 36, borderRadius: 6, border: 'none',
-        background: 'transparent', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', cursor: 'pointer',
-        color: 'var(--navyt3)',
-      }}>
+      {/* gear → developer analytics view (user-testing instrumentation) */}
+      <button
+        title="Analytics (dev)"
+        onClick={() => { track('analytics_open'); setSection('analytics') }}
+        style={{
+          width: 36, height: 36, borderRadius: 6, border: 'none',
+          background: activeSection === 'analytics' ? 'var(--navyb2)' : 'transparent',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'center', cursor: 'pointer',
+          color: activeSection === 'analytics' ? 'var(--navyt)' : 'var(--navyt3)',
+        }}
+        onMouseEnter={e => { if (activeSection !== 'analytics') e.currentTarget.style.background = 'var(--navyb)' }}
+        onMouseLeave={e => { if (activeSection !== 'analytics') e.currentTarget.style.background = 'transparent' }}
+      >
         <span style={{ display: 'block', width: 16, height: 16 }}>{ICONS.settings}</span>
       </button>
     </aside>

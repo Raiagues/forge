@@ -56,60 +56,129 @@ architecture ↔ telemetry) comes for free because they all read the same data.
 Mission templates are *generators* of that state, not just labels.
 
 ## Zustand structure (`src/store/useForge.js`)
-- `COMPONENT_DEFS` — catalog: id, label, category, protocol, address, voltage,
-  current, mass, color, measures.
-- `MISSION_TEMPLATES` — each lists `components` + objectives/constraints/altitude.
+- `COMPONENT_DEFS` — catalog: id, label (part number), **`friendly`** (human
+  meaning, shown first in UI), category, protocol, address, voltage, current,
+  mass, **`price`**, color, caps. Only `supported: true` parts are placeable
+  today (**esp32, bmp280, mpu6050**); everything else carries `comingSoon: true`
+  and renders disabled ("em breve").
 - `entities` — map of `id → { id, type, def, protocol, position, rotation,
   status, readings, connections, logs }`.
-- State: `mission`, `activeSection`, `selectedId`, `drawerOpen`, `isScanning`,
-  `navWidth` (persisted), `seq`, `telemetry` (rolling samples), `serialLog`.
-- Key actions: `loadTemplate` / `clearMission`, `addEntity` / `removeEntity`,
-  `selectEntity` / `closeDrawer`, `updatePosition/Rotation/Status`, `runScan`,
-  `simulateTick`, `pushSerial` / `clearSerial`, `setNavWidth`, `setSection`.
+- `missionPlan` — frameworkId, name, **objectiveId** (single primary objective)
+  + **objectiveMeta** (user edits), **budgetBRL**, **overrides** (per-part
+  editable price/mass/current), components, software, environment, custom.
+- `live` — **recomputed on every design change** (`recomputeLive`): validation
+  (source-tagged issues with component targets), pin suggestions, **real wiring
+  state** (`live.wiring`, from user-made wires), `live.i2c` (actually wired
+  GPIOs for codegen) and economics totals. Entity statuses are derived here:
+  a sensor is OK only when actually wired, otherwise IDLE ("não conectado").
+- `wires` — user-made pin connections `[{from:{comp,pin},to:{comp,pin}}]`.
+  Actions: `addWire` (keeps electrically-wrong wires VISIBLE in red with the
+  rule explained), `removeWire`, `clearAllWires`, `autoWire(compId)`.
+- `hwLink` — HONEST physical link state; only true when Serial Test has a real
+  ESP32 stream open. Everything else is labelled "simulação" (statusbar tag,
+  nav footer, serial panel). Never fake-positive hardware state.
+- `hardwareView` — '3d' | '2d'; both views share the same hardware graph.
+- `featureInfo` + `openFeatureInfo(key)` — coming-soon items are clickable and
+  open a contextual explanation modal (data in `src/lib/futureFeatures.js`).
+- Other state: `mission`, `activeSection`, `selectedId`, `drawerOpen`,
+  `isScanning`, `navWidth` (persisted), `seq`, `telemetry`, `serialLog`,
+  `notice` (toast), `activeModuleId` + `firmwareEdits` (modular firmware).
+- **Analytics**: store actions call `track()` from `src/lib/analytics.js` —
+  local, structured event log in localStorage (sections, dwell time, hardware
+  add/remove, pin/wire attempts + failures, coming-soon clicks, copilot runs).
+  Inspect in the developer-only Analytics view (gear icon in the rail);
+  summary/export/clear in `AnalyticsPanel.jsx`.
+- Key actions: **`toggleHardware`** (single canonical add/remove — syncs plan +
+  entities + revalidates), `selectFramework`, `selectObjective` /
+  `setObjectiveMetaField`, `setBudget` / `setOverride`, `notify`,
+  `openModuleInFirmware` / `setFirmwareEdit`, `selectEntity` / `closeDrawer`,
+  `updatePosition/Rotation/Status`, `runScan`, `simulateTick`,
+  `pushSerial` / `clearSerial`, `setNavWidth`, `setSection`.
 - A 3s interval in `App.jsx` calls `simulateTick`: refreshes readings, appends a
   telemetry sample, advances `seq`.
 
-## Scene structure (`ForgeCanvas.jsx`)
+## Hardware views (2D/3D — same hardware graph)
+`HardwareViews.jsx` toggles between the 3D board and the 2D schematic; the
+choice persists in the store and is available in Mission, Hardware and Debug.
+
+### 3D (`ForgeCanvas.jsx`)
 - `PCBBoard` — FR4 board with silkscreen dots and mounting holes.
 - `ComponentMesh` — one chip per entity: category-colored body, pins, pulsing
   status LED, hover lift, drag-with-grid-snap (updates `position` in store),
-  selection ring, error glow.
-- `BusWires` — bezier curves ESP32→peripheral, colored by protocol, from the
-  entity `connections`/protocol.
+  selection ring, error glow. Validation issues override the LED/glow color and
+  render an inline `IssueBadge` (drei `Html`) showing the rule SOURCE
+  (competição/objetivo/orçamento/comunicação/dependência/fiação). Hover shows
+  the friendly name + part number.
+- `BusWires` — HONEST: a solid protocol-colored wire only when the user
+  actually wired the pins; otherwise a faint dashed "rota sugerida".
 - `OrbitControls` (left=orbit, right=pan, scroll=zoom) + axis gizmo.
 
-## Mission system — the platform driver
-The Mission section is a full planning workflow, backed by a modular domain
-layer in `src/mission/` (catalog injected as a param — engines have NO store/UI
-import, so no cycles and they unit-test in isolation). Keep logic in these
-engines, not in components:
+### 2D (`SchematicView.jsx`)
+Schematic systems view with prototyping-style pin wiring: click a pin → click
+the destination → real wire in the store. Wrong connections stay visible (red,
+dashed, with the electrical rule explained inline and in a feedback strip).
+Click a wire to remove it; per-sensor auto-connect buttons. Pin/wire engine in
+`src/mission/wiring.js` (`COMPONENT_PINS`, `validateWires`, `wiringStatus`,
+`i2cPinsFromWires`) — rules: shorts (3V3/VCC→GND), power on data pins, crossed
+SDA/SCL, GND mismatches, double-used sensor pins, I²C remap warnings, sensors
+without MCU, unwired sensors. The generated firmware uses the GPIOs the user
+actually wired (`ctx.i2c` → `Wire.begin(sda, scl)`).
 
-- `frameworks.js` — competitions/references as structured data. OBSAT carries
-  declarative `requirements` (rule kinds: `capability` | `system` | `count` |
-  `mass`), timeline, scoring, environment, payload limits. `custom` = NL mission.
-- `capabilities.js` — capability model (`def.caps`) + helpers (the catalog in the
-  store now tags every part with `caps`, e.g. esp32 has `wifi`, rp2040 does not).
-- `validation.js` — `validateDesign({defs,framework,componentIds})` → structured
-  issues with severity, explanation and suggested fixes.
-- `recommendations.js` — objective/NL → capabilities → parts; power budget; risks.
+## Mission builder — the platform driver
+The Mission section is a **collapsible systems-engineering flow**: stages
+(competition → objective → mission & budget → hardware → wiring) connected by
+a flow rail. The first incomplete stage opens automatically; completed stages
+collapse to a one-line summary of what was configured. The live hardware view
+(3D or 2D) is always visible in the center. Every change ripples to the board
+immediately. Backed by a modular domain layer in `src/mission/` (catalog
+injected as a param — engines have NO store/UI import, so no cycles and they
+unit-test in isolation). Keep logic in these engines, not in components:
+
+- `wiring.js` — pin catalog + manual-wiring validation (see Hardware views).
+- `engineering.js` — datasheet-grade reference per part (overview, operational
+  ranges, expected values, data structs, notes) rendered in the Drawer — the
+  inspector is engineering-focused, not copilot-focused.
+
+- `frameworks.js` — competitions as structured data. OBSAT carries declarative
+  `requirements` (rule kinds: `capability` | `system` | `count` | `mass`, each
+  with a `source` tag), timeline, scoring, environment, payload limits.
+  `COMING_SOON_FRAMEWORKS` (LASC, CanSat) render disabled. `custom` = NL mission.
+- `objectives.js` — single-select scientific objectives with **editable
+  metadata** (`meta`: sensors, telemetry, rateHz, altitude, notes) and their own
+  declarative requirements. `resolveObjective(plan)` merges the preset meta with
+  user edits; the metadata feeds validation AND firmware generation (rateHz).
+- `pins.js` — realistic ESP32-WROOM-32D pin catalog + `assignPins()` auto
+  -assignment (shared I²C bus on GPIO21/22, UART2, VSPI) with wiring issue
+  detection (I²C address conflict, UART contention, sensors without MCU).
+  Manual remapping intentionally not implemented — UI shows "em breve".
+- `capabilities.js` — capability model (`def.caps`) + helpers.
+- `validation.js` — `validateLive({defs,framework,objective,componentIds,
+  overrides,budgetBRL,pinIssues,softwareIds,modules})` composes competition +
+  objective + budget + wiring + dependency rules into issues carrying
+  `source` and `targets` (component ids) for inline feedback.
+  `issuesForComponent()` filters per chip. `economics()` totals mass/price/
+  current honouring user overrides. `validateDesign` remains for the copilot.
+- `recommendations.js` — objective/NL → capabilities → parts (never suggests
+  coming-soon parts); power budget; risks.
 - `copilot.js` — composes validation+recommendations into *findings*. On-demand
   only. `runCopilot(input,{provider})` is the async **LLM seam** — default is the
   local engine; implement an `anthropic` provider (model `claude-opus-4-8`) to go
   live without touching callers.
-- `pipeline.js` — `generateArchitecture()` → ordered component ids (guarantees an
-  MCU + power) which the store instantiates as entities.
-- `workflow.js` — the 10 steps + `isComplete` predicates.
+- `software.js` — the modular firmware model: `SOFTWARE_LAYERS` (**core** =
+  rarely touched / **adaptive** = reusable base needing adaptation / **mission**
+  = fully custom apps), `SOFTWARE_MODULES` each mapping to its own file
+  (main.ino, telemetry.h, sensor_bmp280.h, app_environment.h, …) with a
+  `code(ctx)` generator. `activeModules()` derives a mission's module set from
+  placed hardware + objective. The Firmware panel renders these as editable
+  per-file tabs (edits stored in `firmwareEdits`); the Architecture panel has a
+  hardware/software toggle showing the three layers as grouped blocks.
+- `pipeline.js` — `generateArchitecture()` → ordered component ids which the
+  store instantiates as entities.
 
-Store slice: `missionPlan` (frameworkId, objectives, environment, components,
-software, custom), `workflowStep`, `validation`, `copilot`. Actions
-(`selectFramework`, `togglePlanComponent`, `runValidation`, `runCopilot`,
-`applyFinding`, `generateArchitectureFromPlan`, …) are thin wrappers that inject
-`COMPONENT_DEFS` into the engines. UI: `MissionSection` (home vs workflow),
-`mission/MissionSteps.jsx` (step panels), `mission/CopilotPanel.jsx`.
-
-The legacy `loadTemplate(id)` still exists as a "quick profile": it lays out
-components, creates entities with readings/logs/connections, resets telemetry/
-serial and jumps to Hardware.
+UI: `MissionSection` (progressive builder + live canvas + contextual
+validation notices), `mission/CopilotPanel.jsx`, `Drawer.jsx` (contextual dev
+workspace: source-tagged validation, auto-assigned pins, editable economics,
+firmware module link, clean remove).
 
 ## Copilot interaction philosophy
 The copilot is an advisor/reviewer, never a chatbot and never interruptive. It
