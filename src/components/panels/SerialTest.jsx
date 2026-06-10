@@ -591,8 +591,9 @@ export default function SerialTest() {
             )}
             {tab === 'diag' && (
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '10px 13px', ...consoleBase }}>
-                <DiagRow k="placa" v={chip || '—'} />
+                <DiagRow k="placa" v={chip || 'ESP32-WROOM-32D'} />
                 <DiagRow k="porta" v={connected ? '/dev/ttyUSB0 · 115200' : '—'} />
+                <DiagRow k="toolchain" v="arduino-cli · framework Arduino" />
                 <DiagRow k="OLED" v={hw.oledOk ? `${hw.oled} respondeu` : (hw.oled || '—')} />
                 <DiagRow k="BMP280" v={bmpStatus} />
                 <DiagRow k="I2C" v={hw.i2c != null ? `${hw.i2c} dispositivo(s)` : '—'} />

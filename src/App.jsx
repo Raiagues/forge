@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import useForge from './store/useForge'
 import IconSidebar from './components/sidebar/IconSidebar'
-import NavPanel    from './components/sidebar/NavPanel'
 import Topbar      from './components/panels/Topbar'
 import Statusbar   from './components/panels/Statusbar'
 import Drawer      from './components/panels/Drawer'
@@ -73,7 +72,6 @@ export default function App() {
       <div className="paper-grid" />
       <div style={{ display: 'flex', height: '100vh', position: 'relative', zIndex: 1 }}>
         <IconSidebar />
-        <NavPanel />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minWidth: 0 }}>
           <Topbar />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
