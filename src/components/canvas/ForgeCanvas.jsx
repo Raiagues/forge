@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
@@ -91,7 +91,7 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [
   const meshRef = useRef()
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const { gl, raycaster } = useThree()
+  const { gl, controls } = useThree()
   const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
   const dragOffset = useRef(new THREE.Vector3())
 
@@ -111,33 +111,47 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [
              : [0.9, 0.14, 0.7]
 
   // ── drag ─────────────────────────────────────────────────────────
+  // A drag that starts ON a chip must translate the chip, never orbit
+  // the camera. R3F's stopPropagation does not reach OrbitControls (it
+  // listens on the canvas DOM element directly), so the controls are
+  // explicitly disabled for the duration of the drag. Pointer capture
+  // keeps move/up events flowing even when the cursor leaves the mesh.
   const onPointerDown = useCallback((e) => {
     e.stopPropagation()
     onSelect(id)
+    if (e.button !== 0) return            // right/middle button → camera pan stays free
+    e.target.setPointerCapture(e.pointerId)
+    if (controls) controls.enabled = false
     setDragging(true)
     gl.domElement.style.cursor = 'grabbing'
     const intersect = new THREE.Vector3()
-    raycaster.ray.intersectPlane(dragPlane.current, intersect)
+    e.ray.intersectPlane(dragPlane.current, intersect)
     dragOffset.current.subVectors(new THREE.Vector3(...position), intersect)
-  }, [id, position, onSelect, gl, raycaster])
+  }, [id, position, onSelect, gl, controls])
 
   const onPointerMove = useCallback((e) => {
     if (!dragging) return
     e.stopPropagation()
     const intersect = new THREE.Vector3()
-    raycaster.ray.intersectPlane(dragPlane.current, intersect)
+    if (!e.ray.intersectPlane(dragPlane.current, intersect)) return
     intersect.add(dragOffset.current)
     // snap to 0.4 grid
     intersect.x = Math.round(intersect.x / 0.4) * 0.4
     intersect.z = Math.round(intersect.z / 0.4) * 0.4
     onDragEnd(id, [intersect.x, 0, intersect.z])
-  }, [dragging, id, onDragEnd, raycaster])
+  }, [dragging, id, onDragEnd])
 
   const onPointerUp = useCallback((e) => {
+    if (!dragging) return
     e.stopPropagation()
+    e.target.releasePointerCapture(e.pointerId)
+    if (controls) controls.enabled = true
     setDragging(false)
     gl.domElement.style.cursor = 'auto'
-  }, [gl])
+  }, [gl, controls, dragging])
+
+  // safety: never leave the camera locked if the component unmounts mid-drag
+  useEffect(() => () => { if (controls) controls.enabled = true }, [controls])
 
   useFrame(() => {
     if (!meshRef.current) return
