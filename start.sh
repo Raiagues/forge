@@ -15,13 +15,34 @@ SRV_LOG=".forge-server.log"
 
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 
-# ── already running? ───────────────────────────────────────────────
+# ── already running? verify it is actually HEALTHY ─────────────────
+# A live pid is not enough: a stale Vite dep-optimizer cache makes the
+# server answer 200 while the browser gets "Outdated Optimize Dep"
+# errors. If anything looks wrong, stop everything and start fresh.
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-  bold "FORGE already running (pid $(cat "$PIDFILE"))."
-  echo "  $URL"
-  echo "  ./stop.sh to stop it."
-  exit 0
+  healthy=1
+  curl -sf -o /dev/null "$URL" || healthy=0
+  if [ -f "$LOG" ] && tail -n 50 "$LOG" | grep -q "does not exist at"; then
+    healthy=0   # stale node_modules/.vite dep cache
+  fi
+  if [ "$healthy" -eq 1 ]; then
+    bold "FORGE already running (pid $(cat "$PIDFILE"))."
+    echo "  $URL"
+    echo "  ./stop.sh to stop it."
+    exit 0
+  fi
+  bold "FORGE process exists but is unhealthy — restarting cleanly…"
+  ./stop.sh >/dev/null 2>&1 || true
 fi
+
+# ── orphan processes holding our ports (lost pidfile)? clean them ──
+if curl -sf -o /dev/null "$URL" 2>/dev/null; then
+  bold "Port ${PORT} is busy with an untracked process — cleaning up…"
+  ./stop.sh >/dev/null 2>&1 || true
+fi
+
+# ── clear the Vite dep-optimizer cache (prevents stale-chunk errors) ─
+rm -rf node_modules/.vite
 
 # ── ensure deps are present ────────────────────────────────────────
 if [ ! -d node_modules ]; then
