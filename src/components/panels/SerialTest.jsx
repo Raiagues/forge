@@ -608,8 +608,8 @@ export default function SerialTest() {
             {missionMode ? (
               <ArchitectureBlocks files={fwFiles} activeFile={activeFile} edited={fwEdits} onSelect={(f) => setActiveFileName(f.file)} />
             ) : (
-              <div style={{ fontSize: 13.5, color: 'var(--ink4)', lineHeight: 1.6, padding: '2px 0 4px' }}>
-                Monte a missão (hardware) para gerar os módulos de firmware do projeto.
+              <div style={{ fontSize: 13.5, color: 'var(--ink4)', lineHeight: 1.5, padding: '2px 0 4px' }}>
+                Monte o hardware para gerar os módulos.
               </div>
             )}
           </Card>

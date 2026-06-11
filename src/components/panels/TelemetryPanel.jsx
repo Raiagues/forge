@@ -310,8 +310,8 @@ export default function TelemetryPanel() {
 
           <div style={{ ...mono, fontSize: 10.5, lineHeight: 1.6, color: DIM, marginTop: 14 }}>
             {real
-              ? 'valores vindos do ESP32 conectado via ponte serial'
-              : 'valores gerados pela simulação da missão — conecte um ESP32 real na aba Firmware para dados reais'}
+              ? 'valores do ESP32 conectado'
+              : 'valores simulados · conecte um ESP32 na aba Firmware para dados reais'}
           </div>
         </div>
       </div>
