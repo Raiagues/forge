@@ -129,15 +129,28 @@ Mission templates are *generators* of that state, not just labels.
 choice persists in the store and is available in Mission, Hardware and Debug.
 
 ### 3D (`ForgeCanvas.jsx`)
+- **Interaction modes** (`canvasMode` in the store, toggle next to the 3D/2D
+  switch): `edit` (default, direct manipulation — drag a chip to move it with
+  grid snap, drag the background to orbit), `navigate` (camera only, clicks
+  still select) and `route` (click pin → click pin lays a trace). Chip drags
+  disable OrbitControls for the drag duration + use pointer capture, so the
+  camera never orbits while moving a component.
 - `PCBBoard` — FR4 board with silkscreen dots and mounting holes.
-- `ComponentMesh` — one chip per entity: category-colored body, pins, pulsing
-  status LED, hover lift, drag-with-grid-snap (updates `position` in store),
-  selection ring, error glow. Validation issues override the LED/glow color and
-  render an inline `IssueBadge` (drei `Html`) showing the rule SOURCE
-  (competição/objetivo/orçamento/comunicação/dependência/fiação). Hover shows
-  the friendly name + part number.
-- `BusWires` — HONEST: a solid protocol-colored wire only when the user
-  actually wired the pins; otherwise a faint dashed "rota sugerida".
+- `ComponentMesh` — one chip per entity: category-colored body, pulsing
+  status LED, hover lift, selection ring, error glow. Validation issues
+  override the LED/glow color and render an inline `IssueBadge` (drei `Html`)
+  showing the rule SOURCE (competição/objetivo/orçamento/comunicação/
+  dependência/fiação). Hover shows the friendly name + part number.
+- **Pin-accurate footprints** (`pinLayout.js`): pins derive from
+  `COMPONENT_PINS` (same catalog as the 2D view and the validator — counts
+  can never drift): ESP32 devkit 30-pin dual-row header, BMP280 6 / MPU6050 5
+  / NEO-6M 4 single-row. Hovering a pin identifies it (silkscreen label +
+  role note); pads tint copper once a trace lands on them.
+- `Traces3D` — HONEST PCB traces: every trace is a real wire from the shared
+  store `wires` array (validation/codegen/2D stay in sync), rendered as flat
+  copper 45°-dogleg segments at board level; wrong traces stay visible in
+  red with the violated rule on them. Traces stretch and follow components
+  when moved. Unwired sensors keep a faint dashed "rota sugerida".
 - `OrbitControls` (left=orbit, right=pan, scroll=zoom) + axis gizmo.
 
 ### 2D (`SchematicView.jsx`)
