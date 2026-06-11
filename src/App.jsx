@@ -4,7 +4,8 @@ import IconSidebar from './components/sidebar/IconSidebar'
 import Topbar      from './components/panels/Topbar'
 import Statusbar   from './components/panels/Statusbar'
 import Drawer      from './components/panels/Drawer'
-import MissionSection from './components/panels/MissionSection'
+import MissionWindow from './components/panels/MissionWindow'
+import HardwareSection from './components/panels/HardwareSection'
 import TelemetryPanel from './components/panels/TelemetryPanel'
 import DebugPanel     from './components/panels/DebugPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
@@ -17,7 +18,8 @@ import Onboarding from './components/onboarding/Onboarding'
 // Section → main-area content. Every section resolves to a real view.
 function SectionContent({ section }) {
   switch (section) {
-    case 'mission':      return <MissionSection />
+    case 'mission':      return <MissionWindow />
+    case 'hardware':     return <HardwareSection />
     case 'debug':        return <DebugPanel />
     case 'architecture': return <ArchitecturePanel />
     case 'telemetry':    return <TelemetryPanel />

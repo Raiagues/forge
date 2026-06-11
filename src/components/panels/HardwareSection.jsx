@@ -515,7 +515,7 @@ function BuilderCanvas() {
 }
 
 // ── main section ──────────────────────────────────────────────────
-export default function MissionSection() {
+export default function HardwareSection() {
   const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)

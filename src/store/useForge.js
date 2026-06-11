@@ -88,8 +88,13 @@ export const MISSION_TEMPLATES = [
   },
 ]
 
+// Window hierarchy: Mission (home) = WHAT the team is building and why
+// (type, framework, objective, identity); Hardware = HOW it is built
+// (components, PCB canvas, wiring). The mission context is collected
+// once in Mission and consumed read-only everywhere else.
 export const SECTIONS = [
   { id: 'mission',      label: 'Mission',      icon: 'target'   },
+  { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
   { id: 'serialtest',   label: 'Firmware',     icon: 'code'     },
   { id: 'debug',        label: 'Debug',        icon: 'bug'      },
   { id: 'telemetry',    label: 'Telemetry',    icon: 'activity' },
@@ -386,17 +391,17 @@ const useForge = create((set, get) => {
     clearNotice: () => set({ notice: null }),
     markFirstStageConfirmed: () => { if (!get().firstStageConfirmed) set({ firstStageConfirmed: true }) },
 
-    // ── onboarding ───────────────────────────────────────────────────
-    startGuided: () => { track('onboarding', { action: 'guided_start' }); set({ onboarding: 'flow' }) },
-    skipOnboarding: () => {
-      track('onboarding', { action: 'skip' })
+    // ── onboarding (landing overlay only — the guided flow IS the
+    // Mission window, so nothing is ever collected twice) ─────────────
+    startGuided: () => {
+      track('onboarding', { action: 'guided_start' })
       try { localStorage.setItem('forge_onboarded', '1') } catch { /* ignore */ }
       set({ onboarding: null, activeSection: 'mission' })
     },
-    finishOnboarding: () => {
-      track('onboarding', { action: 'finish' })
+    skipOnboarding: () => {
+      track('onboarding', { action: 'skip' })
       try { localStorage.setItem('forge_onboarded', '1') } catch { /* ignore */ }
-      set({ onboarding: null, activeSection: 'mission' })
+      set({ onboarding: null, activeSection: 'hardware' })
     },
     reopenOnboarding: () => { track('onboarding', { action: 'reopen' }); set({ onboarding: 'landing' }) },
     // mission kind collected by the guided intake (competition /

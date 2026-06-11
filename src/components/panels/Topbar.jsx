@@ -7,9 +7,9 @@ export default function Topbar() {
   const warnCount = Object.values(entities).filter(e => e.status === STATUS.WARN).length
 
   const sectionLabels = {
-    mission: 'Mission', architecture: 'Architecture',
+    mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
     debug: 'Debug', telemetry: 'Telemetry',
-    serialtest: 'Serial Test',
+    serialtest: 'Firmware',
     analytics: 'Analytics · dev',
   }
 

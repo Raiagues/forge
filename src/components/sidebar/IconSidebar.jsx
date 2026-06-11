@@ -29,17 +29,17 @@ export default function IconSidebar() {
   const userTest = import.meta.env?.VITE_USER_TEST === '1'
   const visibleSections = userTest ? SECTIONS.filter(s => s.id !== 'serialtest') : SECTIONS
 
-  // Mission gating: every section except Mission stays visibly clickable
-  // but only navigates once the Hardware stage is complete (>= 2 placed
-  // components, same rule as the mission flow). Locked clicks toast.
+  // Mission (define WHAT) and Hardware (define HOW) are always open;
+  // the downstream sections need hardware on the board to mean anything.
   const hwStageDone = list.length >= 2
+  const FREE = ['mission', 'hardware']
   const clickSection = (id, anchorEl) => {
-    if (id !== 'mission' && !hwStageDone) {
+    if (!FREE.includes(id) && !hwStageDone) {
       // anchored feedback right at the icon — a corner toast was missed
       showPopover({
         anchorEl,
         message: 'Esta área abre depois que a missão tiver hardware na placa.',
-        hint: 'monte a missão em Mission: competição → objetivo → hardware',
+        hint: 'defina a missão em Mission e escolha os componentes em Hardware',
       })
       return
     }

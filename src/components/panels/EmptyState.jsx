@@ -13,8 +13,8 @@ export default function EmptyState({ section }) {
           textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 10,
         }}>{section}</div>
         <div style={{ fontSize: 15, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 16 }}>
-          Nenhuma missão em andamento. Monte a missão em <strong style={{ color: 'var(--ink2)' }}>Mission</strong> —
-          competição, objetivo e hardware — e o restante da plataforma acompanha.
+          Nenhuma missão em andamento. Defina a missão em <strong style={{ color: 'var(--ink2)' }}>Mission</strong> e
+          escolha os componentes em <strong style={{ color: 'var(--ink2)' }}>Hardware</strong> — o restante da plataforma acompanha.
         </div>
         <button
           onClick={() => setSection('mission')}
