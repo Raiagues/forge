@@ -30,6 +30,7 @@ export default function DebugPanel() {
   const entities = useForge((s) => s.entities)
   const live = useForge((s) => s.live)
   const missionPlan = useForge((s) => s.missionPlan)
+  const showPopover = useForge((s) => s.showPopover)
   const [runKey, setRunKey] = useState(0)
 
   const ctx = { entities, defs: COMPONENT_DEFS, live, missionPlan }
@@ -97,10 +98,16 @@ export default function DebugPanel() {
         <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>Ferramentas planejadas · pontos de extensão</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {plannedGroups.map((g) => (
-            <span key={g.id} title={g.desc} style={{
-              ...mono, fontSize: 12, padding: '5px 11px', borderRadius: 5,
-              border: '1px dashed var(--rule)', background: 'var(--paper2)', color: 'var(--ink4)',
-            }}>{g.label} · em breve</span>
+            <button key={g.id} title={g.desc}
+              onClick={(e) => showPopover({
+                anchorEl: e.currentTarget,
+                message: g.desc || `${g.label} ainda está em desenvolvimento.`,
+                hint: 'novas ferramentas chegam via src/debug/registry.js',
+              })}
+              style={{
+                ...mono, fontSize: 12, padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+                border: '1px dashed var(--rule)', background: 'var(--paper2)', color: 'var(--ink4)',
+              }}>{g.label} · em breve</button>
           ))}
         </div>
         <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 8 }}>

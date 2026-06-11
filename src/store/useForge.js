@@ -325,6 +325,7 @@ const useForge = create((set, get) => {
     telemetry: [],            // rolling time-series for the Telemetry charts
     serialLog: INITIAL_SERIAL,
     notice: null,             // lightweight contextual toast { id, message }
+    popover: null,            // anchored disabled/coming-soon popover { id, anchor, message, hint }
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
@@ -381,13 +382,41 @@ const useForge = create((set, get) => {
     clearNotice: () => set({ notice: null }),
     markFirstStageConfirmed: () => { if (!get().firstStageConfirmed) set({ firstStageConfirmed: true }) },
 
-    // Coming-soon items stay clickable: a single unified bottom-right toast,
-    // never a modal. `label` is the user-facing feature name.
-    comingSoon: (label) => {
-      track('coming_soon_click', { featureId: label })
+    // ── anchored popover for disabled / coming-soon interactions ─────
+    // User testing: people clicked disabled options repeatedly, got no
+    // response and assumed the UI was broken. Every such click now opens
+    // a small popover ANCHORED to the clicked element (never a corner
+    // toast, never a modal — the feedback must appear where the user is
+    // looking, the pattern Linear/Vercel use for unavailable features).
+    // anchorEl is the clicked DOM element; message = one-sentence WHY,
+    // hint = optional WHEN / what is planned.
+    showPopover: ({ anchorEl, message, hint }) => {
+      const r = anchorEl?.getBoundingClientRect?.()
+      if (!r) { set({ notice: { id: ++noticeSeq, message } }); return }
+      set({
+        popover: { id: ++noticeSeq, anchor: { x: r.x, y: r.y, w: r.width, h: r.height }, message, hint },
+        notice: null,
+      })
+    },
+    closePopover: () => set({ popover: null }),
+
+    // Coming-soon items stay clickable. With an anchor element the
+    // feedback is an inline popover (sourced from FUTURE_FEATURES when
+    // available); without one it falls back to the toast.
+    comingSoon: (label, anchorEl, featureKey) => {
+      track('coming_soon_click', { featureId: featureKey || label })
+      const info = featureKey ? getFeatureInfo(featureKey) : null
+      if (anchorEl) {
+        get().showPopover({
+          anchorEl,
+          message: info ? info.why : `${label} ainda está em desenvolvimento.`,
+          hint: info?.planned?.length ? `planejado: ${info.planned[0].toLowerCase()}` : 'disponível em uma versão futura',
+        })
+        return
+      }
       set({ notice: { id: ++noticeSeq, message: `${label} · em breve` }, drawerOpen: false, selectedId: null })
     },
-    // Back-compat shim: any remaining caller routes to the same toast.
+    // Back-compat shim: any remaining caller routes to the same feedback.
     openFeatureInfo: (key) => get().comingSoon(getFeatureInfo(key)?.title || key),
     closeFeatureInfo: () => set({ featureInfo: null }),
 
@@ -509,15 +538,15 @@ const useForge = create((set, get) => {
     // ── hardware editing (single canonical toggle) ───────────────────
     // Adding/removing hardware updates BOTH the plan and the live PCB so
     // the canvas builds up incrementally while the user configures.
-    toggleHardware: (compId) => {
+    toggleHardware: (compId, anchorEl) => {
       const def = COMPONENT_DEFS[compId]
       if (!def) return
       const s = get()
-      // unsupported parts look normal but only toast — never enter the
-      // mission. Removal of an already-placed part always works.
+      // unsupported parts look normal but answer with an anchored popover
+      // explaining why — never enter the mission. Removal of an
+      // already-placed part always works.
       if (def.comingSoon && !s.entities[compId]) {
-        track('coming_soon_click', { featureId: compId })
-        get().notify(`${def.friendly || def.label} · suporte em desenvolvimento`)
+        get().comingSoon(def.friendly || def.label, anchorEl, compId)
         return
       }
       if (s.entities[compId]) {

@@ -61,7 +61,7 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0 2px 24px' }}>
           <span style={{ flex: 1, fontSize: 13, color: 'var(--ink3)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
           {onEdit && (
-            <button onClick={(e) => { e.stopPropagation(); onEdit() }} title="Editar"
+            <button onClick={(e) => { e.stopPropagation(); onEdit(e.currentTarget) }} title="Editar"
               style={{
                 flexShrink: 0, width: 20, height: 20, padding: 0, borderRadius: 4, cursor: 'pointer',
                 border: '1px solid var(--rule)', background: 'var(--paper)', color: 'var(--ink3)',
@@ -139,7 +139,7 @@ function CompetitionStage() {
         const soon = !!f.comingSoon
         return (
           <button key={f.id}
-            onClick={() => soon ? comingSoon(f.name) : selectFramework(f.id)}
+            onClick={(e) => soon ? comingSoon(f.name, e.currentTarget, `framework_${f.id}`) : selectFramework(f.id)}
             title={f.full}
             style={{
               display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
@@ -286,7 +286,7 @@ function HardwareStage() {
               const eff = effectiveProps(d, missionPlan.overrides[d.id])
               return (
                 <button key={d.id}
-                  onClick={() => toggleHardware(d.id)}
+                  onClick={(e) => toggleHardware(d.id, e.currentTarget)}
                   onDoubleClick={() => placed && selectEntity(d.id)}
                   title={placed ? 'Clique para remover · duplo clique para inspecionar' : 'Clique para adicionar à placa'}
                   style={{
@@ -516,7 +516,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function MissionSection() {
-  const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed, notify } = useForge()
+  const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed, showPopover } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
@@ -636,7 +636,11 @@ export default function MissionSection() {
               summary={s.summary} last={i === stages.length - 1}
               canConfirm={s.done} onConfirm={() => confirmStage(s.id)}
               confirmLabel={i === stages.length - 1 ? 'Confirmar' : 'Confirmar e avançar'}
-              onEdit={() => notify('Edição de missão salva · em breve')}>
+              onEdit={(el) => showPopover({
+                anchorEl: el,
+                message: 'A edição de estágios já confirmados ainda está em desenvolvimento.',
+                hint: 'reabra o estágio clicando no título para ajustar agora',
+              })}>
               {s.el}
             </Stage>
           ))}

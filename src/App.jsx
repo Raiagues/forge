@@ -11,6 +11,7 @@ import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import SerialTest from './components/panels/SerialTest'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
+import AnchoredPopover from './components/ui/AnchoredPopover'
 
 // Section → main-area content. Every section resolves to a real view.
 function SectionContent({ section }) {
@@ -72,6 +73,7 @@ export default function App() {
           <Statusbar />
         </div>
       </div>
+      <AnchoredPopover />
     </>
   )
 }

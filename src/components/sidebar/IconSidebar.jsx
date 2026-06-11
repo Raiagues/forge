@@ -14,7 +14,7 @@ const ICONS = {
 }
 
 export default function IconSidebar() {
-  const { activeSection, setSection, entities, live, notify } = useForge()
+  const { activeSection, setSection, entities, live, showPopover } = useForge()
 
   // issue indicator: live validation first, entity status as fallback
   const list = Object.values(entities)
@@ -33,9 +33,14 @@ export default function IconSidebar() {
   // but only navigates once the Hardware stage is complete (>= 2 placed
   // components, same rule as the mission flow). Locked clicks toast.
   const hwStageDone = list.length >= 2
-  const clickSection = (id) => {
+  const clickSection = (id, anchorEl) => {
     if (id !== 'mission' && !hwStageDone) {
-      notify('Crie uma missão primeiro para acessar esta área')
+      // anchored feedback right at the icon — a corner toast was missed
+      showPopover({
+        anchorEl,
+        message: 'Esta área abre depois que a missão tiver hardware na placa.',
+        hint: 'monte a missão em Mission: competição → objetivo → hardware',
+      })
       return
     }
     setSection(id)
@@ -64,7 +69,7 @@ export default function IconSidebar() {
           <button
             key={sec.id}
             title={sec.label}
-            onClick={() => clickSection(sec.id)}
+            onClick={(e) => clickSection(sec.id, e.currentTarget)}
             style={{
               width: 36, height: 36, borderRadius: 6, border: 'none',
               background: active ? 'var(--navyb2)' : 'transparent',
