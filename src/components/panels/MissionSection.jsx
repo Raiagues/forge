@@ -516,7 +516,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function MissionSection() {
-  const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed, showPopover } = useForge()
+  const { missionPlan, entities, live, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
@@ -636,11 +636,12 @@ export default function MissionSection() {
               summary={s.summary} last={i === stages.length - 1}
               canConfirm={s.done} onConfirm={() => confirmStage(s.id)}
               confirmLabel={i === stages.length - 1 ? 'Confirmar' : 'Confirmar e avançar'}
-              onEdit={(el) => showPopover({
-                anchorEl: el,
-                message: 'A edição de estágios já confirmados ainda está em desenvolvimento.',
-                hint: 'reabra o estágio clicando no título para ajustar agora',
-              })}>
+              onEdit={() => {
+                // editing a confirmed stage is just reopening it — every
+                // field is live-bound to the store, so edits apply inline
+                track('stage_toggle', { stageId: s.id, action: 'edit' })
+                setManual(m => ({ ...m, [s.id]: true }))
+              }}>
               {s.el}
             </Stage>
           ))}
