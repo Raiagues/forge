@@ -5,6 +5,8 @@
 
 **Mission development platform & digital twin for university satellite teams.**
 
+🌐 **Live demo (GitHub Pages):** https://raiagues.github.io/forge/
+
 FORGE lets a CubeSat / high-altitude-balloon team pick a mission profile and
 immediately get a synchronized digital twin: a 3D PCB populated with real
 components, live telemetry, a serial monitor, auto-generated firmware and a
@@ -26,6 +28,15 @@ The toolchain is intentionally conservative — **Vite 5 (Rollup/esbuild)** — 
 there are no native-binary install surprises and it runs on Node 20.18+.
 
 ---
+
+## Download (clone the repo)
+
+```bash
+git clone https://github.com/Raiagues/forge.git
+cd forge
+```
+
+Or download the ZIP from GitHub (**Code → Download ZIP**) and extract it.
 
 ## Installation
 
