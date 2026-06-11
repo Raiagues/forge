@@ -3,8 +3,9 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import useForge, { STATUS } from '../../store/useForge'
-import { issuesForComponent, SOURCE_LABEL, pinSummary, COMPONENT_PINS } from '../../mission/index.js'
+import { issuesForComponent, SOURCE_LABEL, COMPONENT_PINS } from '../../mission/index.js'
 import { footprint } from './pinLayout.js'
+import { track } from '../../lib/analytics.js'
 
 // ── status → color map ────────────────────────────────────────────
 const STATUS_COLOR = {
@@ -116,7 +117,7 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
         />
       </mesh>
       {/* solder pad on the board surface — copper when a trace lands here */}
-      <mesh position={[0, -0.062, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, -0.034, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.028, 0.055, 16]} />
         <meshStandardMaterial color={isConnected ? '#C98E3F' : '#8A8378'} roughness={0.4} metalness={0.7} />
       </mesh>
@@ -313,64 +314,148 @@ function ChipLabel({ size, status }) {
   )
 }
 
-// ── bus wires between components ─────────────────────────────────
-// HONEST wiring display: a solid protocol-colored wire only when the
-// user actually connected the pins; a faint dashed line otherwise
-// (suggested route, not a real connection). Pin labels come from the
-// real wires when connected.
-function BusWires({ entities, pinMap, selectedId, wiring }) {
+// ── PCB traces on the board surface ───────────────────────────────
+// Every trace is a REAL wire from the store (same array the 2D
+// schematic and the firmware generator use). Geometry is re-derived
+// from the live pin positions each render, so traces FOLLOW their
+// components when these are moved (chosen behavior: stretch, never
+// detach — consistent with the 2D view). Routing is a classic 45°
+// dogleg on the board plane, rendered as flat copper segments.
+const TRACE_Y = -0.048   // just above the board top (-0.06) and silkscreen
+
+// 45° dogleg: diagonal first, then axis-aligned to the target
+function tracePoints(a, b) {
+  const dx = b[0] - a[0], dz = b[1] - a[1]
+  const d = Math.min(Math.abs(dx), Math.abs(dz))
+  const m = [a[0] + Math.sign(dx) * d, a[1] + Math.sign(dz) * d]
+  const pts = [a]
+  if (d > 1e-3) pts.push(m)
+  if (Math.abs(m[0] - b[0]) > 1e-3 || Math.abs(m[1] - b[1]) > 1e-3) pts.push(b)
+  if (pts.length === 1) pts.push(b)
+  return pts
+}
+
+function TraceSegment({ a, b, color, width = 0.038, y = TRACE_Y, opacity = 1 }) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+  if (len < 1e-4) return null
+  const angle = Math.atan2(b[1] - a[1], b[0] - a[0])
+  return (
+    <mesh position={[(a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2]} rotation={[0, -angle, 0]}>
+      <boxGeometry args={[len, 0.012, width]} />
+      <meshStandardMaterial color={color} roughness={0.35} metalness={0.8} transparent={opacity < 1} opacity={opacity} />
+    </mesh>
+  )
+}
+
+const TRACE_COPPER = '#C98E3F'
+
+function Trace({ from, to, issue, selected, onClick }) {
+  const color = selected ? '#4A7DD4'
+    : issue?.severity === 'error' ? '#C04030'
+    : issue ? '#C8831A'
+    : TRACE_COPPER
+  const pts = tracePoints(from, to)
+  const segs = pts.slice(1).map((p, i) => [pts[i], p])
+  const mid = pts[Math.floor(pts.length / 2)]
+  return (
+    <group onClick={onClick}>
+      {segs.map(([a, b], i) => (
+        <group key={i}>
+          <TraceSegment a={a} b={b} color={color} />
+          {/* invisible fat hit volume so the thin trace is clickable */}
+          <mesh visible={false}
+            position={[(a[0] + b[0]) / 2, TRACE_Y, (a[1] + b[1]) / 2]}
+            rotation={[0, -Math.atan2(b[1] - a[1], b[0] - a[0]), 0]}>
+            <boxGeometry args={[Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), 0.01), 0.1, 0.2]} />
+          </mesh>
+        </group>
+      ))}
+      {(selected || issue) && (
+        <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[15, 0]}>
+          <div style={{
+            fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap', pointerEvents: 'none',
+            color: issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4',
+            background: 'rgba(244,239,230,.94)', borderRadius: 3, padding: '1px 6px',
+            border: `1px ${issue ? 'dashed' : 'solid'} ${issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4'}`,
+          }}>{issue ? issue.title : 'trilha selecionada · Delete remove'}</div>
+        </Html>
+      )}
+    </group>
+  )
+}
+
+// All traces + honest suggestions. A faint dashed line still hints the
+// suggested route for placed-but-unwired sensors (never solid — only
+// real wires render as copper).
+function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, selectedId }) {
+  const fps = {}
+  const pinXZ = (end) => {
+    const e = entities[end.comp]
+    if (!e) return null
+    fps[end.comp] = fps[end.comp] || footprint(end.comp, e.def)
+    const p = fps[end.comp].pins[end.pin]
+    return p ? [e.position[0] + p.x, e.position[2] + p.z] : null
+  }
+
   const mcu = entities['esp32']
-  if (!mcu) return null
+  return (
+    <group>
+      {wires.map((w, i) => {
+        const a = pinXZ(w.from), b = pinXZ(w.to)
+        if (!a || !b) return null
+        return (
+          <Trace key={i} from={a} to={b} issue={wireIssues[i]} selected={selWire === i}
+            onClick={(e) => { e.stopPropagation(); onSelectWire(selWire === i ? null : i) }} />
+        )
+      })}
+      {/* suggested (not real) routes for unwired sensors */}
+      {mcu && Object.entries(entities).map(([id, e]) => {
+        if (id === 'esp32' || !COMPONENT_PINS[id] || wiring?.[id]?.wired) return null
+        const geo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(mcu.position[0], TRACE_Y, mcu.position[2]),
+          new THREE.Vector3(e.position[0], TRACE_Y, e.position[2]),
+        ])
+        const line = new THREE.Line(geo, new THREE.LineDashedMaterial({
+          color: '#7A736A', dashSize: 0.16, gapSize: 0.14, transparent: true, opacity: 0.35,
+        }))
+        line.computeLineDistances()
+        const mid = [(mcu.position[0] + e.position[0]) / 2, (mcu.position[2] + e.position[2]) / 2]
+        return (
+          <group key={id}>
+            <primitive object={line} />
+            {selectedId === id && (
+              <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[5, 0]}>
+                <div style={{
+                  fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap',
+                  color: '#7A736A', background: 'rgba(244,239,230,.92)', pointerEvents: 'none',
+                  border: '1px dashed #ADA69E', borderRadius: 3, padding: '1px 6px', opacity: .92,
+                }}>não conectado · rota sugerida</div>
+              </Html>
+            )}
+          </group>
+        )
+      })}
+    </group>
+  )
+}
 
-  const mcuPos = new THREE.Vector3(...mcu.position)
-  const lines = []
-
-  Object.entries(entities).forEach(([id, e]) => {
-    if (id === 'esp32' || !e.def.protocol || e.def.protocol === 'MCU') return
-    const wired = !!wiring?.[id]?.wired
-    const color = e.def.protocol === 'I2C' ? '#2B5EA7'
-                : e.def.protocol === 'SPI' ? '#2A6B4A'
-                : e.def.protocol === 'UART' ? '#963020'
-                : '#7A736A'
-    const start = mcuPos.clone().add(new THREE.Vector3(0, 0.05, 0))
-    const end   = new THREE.Vector3(...e.position).add(new THREE.Vector3(0, 0.05, 0))
-    const mid   = start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, 0.18, 0))
-
-    // quadratic bezier via curve
-    const curve = new THREE.QuadraticBezierCurve3(start, mid, end)
-    const pts   = curve.getPoints(16)
-    const geo   = new THREE.BufferGeometry().setFromPoints(pts)
-
-    let lineObj
-    if (wired) {
-      lineObj = new THREE.Line(geo, new THREE.LineBasicMaterial({
-        color, linewidth: 1, transparent: true, opacity: e.status === STATUS.ERR ? 0.9 : 0.6,
-      }))
-    } else {
-      lineObj = new THREE.Line(geo, new THREE.LineDashedMaterial({
-        color: '#7A736A', dashSize: 0.16, gapSize: 0.14, transparent: true, opacity: 0.3,
-      }))
-      lineObj.computeLineDistances()
-    }
-
-    const pins = pinSummary(pinMap?.[id] || [])
-    lines.push(
-      <group key={id}>
-        <primitive object={lineObj} />
-        {selectedId === id && (
-          <Html position={[mid.x, mid.y + 0.12, mid.z]} center distanceFactor={9} zIndexRange={[5, 0]}>
-            <div style={{
-              fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap',
-              color: wired ? color : '#7A736A', background: 'rgba(244,239,230,.92)', pointerEvents: 'none',
-              border: `1px ${wired ? 'solid' : 'dashed'} ${wired ? color : '#ADA69E'}`,
-              borderRadius: 3, padding: '1px 6px', opacity: .92,
-            }}>{wired ? `${e.def.protocol} · ${pins}` : 'não conectado · rota sugerida'}</div>
-          </Html>
-        )}
-      </group>
-    )
-  })
-  return <>{lines}</>
+// Live preview of the trace being drawn (route mode, after the first
+// pin click). Cursor tracking lives HERE so pointermove only re-renders
+// this subtree, never the whole canvas.
+function RoutePreview({ from }) {
+  const [cursor, setCursor] = useState(null)
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, TRACE_Y, 0]}
+        onPointerMove={(e) => setCursor([e.point.x, e.point.z])}>
+        <planeGeometry args={[40, 40]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {cursor && tracePoints(from, cursor).slice(1).map((p, i, arr) => (
+        <TraceSegment key={i} a={i === 0 ? from : arr[i - 1]} b={p} color="#4A7DD4" opacity={0.5} y={TRACE_Y + 0.004} />
+      ))}
+    </group>
+  )
 }
 
 // ── Camera that starts isometric ─────────────────────────────────
@@ -388,8 +473,62 @@ function IsoCamera() {
 
 // ── Main canvas ───────────────────────────────────────────────────
 export default function ForgeCanvas() {
-  const { entities, selectedId, selectEntity, updatePosition, live, canvasMode, wires } = useForge()
+  const {
+    entities, selectedId, selectEntity, updatePosition, live, canvasMode,
+    wires, addWire, removeWire,
+  } = useForge()
   const validation = live?.validation
+  const routing = canvasMode === 'route'
+
+  // ── trace routing (route mode): click pin → click pin = real wire ─
+  // Same semantics as the 2D schematic; the wire lands in the shared
+  // store array, so validation, statuses and codegen see it instantly.
+  const [pendingPin, setPendingPin] = useState(null)
+  const [selWire, setSelWire] = useState(null)
+
+  const onPinClick = useCallback((comp, pin) => {
+    setSelWire(null)
+    if (!pendingPin) {
+      track('pin_select', { target: `${comp}.${pin}` })
+      setPendingPin({ comp, pin })
+    } else if (pendingPin.comp === comp && pendingPin.pin === pin) {
+      setPendingPin(null)                       // same pin deselects
+    } else {
+      addWire(pendingPin, { comp, pin })
+      setPendingPin(null)
+    }
+  }, [addWire, pendingPin])
+
+  // leaving route mode never strands an in-progress trace
+  useEffect(() => { if (!routing) { setPendingPin(null); setSelWire(null) } }, [routing])
+  // wires re-index after removal — drop stale selection
+  useEffect(() => { if (selWire != null && selWire >= wires.length) setSelWire(null) }, [wires.length, selWire])
+
+  // Esc cancels the pending trace / deselects · Delete removes the trace
+  useEffect(() => {
+    if (!routing) return
+    const onKey = (e) => {
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key === 'Escape') { setPendingPin(null); setSelWire(null) }
+      else if ((e.key === 'Delete' || e.key === 'Backspace') && selWire != null) {
+        e.preventDefault()
+        removeWire(selWire)
+        setSelWire(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [routing, selWire, removeWire])
+
+  // per-trace validation issue (same wireIndex mapping as the 2D view)
+  const wireIssues = useMemo(() => {
+    const map = {}
+    ;(validation?.issues || []).forEach(i => {
+      if (i.source === 'wiring' && i.wireIndex != null && !map[i.wireIndex]) map[i.wireIndex] = i
+    })
+    return map
+  }, [validation])
 
   // pins that have at least one trace landing on them (copper pads)
   const connectedPins = useMemo(() => {
@@ -398,12 +537,21 @@ export default function ForgeCanvas() {
     return s
   }, [wires])
 
+  // world XZ of the pending pin (preview start)
+  const pendingXZ = useMemo(() => {
+    if (!pendingPin) return null
+    const e = entities[pendingPin.comp]
+    if (!e) return null
+    const p = footprint(pendingPin.comp, e.def).pins[pendingPin.pin]
+    return p ? [e.position[0] + p.x, e.position[2] + p.z] : null
+  }, [pendingPin, entities])
+
   return (
     <Canvas
       shadows
       camera={{ fov: 45, near: 0.1, far: 100 }}
       style={{ background: '#F4EFE6' }}
-      onPointerMissed={() => selectEntity(null)}
+      onPointerMissed={() => { selectEntity(null); setPendingPin(null); setSelWire(null) }}
     >
       <IsoCamera />
 
@@ -433,7 +581,12 @@ export default function ForgeCanvas() {
       />
 
       <PCBBoard />
-      <BusWires entities={entities} pinMap={live?.pins} selectedId={selectedId} wiring={live?.wiring} />
+      <Traces3D
+        entities={entities} wires={wires} wireIssues={wireIssues}
+        selWire={selWire} onSelectWire={setSelWire}
+        wiring={live?.wiring} selectedId={selectedId}
+      />
+      {routing && pendingXZ && <RoutePreview from={pendingXZ} />}
 
       {Object.entries(entities).map(([id, entity]) => (
         <ComponentMesh
@@ -444,6 +597,8 @@ export default function ForgeCanvas() {
           onSelect={selectEntity}
           onDragEnd={updatePosition}
           draggable={canvasMode === 'edit'}
+          onPinClick={routing ? onPinClick : undefined}
+          pendingPin={pendingPin}
           connectedPins={connectedPins}
           issues={issuesForComponent(validation, id)}
         />

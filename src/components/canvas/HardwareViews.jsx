@@ -13,10 +13,12 @@ const mono = { fontFamily: "'Space Mono', monospace" }
 
 // 3D interaction modes (see store.canvasMode for the design rationale):
 // editar = direct manipulation (drag chip moves it, drag background
-// orbits) · navegar = camera only, no accidental edits.
+// orbits) · navegar = camera only, no accidental edits · rotear =
+// click a pin then a destination pin to lay a copper trace.
 const MODES = [
   { id: 'navigate', label: 'navegar',  hint: 'arrastar orbita a câmera · clique seleciona' },
   { id: 'edit',     label: 'editar',   hint: 'arraste um chip para movê-lo · fundo orbita' },
+  { id: 'route',    label: 'rotear',   hint: 'clique em um pino e depois no destino · Esc cancela · Delete remove a trilha' },
 ]
 
 export function ModeToggle({ style }) {
