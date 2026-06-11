@@ -6,6 +6,7 @@ import {
   mono, slab, CREAM, GOLD, NAVY_FIELD, primaryBtn, h2, sub, inputStyle,
   PatchEmblem, MISSION_KINDS, StepDots, Card,
 } from '../onboarding/posterKit.jsx'
+import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
 
 // ──────────────────────────────────────────────────────────────────
 // MissionWindow — the home window (rail target "Mission").
@@ -163,8 +164,15 @@ export default function MissionWindow() {
         ) : <span style={{ width: 10 }} />}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 0' }}>
-        <div>{screens[step]}</div>
+      {/* content + persistent satellite assembly (gamified progress —
+          every decision visibly adds a subsystem, see SatelliteAssembly) */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 0' }}>
+          <div>{screens[step]}</div>
+        </div>
+        <div style={{ width: 300, flexShrink: 0, borderLeft: '1px solid rgba(244,239,230,.14)', padding: '10px 4px 6px 14px', minHeight: 0 }}>
+          <SatelliteAssembly plan={missionPlan} />
+        </div>
       </div>
 
       <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 22 }}>
