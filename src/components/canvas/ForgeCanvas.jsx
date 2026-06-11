@@ -73,11 +73,11 @@ function IssueBadge({ issues, size }) {
         background: 'rgba(244,239,230,.95)', border: `1px solid ${color}`,
         borderLeft: `3px solid ${color}`, borderRadius: 4,
         padding: '3px 7px', pointerEvents: 'none', whiteSpace: 'nowrap',
-        fontFamily: "'Space Mono', monospace", fontSize: 9,
+        fontFamily: "'Space Mono', monospace", fontSize: 12,
         boxShadow: '0 2px 8px rgba(26,24,20,.12)',
       }}>
         <span style={{
-          fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+          fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
           color: '#F4EFE6', background: color, borderRadius: 2, padding: '1px 4px',
         }}>{SOURCE_LABEL[first.source] || first.source}</span>
         <span style={{ color: '#1A1814' }}>
@@ -124,7 +124,7 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
       {(hov || isPending) && (
         <Html position={[0, 0.26, 0]} center distanceFactor={7} zIndexRange={[30, 0]}>
           <div style={{
-            fontFamily: "'Space Mono', monospace", fontSize: 9, whiteSpace: 'nowrap', pointerEvents: 'none',
+            fontFamily: "'Space Mono', monospace", fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none',
             color: '#1A1814', background: 'rgba(244,239,230,.95)', border: '1px solid rgba(26,24,20,.18)',
             borderRadius: 3, padding: '2px 6px',
           }}>
@@ -263,7 +263,7 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
       {(hovered || isSelected) && (
         <Html position={[0, -0.18, size[2] / 2 + 0.32]} center distanceFactor={9} zIndexRange={[10, 0]}>
           <div style={{
-            fontFamily: "'Space Mono', monospace", fontSize: 9, whiteSpace: 'nowrap',
+            fontFamily: "'Space Mono', monospace", fontSize: 12, whiteSpace: 'nowrap',
             color: '#3E3A34', background: 'rgba(244,239,230,.9)', pointerEvents: 'none',
             border: '1px solid rgba(26,24,20,.09)', borderRadius: 3, padding: '2px 6px',
           }}>
@@ -373,7 +373,7 @@ function Trace({ from, to, issue, selected, onClick }) {
       {(selected || issue) && (
         <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[15, 0]}>
           <div style={{
-            fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap', pointerEvents: 'none',
+            fontFamily: "'Space Mono', monospace", fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
             color: issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4',
             background: 'rgba(244,239,230,.94)', borderRadius: 3, padding: '1px 6px',
             border: `1px ${issue ? 'dashed' : 'solid'} ${issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4'}`,
@@ -426,7 +426,7 @@ function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, 
             {selectedId === id && (
               <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[5, 0]}>
                 <div style={{
-                  fontFamily: "'Space Mono', monospace", fontSize: 8.5, whiteSpace: 'nowrap',
+                  fontFamily: "'Space Mono', monospace", fontSize: 11, whiteSpace: 'nowrap',
                   color: '#7A736A', background: 'rgba(244,239,230,.92)', pointerEvents: 'none',
                   border: '1px dashed #ADA69E', borderRadius: 3, padding: '1px 6px', opacity: .92,
                 }}>não conectado · rota sugerida</div>

@@ -5,24 +5,26 @@
   --paper2: #EBE5DB;
   --paper3: #E0D9CE;
   --paper4: #D4CCBF;
+  /* text tokens are WCAG AA-checked by scripts/legibility_audit.mjs —
+     ink3/ink4 pass 4.5:1 on every paper background, navyt* on navy */
   --ink:    #1A1814;
   --ink2:   #3E3A34;
-  --ink3:   #7A736A;
-  --ink4:   #ADA69E;
+  --ink3:   #5F584F;
+  --ink4:   #6B645B;
   --navy:   #18243A;
   --navy2:  #1F2E49;
   --navy3:  #263659;
-  --navyt:  rgba(255,255,255,0.80);
-  --navyt2: rgba(255,255,255,0.42);
-  --navyt3: rgba(255,255,255,0.20);
+  --navyt:  rgba(255,255,255,0.86);
+  --navyt2: rgba(255,255,255,0.66);
+  --navyt3: rgba(255,255,255,0.55);
   --navyb:  rgba(255,255,255,0.06);
   --navyb2: rgba(255,255,255,0.11);
   --acc:    #2B5EA7;
-  --acc2:   #4A7DD4;
+  --acc2:   #3A66B5;
   --ok:     #2A6B4A;
-  --ok2:    #3A9060;
+  --ok2:    #2E7A4F;
   --warn:   #8A5A14;
-  --warn2:  #C8831A;
+  --warn2:  #8F5E10;
   --err:    #963020;
   --err2:   #C04030;
   --rule:   rgba(26,24,20,0.09);
@@ -35,7 +37,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -59,7 +61,7 @@ body {
 /* status badges */
 .badge {
   font-family: 'Space Mono', monospace;
-  font-size: 8px; letter-spacing: .06em;
+  font-size: 11px; letter-spacing: .06em;
   padding: 2px 7px; border-radius: 2px;
   border: 1px solid;
 }

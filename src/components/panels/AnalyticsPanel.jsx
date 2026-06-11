@@ -48,8 +48,8 @@ function Card({ title, hint, children, wide }) {
       border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper2)',
       padding: '10px 12px', flex: wide ? '1 1 100%' : '1 1 300px', minWidth: 280,
     }}>
-      <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 2 }}>{title}</div>
-      {hint && <div style={{ fontSize: 10, color: 'var(--ink3)', marginBottom: 6 }}>{hint}</div>}
+      <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 2 }}>{title}</div>
+      {hint && <div style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 6 }}>{hint}</div>}
       {!hint && <div style={{ height: 5 }} />}
       {children}
     </div>
@@ -59,16 +59,16 @@ function Card({ title, hint, children, wide }) {
 function Row({ k, v, hot, rank }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '3px 0', borderBottom: '1px solid var(--rule2)' }}>
-      <span style={{ fontSize: 11, color: 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {rank != null && <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)', marginRight: 6 }}>{String(rank).padStart(2, '0')}</span>}
+      <span style={{ fontSize: 13.5, color: 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {rank != null && <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', marginRight: 6 }}>{String(rank).padStart(2, '0')}</span>}
         {k}
       </span>
-      <span style={{ ...mono, fontSize: 11, color: hot ? 'var(--acc)' : 'var(--ink)', flexShrink: 0 }}>{v}</span>
+      <span style={{ ...mono, fontSize: 13.5, color: hot ? 'var(--acc)' : 'var(--ink)', flexShrink: 0 }}>{v}</span>
     </div>
   )
 }
 
-const Empty = () => <div style={{ fontSize: 11, color: 'var(--ink4)' }}>sem dados ainda</div>
+const Empty = () => <div style={{ fontSize: 13.5, color: 'var(--ink4)' }}>sem dados ainda</div>
 
 export default function AnalyticsPanel() {
   const sectionLabelOf = (id) => SECTIONS.find(s => s.id === id)?.label || id
@@ -96,14 +96,14 @@ export default function AnalyticsPanel() {
   const btn = {
     padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
     border: '1px solid var(--rule)', background: 'var(--paper2)',
-    ...mono, fontSize: 9, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink3)',
+    ...mono, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink3)',
   }
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '16px 22px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>Analytics da sessão</h2>
-        <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)' }}>
+        <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>
           local · {sum.total} eventos · {sum.sessions} sessã{sum.sessions === 1 ? 'o' : 'es'} · sessão atual {currentSession().slice(0, 8)}
         </span>
         <div style={{ flex: 1 }} />
@@ -116,7 +116,7 @@ export default function AnalyticsPanel() {
         >nova sessão de teste</button>
         <button onClick={clear} style={{ ...btn, color: 'var(--err2)' }}>limpar dados</button>
       </div>
-      <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', marginBottom: 16 }}>
+      <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)', marginBottom: 16 }}>
         {sum.span ? `${sum.span.from.toLocaleString('pt-BR')} — ${sum.span.to.toLocaleString('pt-BR')}` : 'sem eventos ainda — interaja com a plataforma'}
       </div>
 
@@ -131,8 +131,8 @@ export default function AnalyticsPanel() {
           {sum.dwell.map(([section, label]) => <Row key={section} k={sectionLabelOf(section)} v={label} hot />)}
           {sum.ignored.length > 0 && (
             <div style={{ marginTop: 8, paddingTop: 7, borderTop: '1px solid var(--rule)' }}>
-              <div style={{ ...mono, fontSize: 8, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn2)', marginBottom: 4 }}>nunca visitadas</div>
-              <div style={{ ...mono, fontSize: 10, color: 'var(--ink3)' }}>{sum.ignored.map(sectionLabelOf).join(' · ')}</div>
+              <div style={{ ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--warn2)', marginBottom: 4 }}>nunca visitadas</div>
+              <div style={{ ...mono, fontSize: 13, color: 'var(--ink3)' }}>{sum.ignored.map(sectionLabelOf).join(' · ')}</div>
             </div>
           )}
         </Card>
@@ -151,7 +151,7 @@ export default function AnalyticsPanel() {
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {events.length === 0 && <Empty />}
             {events.slice(-50).reverse().map((e, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '2px 0', borderBottom: '1px solid var(--rule2)', ...mono, fontSize: 9.5 }}>
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '2px 0', borderBottom: '1px solid var(--rule2)', ...mono, fontSize: 12 }}>
                 <span style={{ color: 'var(--ink4)', flexShrink: 0 }}>{new Date(e.timestamp).toLocaleTimeString('pt-BR')}</span>
                 <span style={{ color: 'var(--acc)', flexShrink: 0, width: 150 }}>{e.eventName}</span>
                 <span style={{ color: 'var(--ink2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

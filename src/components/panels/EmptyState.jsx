@@ -9,10 +9,10 @@ export default function EmptyState({ section }) {
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', maxWidth: 320 }}>
         <div style={{
-          fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: '.14em',
+          fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.14em',
           textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 10,
         }}>{section}</div>
-        <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 16 }}>
+        <div style={{ fontSize: 15, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 16 }}>
           Nenhuma missão em andamento. Monte a missão em <strong style={{ color: 'var(--ink2)' }}>Mission</strong> —
           competição, objetivo e hardware — e o restante da plataforma acompanha.
         </div>
@@ -21,7 +21,7 @@ export default function EmptyState({ section }) {
           style={{
             padding: '7px 16px', borderRadius: 5, border: '1px solid var(--rule)',
             background: 'var(--navy)', color: 'rgba(255,255,255,.8)', cursor: 'pointer',
-            fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+            fontFamily: "'Space Grotesk', sans-serif", fontSize: 14,
           }}
         >Ir para Mission →</button>
       </div>

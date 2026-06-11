@@ -56,7 +56,7 @@ export default function FirmwarePanel() {
             <button key={m.id} onClick={() => setActiveModule(m.id)} style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-              ...mono, fontSize: 9.5,
+              ...mono, fontSize: 12,
               border: '1px solid var(--rule)',
               background: active ? 'var(--navy)' : 'var(--paper2)',
               color: active ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
@@ -70,24 +70,24 @@ export default function FirmwarePanel() {
 
       {/* module identity strip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{current.label}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{current.label}</span>
         <span style={{
-          ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+          ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
           padding: '1px 6px', borderRadius: 2,
           background: `${LAYER_COLOR[current.layer]}22`, color: LAYER_COLOR[current.layer],
         }}>
           {current.layer === 'core' ? 'core — não modifique' : current.layer === 'adaptive' ? 'adaptive — adapte para a missão' : 'mission — construa livremente'}
         </span>
-        <span style={{ fontSize: 10, color: 'var(--ink3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.desc}</span>
+        <span style={{ fontSize: 13, color: 'var(--ink3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.desc}</span>
         {edited && (
           <button onClick={() => resetFirmwareEdit(current.id)} style={{
-            padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+            padding: '3px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
             ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
             border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--warn2)',
           }}>↺ regenerar</button>
         )}
         <button onClick={() => navigator.clipboard?.writeText(code).catch(() => {})} style={{
-          padding: '3px 10px', borderRadius: 4, fontSize: 9, cursor: 'pointer',
+          padding: '3px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
           ...mono, letterSpacing: '.06em', textTransform: 'uppercase',
           border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
         }}>copiar</button>
@@ -101,7 +101,7 @@ export default function FirmwarePanel() {
         style={{ flex: 1, border: '1px solid var(--rule)', borderRadius: 6 }}
       />
 
-      <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 6, flexShrink: 0 }}>
+      <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 6, flexShrink: 0 }}>
         {mods.length} módulos · gerados da missão e do hardware · edite e os ajustes ficam no projeto
         {' · '}para gravar num ESP32 real use a aba Serial Test
       </div>

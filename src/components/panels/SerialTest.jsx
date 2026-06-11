@@ -534,10 +534,10 @@ export default function SerialTest() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexShrink: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Bring-up de hardware</span>
-          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)', letterSpacing: '.04em' }}>ESP32-WROOM-32D · editar → gravar → validar</span>
+          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)', letterSpacing: '.04em' }}>ESP32-WROOM-32D · editar → gravar → validar</span>
         </div>
         <div style={{ flex: 1 }} />
-        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Space Mono', monospace", fontSize: 10, color: 'var(--ink3)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Space Mono', monospace", fontSize: 13, color: 'var(--ink3)' }}>
           <span className={connected ? 'pulse' : ''} style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? 'var(--ok2)' : 'var(--ink4)', boxShadow: connected ? '0 0 6px var(--ok2)' : 'none' }} />
           {connected ? 'ESP32 · ttyUSB0 · 115200' : 'desconectado'}
         </span>
@@ -560,7 +560,7 @@ export default function SerialTest() {
             {missionMode ? (
               <ArchitectureBlocks files={fwFiles} activeFile={activeFile} edited={fwEdits} onSelect={(f) => setActiveFileName(f.file)} />
             ) : (
-              <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6, padding: '2px 0 4px' }}>
+              <div style={{ fontSize: 13.5, color: 'var(--ink4)', lineHeight: 1.6, padding: '2px 0 4px' }}>
                 Monte a missão (hardware) para gerar os módulos de firmware do projeto.
               </div>
             )}
@@ -578,7 +578,7 @@ export default function SerialTest() {
                       border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`,
                       borderLeft: `3px solid ${active ? 'var(--acc)' : 'var(--paper4)'}`,
                       background: active ? 'rgba(43,94,167,.06)' : 'var(--paper)',
-                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5,
+                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5,
                       color: active ? 'var(--ink)' : 'var(--ink2)', fontWeight: active ? 500 : 400,
                     }}>{p.label}</button>
                   )
@@ -597,9 +597,9 @@ export default function SerialTest() {
           {/* editor — fills all the vertical space the console leaves */}
           <Pane style={{ flex: 1, minHeight: 120 }}>
             <PaneHeader>
-              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, color: 'var(--ink4)' }}>{editorName}</span>
+              <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)' }}>{editorName}</span>
               {missionMode && fwEdits[activeFile.file] != null && (
-                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)' }}>editado</span>
+                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)' }}>editado</span>
               )}
               <div style={{ flex: 1 }} />
               {flashing && <Spinner label="gravando" />}
@@ -638,7 +638,7 @@ export default function SerialTest() {
                 <input
                   value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send() }} disabled={!connected}
                   placeholder={connected ? 'mensagem para o ESP32…' : 'conecte para enviar'}
-                  style={{ flex: 1, padding: '7px 11px', borderRadius: 5, outline: 'none', border: '1px solid var(--rule)', background: connected ? 'var(--paper)' : 'var(--paper3)', fontFamily: "'Space Mono', monospace", fontSize: 11, color: connected ? 'var(--ink)' : 'var(--ink4)' }}
+                  style={{ flex: 1, padding: '7px 11px', borderRadius: 5, outline: 'none', border: '1px solid var(--rule)', background: connected ? 'var(--paper)' : 'var(--paper3)', fontFamily: "'Space Mono', monospace", fontSize: 13.5, color: connected ? 'var(--ink)' : 'var(--ink4)' }}
                 />
                 <button onClick={send} disabled={!connected} style={connected ? primaryBtn : { ...primaryBtn, background: 'var(--paper4)', cursor: 'not-allowed' }}>Enviar</button>
               </div>
@@ -663,7 +663,7 @@ export default function SerialTest() {
 // re-run); future steps stay hidden until the current one completes.
 function GuidedSteps({ steps, expanded, onToggle }) {
   const currentIdx = steps.findIndex((s) => !s.done)
-  const mono9 = { fontFamily: "'Space Mono', monospace", fontSize: 9 }
+  const mono9 = { fontFamily: "'Space Mono', monospace", fontSize: 12 }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
       {steps.map((s, i) => {
@@ -679,7 +679,7 @@ function GuidedSteps({ steps, expanded, onToggle }) {
                 display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left',
                 padding: '5px 9px', borderRadius: 5, cursor: 'pointer',
                 border: '1px solid rgba(58,144,96,.35)', background: 'rgba(58,144,96,.07)',
-                color: 'var(--ok2)', fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+                color: 'var(--ok2)', fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
               }}>
               <span style={{ fontWeight: 700, flexShrink: 0 }}>✓</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.summary}</span>
@@ -693,11 +693,11 @@ function GuidedSteps({ steps, expanded, onToggle }) {
             border: `1px solid ${s.failed ? 'rgba(192,64,48,.4)' : 'var(--acc)'}`, borderRadius: 6,
             background: s.failed ? 'rgba(192,64,48,.05)' : 'rgba(43,94,167,.05)', padding: '9px 11px',
           }}>
-            <div style={{ ...mono9, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: s.failed ? 'var(--err2)' : 'var(--acc2)', marginBottom: 3 }}>
+            <div style={{ ...mono9, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: s.failed ? 'var(--err2)' : 'var(--acc2)', marginBottom: 3 }}>
               Passo {s.n} de {steps.length}
             </div>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{s.title}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.failed ? 8 : 0 }}>{s.hint}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{s.title}</div>
+            <div style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.failed ? 8 : 0 }}>{s.hint}</div>
             {s.failed && (s.failures || []).map((f, fi) => (
               <div key={fi} style={{ ...mono9, lineHeight: 1.55, marginBottom: 7, paddingLeft: 8, borderLeft: '2px solid var(--err2)' }}>
                 <div style={{ color: 'var(--err2)' }}>{f.what}</div>
@@ -709,14 +709,14 @@ function GuidedSteps({ steps, expanded, onToggle }) {
                 width: '100%', padding: '7px 12px', borderRadius: 5, border: 'none',
                 cursor: s.busy ? 'default' : 'pointer',
                 background: s.busy ? 'var(--paper4)' : 'var(--navy)', color: 'rgba(255,255,255,.9)',
-                fontSize: 11.5, fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
               }}>{s.btn}</button>
             )}
             {s.done && expanded === s.id && (
               <button onClick={() => onToggle(null)} style={{
                 width: '100%', marginTop: 6, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
                 border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink4)',
-                ...mono9, fontSize: 8.5, letterSpacing: '.05em', textTransform: 'uppercase',
+                ...mono9, fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase',
               }}>recolher</button>
             )}
           </div>
@@ -728,7 +728,7 @@ function GuidedSteps({ steps, expanded, onToggle }) {
 function Card({ title, children }) {
   return (
     <div style={{ border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper2)', padding: '10px 12px', flexShrink: 0 }}>
-      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>{title}</div>
       {children}
     </div>
   )
@@ -751,7 +751,7 @@ function ArchitectureBlocks({ files, activeFile, edited, onSelect }) {
         const st = GROUP_STYLE[g.id] || GROUP_STYLE.system
         return (
           <div key={g.id}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 7.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{g.label}</div>
+            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{g.label}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {items.map((f) => {
                 const active = activeFile?.file === f.file
@@ -763,11 +763,11 @@ function ArchitectureBlocks({ files, activeFile, edited, onSelect }) {
                     background: st.bg, color: st.fg,
                     border: `1px solid ${active ? 'var(--acc)' : st.border}`,
                     boxShadow: active ? '0 0 0 1px var(--acc)' : 'none',
-                    fontFamily: "'Space Mono', monospace", fontSize: 10.5,
+                    fontFamily: "'Space Mono', monospace", fontSize: 13,
                     fontWeight: active ? 700 : 400,
                   }}>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file}</span>
-                    {edited[f.file] != null && <span style={{ fontSize: 7, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)', flexShrink: 0 }}>editado</span>}
+                    {edited[f.file] != null && <span style={{ fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)', flexShrink: 0 }}>editado</span>}
                   </button>
                 )
               })}
@@ -808,7 +808,7 @@ function FileContext({ file, wires, addrs }) {
   }
   if (!body) return null
   return (
-    <div style={{ flexShrink: 0, padding: '7px 12px', borderTop: '1px solid var(--rule)', background: 'var(--paper2)', fontFamily: "'Space Mono', monospace", fontSize: 9.5, lineHeight: 1.7, color: 'var(--ink3)', maxHeight: 96, overflowY: 'auto' }}>
+    <div style={{ flexShrink: 0, padding: '7px 12px', borderTop: '1px solid var(--rule)', background: 'var(--paper2)', fontFamily: "'Space Mono', monospace", fontSize: 12, lineHeight: 1.7, color: 'var(--ink3)', maxHeight: 96, overflowY: 'auto' }}>
       {body}
     </div>
   )
@@ -816,7 +816,7 @@ function FileContext({ file, wires, addrs }) {
 function Row({ k, v, dot, mono, last }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: last ? 'none' : '1px solid var(--rule2)' }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink3)' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--ink3)' }}>
         {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot }} />}{k}
       </span>
       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: mono ? 9.5 : 11, color: 'var(--ink)' }}>{v}</span>
@@ -842,16 +842,16 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <div style={{ padding: '8px 11px', borderBottom: '1px solid var(--rule)', flexShrink: 0 }}>
-        <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Diagnóstico</div>
+        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Diagnóstico</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{ width: 9, height: 9, borderRadius: '50%', background: overall.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: overall.color }}>{overall.label}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: overall.color }}>{overall.label}</span>
         </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '9px 11px' }}>
         {cards.length === 0 && (
-          <div style={{ fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 13.5, color: 'var(--ink4)', lineHeight: 1.6 }}>
             Nenhum sensor sob teste — monte a missão ou escolha o sketch BMP280 + OLED.
           </div>
         )}
@@ -863,21 +863,21 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
               borderRadius: 5, background: st.bg, padding: '7px 9px', marginBottom: 7,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
-                <span style={{ ...mono, fontSize: 8, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color, flexShrink: 0 }}>{c.st}</span>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
+                <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color, flexShrink: 0 }}>{c.st}</span>
               </div>
-              <div style={{ ...mono, fontSize: 8.5, color: 'var(--ink4)', marginTop: 2 }}>I2C esperado: {c.addr}</div>
+              <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 2 }}>I2C esperado: {c.addr}</div>
               {c.msg && (
-                <div style={{ fontSize: 10, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--rule2)' }}>{c.msg}</div>
+                <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--rule2)' }}>{c.msg}</div>
               )}
             </div>
           )
         })}
 
-        <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '10px 0 5px' }}>eventos interpretados</div>
-        {events.length === 0 && <div style={{ ...mono, fontSize: 9.5, color: 'var(--ink4)' }}>nenhum evento ainda</div>}
+        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '10px 0 5px' }}>eventos interpretados</div>
+        {events.length === 0 && <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>nenhum evento ainda</div>}
         {events.map((l, i) => (
-          <div key={i} style={{ ...mono, fontSize: 9, color: 'var(--ink3)', lineHeight: 1.6, display: 'flex', gap: 6 }}>
+          <div key={i} style={{ ...mono, fontSize: 12, color: 'var(--ink3)', lineHeight: 1.6, display: 'flex', gap: 6 }}>
             <span style={{ color: 'var(--ink4)', flexShrink: 0 }}>{l.t}</span>
             <span>{l.text}</span>
           </div>
@@ -885,7 +885,7 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
         <div ref={endRef} />
       </div>
 
-      <div style={{ padding: '7px 11px', borderTop: '1px solid var(--rule)', flexShrink: 0, ...mono, fontSize: 8.5, color: 'var(--ink4)', lineHeight: 1.6 }}>
+      <div style={{ padding: '7px 11px', borderTop: '1px solid var(--rule)', flexShrink: 0, ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6 }}>
         <div>{chip || 'ESP32-WROOM-32D'} · {connected ? 'ttyUSB0 · 115200' : 'sem conexão'}</div>
         <div>arduino-cli · framework Arduino</div>
       </div>
@@ -898,7 +898,7 @@ function Pane({ children, style }) {
 function PaneHeader({ children }) {
   return <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', background: 'var(--paper2)', borderBottom: '1px solid var(--rule)', flexShrink: 0 }}>{children}</div>
 }
-const consoleBase = { background: CONSOLE_BG, fontFamily: "'Space Mono', monospace", fontSize: 11, lineHeight: 1.65 }
+const consoleBase = { background: CONSOLE_BG, fontFamily: "'Space Mono', monospace", fontSize: 13.5, lineHeight: 1.65 }
 function Console({ children, endRef, empty }) {
   const has = Array.isArray(children) ? children.length > 0 : !!children
   return (
@@ -927,7 +927,7 @@ function Handle({ dir, onPointerDown }) {
 }
 function Spinner({ label }) {
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--warn2)' }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--warn2)' }}>
       <span className="spin" style={{ display: 'block', width: 10, height: 10, border: '1.5px solid var(--warn2)', borderTopColor: 'transparent', borderRadius: '50%' }} />
       {label}…
     </span>
@@ -936,17 +936,17 @@ function Spinner({ label }) {
 
 // ── buttons (platform language) ──────────────────────────────────────
 const ghostBtn = {
-  padding: '5px 12px', borderRadius: 5, fontSize: 10, cursor: 'pointer',
+  padding: '5px 12px', borderRadius: 5, fontSize: 13, cursor: 'pointer',
   fontFamily: "'Space Mono', monospace", letterSpacing: '.05em', textTransform: 'uppercase',
   border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
 }
 const primaryBtn = {
   padding: '6px 16px', borderRadius: 5, border: 'none', cursor: 'pointer',
-  background: 'var(--navy)', color: 'rgba(255,255,255,.88)', fontSize: 12, fontFamily: "'Space Grotesk', sans-serif",
+  background: 'var(--navy)', color: 'rgba(255,255,255,.88)', fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
 }
 function tabBtn(active) {
   return {
-    padding: '3px 10px', borderRadius: 4, fontSize: 9.5, cursor: 'pointer',
+    padding: '3px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
     fontFamily: "'Space Mono', monospace", letterSpacing: '.04em',
     border: `1px solid ${active ? 'var(--navy)' : 'var(--rule)'}`,
     background: active ? 'var(--navy)' : 'var(--paper2)',
@@ -957,11 +957,11 @@ function solidBtn(busy) {
   return {
     padding: '5px 14px', borderRadius: 5, border: 'none', cursor: busy ? 'default' : 'pointer',
     background: busy ? 'var(--paper4)' : 'var(--navy)', color: 'rgba(255,255,255,.9)',
-    fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
   }
 }
 const miniBtn = {
-  padding: '2px 8px', borderRadius: 3, fontSize: 8.5, cursor: 'pointer',
+  padding: '2px 8px', borderRadius: 3, fontSize: 11, cursor: 'pointer',
   fontFamily: "'Space Mono', monospace", letterSpacing: '.05em', textTransform: 'uppercase',
   border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink4)',
 }

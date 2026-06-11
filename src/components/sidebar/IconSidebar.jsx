@@ -51,7 +51,7 @@ export default function IconSidebar() {
     }}>
       {/* logo */}
       <div style={{
-        fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700,
+        fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700,
         color: 'rgba(255,255,255,.85)', letterSpacing: '.1em',
         padding: '6px 0 12px', borderBottom: '1px solid var(--navyb)',
         width: '100%', textAlign: 'center', marginBottom: 6,

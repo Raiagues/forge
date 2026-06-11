@@ -46,20 +46,20 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
         border: 'none', background: 'none', cursor: 'pointer', padding: 0, marginBottom: open ? 8 : 2,
       }}>
         <span style={{
-          width: 16, height: 16, borderRadius: '50%', flexShrink: 0, ...mono, fontSize: 8,
+          width: 16, height: 16, borderRadius: '50%', flexShrink: 0, ...mono, fontSize: 11,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
           background: done ? 'var(--ok2)' : open ? 'var(--acc)' : 'var(--paper4)',
           color: done || open ? '#fff' : 'var(--ink3)', zIndex: 1, position: 'relative',
         }}>{done ? '✓' : n}</span>
-        <span style={{ ...mono, fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: open ? 'var(--ink2)' : 'var(--ink3)', flexShrink: 0 }}>{title}</span>
+        <span style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: open ? 'var(--ink2)' : 'var(--ink3)', flexShrink: 0 }}>{title}</span>
         <span style={{ flex: 1 }} />
-        <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
+        <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>
       </button>
 
       {/* collapsed: only the one-line summary + a minimal edit pencil */}
       {!open && summary && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0 2px 24px' }}>
-          <span style={{ flex: 1, fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+          <span style={{ flex: 1, fontSize: 13, color: 'var(--ink3)', lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
           {onEdit && (
             <button onClick={(e) => { e.stopPropagation(); onEdit() }} title="Editar"
               style={{
@@ -88,11 +88,11 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
                     cursor: canConfirm ? 'pointer' : 'not-allowed',
                     background: canConfirm ? 'var(--navy)' : 'var(--paper4)',
                     color: canConfirm ? 'rgba(255,255,255,.9)' : 'var(--ink4)',
-                    fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+                    fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
                   }}
                 >{confirmLabel}</button>
                 {!canConfirm && (
-                  <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', marginTop: 5 }}>complete este estágio para avançar</div>
+                  <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)', marginTop: 5 }}>complete este estágio para avançar</div>
                 )}
               </div>
             )}
@@ -106,16 +106,16 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
 function MiniInput({ label, value, onChange, placeholder, type = 'text', prefix }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-      <span style={{ fontSize: 11, color: 'var(--ink3)', width: 68, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 13.5, color: 'var(--ink3)', width: 68, flexShrink: 0 }}>{label}</span>
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-        {prefix && <span style={{ ...mono, fontSize: 10, color: 'var(--ink4)' }}>{prefix}</span>}
+        {prefix && <span style={{ ...mono, fontSize: 13, color: 'var(--ink4)' }}>{prefix}</span>}
         <input
           type={type} value={value ?? ''} placeholder={placeholder}
           onChange={e => onChange(e.target.value)}
           style={{
             flex: 1, minWidth: 0, padding: '5px 8px', borderRadius: 5, outline: 'none',
             border: '1px solid var(--rule)', background: 'var(--paper)',
-            fontSize: 11, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 13.5, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif",
           }}
         />
       </div>
@@ -151,15 +151,15 @@ function CompetitionStage() {
             <span style={{
               width: 28, height: 28, borderRadius: 4, flexShrink: 0, background: 'var(--navy)',
               color: 'rgba(255,255,255,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              ...mono, fontSize: 9, fontWeight: 700,
+              ...mono, fontSize: 12, fontWeight: 700,
             }}>{f.kind === 'custom' ? '✎' : f.name.slice(0, 2).toUpperCase()}</span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{f.name}</span>
-              <span style={{ display: 'block', ...mono, fontSize: 8, color: 'var(--ink4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{f.name}</span>
+              <span style={{ display: 'block', ...mono, fontSize: 11, color: 'var(--ink4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {f.kind === 'custom' ? 'missão livre' : f.full}
               </span>
             </span>
-            {sel && <span style={{ color: 'var(--acc)', fontSize: 12 }}>✓</span>}
+            {sel && <span style={{ color: 'var(--acc)', fontSize: 14 }}>✓</span>}
           </button>
         )
       })}
@@ -167,15 +167,15 @@ function CompetitionStage() {
       {fw && fw.requirements?.length > 0 && (
         <>
           <button onClick={() => setShowReqs(v => !v)} style={{
-            ...mono, fontSize: 9, letterSpacing: '.06em', color: 'var(--ink3)', cursor: 'pointer',
+            ...mono, fontSize: 12, letterSpacing: '.06em', color: 'var(--ink3)', cursor: 'pointer',
             border: 'none', background: 'none', padding: '4px 2px', marginTop: 2,
           }}>{showReqs ? '▾' : '▸'} {fw.requirements.length} requisitos da competição</button>
           {showReqs && fw.requirements.map(r => (
             <div key={r.id} style={{ display: 'flex', gap: 7, padding: '5px 2px', borderBottom: '1px solid var(--rule2)' }}>
-              <span style={{ ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase', color: SEV_COLOR[r.severity], width: 42, flexShrink: 0, paddingTop: 2 }}>
+              <span style={{ ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: SEV_COLOR[r.severity], width: 42, flexShrink: 0, paddingTop: 2 }}>
                 {r.severity === 'error' ? 'obrig.' : r.severity === 'warn' ? 'forte' : 'info'}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--ink2)', lineHeight: 1.4 }}>{r.title}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.4 }}>{r.title}</span>
             </div>
           ))}
         </>
@@ -209,22 +209,22 @@ function ObjectiveStage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>{sel && <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#fff' }} />}</span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{o.label}</span>
-                <span style={{ display: 'block', fontSize: 10, color: 'var(--ink3)', lineHeight: 1.45 }}>{o.desc}</span>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{o.label}</span>
+                <span style={{ display: 'block', fontSize: 13, color: 'var(--ink3)', lineHeight: 1.45 }}>{o.desc}</span>
               </span>
             </button>
 
             {sel && (
               <div style={{ margin: '4px 0 2px 21px' }}>
                 <button onClick={() => setEditing(v => !v)} style={{
-                  ...mono, fontSize: 9, letterSpacing: '.06em', color: 'var(--acc)', cursor: 'pointer',
+                  ...mono, fontSize: 12, letterSpacing: '.06em', color: 'var(--acc)', cursor: 'pointer',
                   border: 'none', background: 'none', padding: '2px 0',
                 }}>{editing ? '▾ metadados da missão' : '▸ ver / editar metadados'}</button>
                 {editing && resolved && (
                   <div style={{ border: '1px solid var(--rule)', borderRadius: 5, background: 'var(--paper)', padding: '8px 10px', marginTop: 3 }}>
                     {OBJECTIVE_META_FIELDS.map(fld => (
                       <div key={fld.key} style={{ marginBottom: 6 }}>
-                        <div style={{ ...mono, fontSize: 7, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 2 }}>{fld.label}</div>
+                        <div style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 2 }}>{fld.label}</div>
                         <input
                           value={resolved.meta[fld.key] || ''}
                           onChange={e => setObjectiveMetaField(fld.key, e.target.value)}
@@ -232,12 +232,12 @@ function ObjectiveStage() {
                           style={{
                             width: '100%', padding: '4px 7px', borderRadius: 4, outline: 'none',
                             border: '1px solid var(--rule)', background: 'var(--paper2)',
-                            fontSize: 11, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif",
+                            fontSize: 13.5, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif",
                           }}
                         />
                       </div>
                     ))}
-                    <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', lineHeight: 1.5 }}>
+                    <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5 }}>
                       Esses metadados definem a categoria da missão e alimentam a validação, as recomendações e o firmware gerado.
                     </div>
                   </div>
@@ -258,7 +258,7 @@ function DetailsStage() {
     <>
       <MiniInput label="Nome" value={missionPlan.name} onChange={setPlanName} placeholder="Nome da missão" />
       <MiniInput label="Orçamento" type="number" prefix="R$" value={missionPlan.budgetBRL ?? ''} onChange={v => setBudget(v)} placeholder="Ex.: 300" />
-      <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 2 }}>
+      <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 2 }}>
         O orçamento entra na validação. Preço, massa e consumo de cada módulo são editáveis no inspetor.
       </div>
     </>
@@ -278,7 +278,7 @@ function HardwareStage() {
     <>
       {CAT_ORDER.filter(c => groups[c]).map(cat => (
         <div key={cat} style={{ marginBottom: 10 }}>
-          <div style={{ ...mono, fontSize: 7, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{CAT_LABELS[cat]}</div>
+          <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{CAT_LABELS[cat]}</div>
           {groups[cat]
             .sort((a, b) => (a.comingSoon ? 1 : 0) - (b.comingSoon ? 1 : 0))
             .map(d => {
@@ -297,17 +297,17 @@ function HardwareStage() {
                     transition: 'all .15s',
                   }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--ink)' }}>{d.friendly}</span>
-                    <span style={{ display: 'block', ...mono, fontSize: 8, color: 'var(--ink4)' }}>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{d.friendly}</span>
+                    <span style={{ display: 'block', ...mono, fontSize: 11, color: 'var(--ink4)' }}>
                       {d.label}{d.protocol && d.protocol !== 'MCU' ? ` · ${d.protocol}` : ''}
                     </span>
                   </span>
-                  <span style={{ ...mono, fontSize: 9, color: 'var(--ink3)', flexShrink: 0 }}>R${eff.price}</span>
+                  <span style={{ ...mono, fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>R${eff.price}</span>
                   <span style={{
                     width: 14, height: 14, borderRadius: 3, flexShrink: 0,
                     border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
                     background: placed ? 'var(--ok2)' : 'transparent',
-                    color: '#fff', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>{placed ? '✓' : ''}</span>
                 </button>
               )
@@ -325,18 +325,18 @@ function WiringStage() {
   return (
     <>
       {sensors.length === 0 && (
-        <div style={{ fontSize: 11, color: 'var(--ink4)', marginBottom: 6 }}>Adicione sensores primeiro.</div>
+        <div style={{ fontSize: 13.5, color: 'var(--ink4)', marginBottom: 6 }}>Adicione sensores primeiro.</div>
       )}
       {sensors.map(id => {
         const st = live?.wiring?.[id]
         return (
           <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 5, marginBottom: 4, border: '1px solid var(--rule)', background: 'var(--paper)' }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: st?.wired ? 'var(--ok2)' : 'var(--ink4)' }} />
-            <span style={{ flex: 1, fontSize: 11, color: 'var(--ink)' }}>{entities[id].def.label}</span>
+            <span style={{ flex: 1, fontSize: 13.5, color: 'var(--ink)' }}>{entities[id].def.label}</span>
             {st?.wired
-              ? <span style={{ ...mono, fontSize: 8, color: 'var(--ok2)' }}>conectado</span>
+              ? <span style={{ ...mono, fontSize: 11, color: 'var(--ok2)' }}>conectado</span>
               : <button onClick={() => autoWire(id)} style={{
-                  ...mono, fontSize: 8, color: 'var(--acc)', cursor: 'pointer',
+                  ...mono, fontSize: 11, color: 'var(--acc)', cursor: 'pointer',
                   border: '1px solid var(--rule)', background: 'var(--paper2)', borderRadius: 3, padding: '2px 7px',
                 }}>auto-conectar</button>}
           </div>
@@ -345,9 +345,9 @@ function WiringStage() {
       <button onClick={() => setHardwareView('2d')} style={{
         width: '100%', padding: '7px 10px', borderRadius: 5, marginTop: 4, cursor: 'pointer',
         border: 'none', background: 'var(--navy)', color: 'rgba(255,255,255,.85)',
-        fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+        fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
       }}>Abrir editor de fiação 2D →</button>
-      <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 6 }}>
+      <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 6 }}>
         Conecte os pinos manualmente no esquema 2D — a validação elétrica acontece em tempo real e o firmware usa os pinos que você ligar.
       </div>
     </>
@@ -365,7 +365,7 @@ function ValidationNotices() {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <div style={{ ...mono, fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>
+      <div style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>
         Validação ao vivo
       </div>
       {shown.map((iss, i) => (
@@ -376,15 +376,15 @@ function ValidationNotices() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
             <span style={{
-              ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+              ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
               color: '#fff', background: SEV_COLOR[iss.severity], borderRadius: 2, padding: '1px 4px', flexShrink: 0,
             }}>{SOURCE_LABEL[iss.source] || iss.source}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>{iss.title}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{iss.title}</span>
           </div>
-          <div style={{ fontSize: 10, color: 'var(--ink3)', lineHeight: 1.45 }}>{iss.detail}</div>
+          <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.45 }}>{iss.detail}</div>
           {iss.suggestions?.filter(s => !entities[s.id]).slice(0, 2).map(s => (
             <button key={s.id} onClick={() => toggleHardware(s.id)} style={{
-              fontSize: 10, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, marginTop: 5, marginRight: 5,
+              fontSize: 13, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, marginTop: 5, marginRight: 5,
               border: '1px solid var(--rule)', background: 'var(--paper)', color: 'var(--ink2)',
               fontFamily: "'Space Grotesk', sans-serif",
             }}>+ {COMPONENT_DEFS[s.id]?.friendly || s.label}</button>
@@ -414,9 +414,9 @@ function ProgressFooter() {
         width: '100%', marginBottom: 9, padding: '6px 10px', borderRadius: 5,
         border: '1px solid var(--rule)', cursor: missionPlan.frameworkId ? 'pointer' : 'not-allowed',
         background: 'var(--paper)', color: missionPlan.frameworkId ? 'var(--ink2)' : 'var(--ink4)',
-        ...mono, fontSize: 9.5, letterSpacing: '.04em',
+        ...mono, fontSize: 12, letterSpacing: '.04em',
       }}>Salvar rascunho</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', ...mono, fontSize: 8, color: 'var(--ink4)', marginBottom: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', ...mono, fontSize: 11, color: 'var(--ink4)', marginBottom: 4 }}>
         <span>PROGRESSO DA MISSÃO</span><span>{pct}%</span>
       </div>
       <div style={{ height: 4, background: 'var(--rule)', borderRadius: 2, overflow: 'hidden' }}>
@@ -441,17 +441,17 @@ function BuilderCanvas() {
         height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
         background: 'var(--paper2)', borderBottom: '1px solid var(--rule)',
       }}>
-        <span style={{ ...mono, fontSize: 9, letterSpacing: '.08em', color: 'var(--ink3)' }}>
+        <span style={{ ...mono, fontSize: 12, letterSpacing: '.08em', color: 'var(--ink3)' }}>
           {missionPlan.frameworkId ? getFramework(missionPlan.frameworkId)?.name : 'Missão'}
         </span>
         {missionPlan.name?.trim() && (
           <>
-            <span style={{ color: 'var(--ink4)', fontSize: 10 }}>›</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{missionPlan.name}</span>
+            <span style={{ color: 'var(--ink4)', fontSize: 13 }}>›</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{missionPlan.name}</span>
           </>
         )}
         <span style={{
-          ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase',
+          ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
           padding: '1px 6px', borderRadius: 2, marginLeft: 4,
           background: hwLink.connected ? 'rgba(58,144,96,.12)' : 'rgba(26,24,20,.06)',
           color: hwLink.connected ? 'var(--ok2)' : 'var(--ink4)',
@@ -462,7 +462,7 @@ function BuilderCanvas() {
           <button onClick={exitFramework} style={{
             padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
             border: '1px solid var(--rule)', background: 'var(--paper)',
-            ...mono, fontSize: 8, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink3)',
+            ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink3)',
           }}>Trocar missão</button>
         )}
       </div>
@@ -474,9 +474,11 @@ function BuilderCanvas() {
           <div style={{
             position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -40%)',
             textAlign: 'center', pointerEvents: 'none',
+            background: 'rgba(244,239,230,.92)', border: '1px solid var(--rule)',
+            borderRadius: 8, padding: '14px 22px',
           }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink3)', marginBottom: 4 }}>Placa vazia</div>
-            <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)' }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink3)', marginBottom: 4 }}>Placa vazia</div>
+            <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>
               {missionPlan.frameworkId ? 'adicione componentes no painel ao lado' : 'escolha a competição para começar'}
             </div>
           </div>
@@ -487,7 +489,7 @@ function BuilderCanvas() {
       <div style={{
         height: 24, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '0 12px',
         background: 'var(--paper3)', borderTop: '1px solid var(--rule)',
-        ...mono, fontSize: 8, color: 'var(--ink4)',
+        ...mono, fontSize: 11, color: 'var(--ink4)',
       }}>
         {v && (
           <>
@@ -611,18 +613,18 @@ export default function MissionSection() {
               marginBottom: 14, padding: '8px 10px', borderRadius: 6,
               border: '1px solid var(--rule)', background: 'var(--paper)',
             }}>
-              <div style={{ fontSize: 11, color: 'var(--ink2)', lineHeight: 1.4, marginBottom: 6 }}>
+              <div style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.4, marginBottom: 6 }}>
                 Rascunho salvo em {new Date(draft.savedAt).toLocaleString('pt-BR')} — deseja restaurar?
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={restoreDraft} style={{
                   padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                  background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 10.5,
+                  background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 13,
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}>Restaurar</button>
                 <button onClick={discardDraft} style={{
                   padding: '4px 12px', borderRadius: 4, cursor: 'pointer',
-                  border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink3)', fontSize: 10.5,
+                  border: '1px solid var(--rule)', background: 'transparent', color: 'var(--ink3)', fontSize: 13,
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}>Descartar</button>
               </div>
@@ -644,7 +646,7 @@ export default function MissionSection() {
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
             <button onClick={() => setSection('serialtest')} style={{
               width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 12,
+              background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 14,
               fontFamily: "'Space Grotesk', sans-serif",
             }}>Iniciar testes de hardware</button>
           </div>

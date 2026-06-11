@@ -15,7 +15,7 @@ export default function Statusbar() {
       background: 'var(--paper3)', borderTop: '1px solid var(--rule)',
       display: 'flex', alignItems: 'center',
       padding: '0 14px', gap: 14,
-      fontFamily: "'Space Mono', monospace", fontSize: 8,
+      fontFamily: "'Space Mono', monospace", fontSize: 11,
       letterSpacing: '.06em', color: 'var(--ink4)',
     }}>
       <span style={{

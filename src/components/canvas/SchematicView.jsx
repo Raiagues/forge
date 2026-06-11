@@ -29,9 +29,9 @@ const PIN_ROLE_COLOR = {
   uart_tx: '#963020', uart_rx: '#963020',
 }
 
-const PIN_SPACING = 24
-const ESP_W = 196
-const SENSOR_W = 168
+const PIN_SPACING = 28
+const ESP_W = 216
+const SENSOR_W = 180
 
 // ESP32 pins split across both sides of the chip drawing, mirroring the
 // physical devkit columns (from the pin catalog, not hardcoded here).
@@ -63,14 +63,14 @@ function layout(entityIds) {
   for (const id of sensors) {
     const pins = COMPONENT_PINS[id]
     const h = pins.length * PIN_SPACING + 46
-    blocks[id] = { x: 500, y, w: SENSOR_W, h }
+    blocks[id] = { x: 540, y, w: SENSOR_W, h }
     pins.forEach((p, i) => {
-      pinPos[`${id}.${p.id}`] = { x: 500, y: y + 38 + i * PIN_SPACING, side: 'left' }
+      pinPos[`${id}.${p.id}`] = { x: 540, y: y + 38 + i * PIN_SPACING, side: 'left' }
     })
     y += h + 30
   }
   const height = Math.max(esp ? blocks.esp32.y + blocks.esp32.h + 60 : 0, y + 20, 420)
-  return { blocks, pinPos, width: 780, height }
+  return { blocks, pinPos, width: 840, height }
 }
 
 function wirePath(a, b) {
@@ -142,7 +142,7 @@ export default function SchematicView() {
   if (entityIds.length === 0) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ ...mono, fontSize: 10, color: 'var(--ink4)' }}>placa vazia — adicione componentes na missão</span>
+        <span style={{ ...mono, fontSize: 13, color: 'var(--ink4)' }}>placa vazia — adicione componentes na missão</span>
       </div>
     )
   }
@@ -151,7 +151,7 @@ export default function SchematicView() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--paper)' }}>
       {/* toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', flexShrink: 0 }}>
-        <span style={{ ...mono, fontSize: 9, color: 'var(--ink3)', letterSpacing: '.06em' }}>
+        <span style={{ ...mono, fontSize: 12, color: 'var(--ink3)', letterSpacing: '.06em' }}>
           {pending
             ? `${pending.comp}.${pending.pin} selecionado → clique no pino de destino · Esc cancela`
             : selWire != null
@@ -206,7 +206,7 @@ export default function SchematicView() {
                   <g transform={`translate(${mx},${my - 8})`} style={{ pointerEvents: 'none' }}>
                     <rect x={-labelW / 2} y={-9} width={labelW} height={15} rx={3}
                       fill="var(--paper)" stroke={issue.severity === 'error' ? WIRE_ERR : WIRE_WARN} strokeWidth={1} />
-                    <text textAnchor="middle" y={2.5} fontFamily="'Space Mono', monospace" fontSize={8}
+                    <text textAnchor="middle" y={2.5} fontFamily="'Space Mono', monospace" fontSize={11}
                       fill={issue.severity === 'error' ? WIRE_ERR : WIRE_WARN}>
                       {issue.title}
                     </text>
@@ -237,12 +237,12 @@ export default function SchematicView() {
                   stroke={sel ? WIRE_SEL : 'var(--rule)'} strokeWidth={sel ? 2 : 1}
                   style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); selectEntity(id) }} />
                 <circle cx={b.x + 14} cy={b.y + 15} r={4} fill={statusColor} />
-                <text x={b.x + 26} y={b.y + 18} fontFamily="'Space Grotesk', sans-serif" fontSize={12} fontWeight={600}
+                <text x={b.x + 26} y={b.y + 18} fontFamily="'Space Grotesk', sans-serif" fontSize={14} fontWeight={600}
                   fill={id === 'esp32' ? 'rgba(255,255,255,.88)' : 'var(--ink)'} style={{ pointerEvents: 'none' }}>
                   {def.label}
                 </text>
-                <text x={b.x + 14} y={b.y + 30} fontFamily="'Space Mono', monospace" fontSize={7.5} letterSpacing=".05em"
-                  fill={id === 'esp32' ? 'rgba(255,255,255,.4)' : 'var(--ink4)'} style={{ pointerEvents: 'none' }}>
+                <text x={b.x + 14} y={b.y + 30} fontFamily="'Space Mono', monospace" fontSize={10} letterSpacing=".05em"
+                  fill={id === 'esp32' ? 'rgba(255,255,255,.62)' : 'var(--ink4)'} style={{ pointerEvents: 'none' }}>
                   {id === 'esp32' ? def.friendly || '' : st?.wired ? 'conectado' : 'não conectado'}
                 </text>
 
@@ -265,8 +265,8 @@ export default function SchematicView() {
                         strokeWidth={1.4} strokeDasharray={inOnly ? '2 2' : 'none'} />
                       <text x={labelX} y={pos.y + 3.5}
                         textAnchor={pos.side === 'right' ? 'end' : 'start'}
-                        fontFamily="'Space Mono', monospace" fontSize={9}
-                        fill={inOnly ? (id === 'esp32' ? 'rgba(255,255,255,.34)' : 'var(--ink4)') : id === 'esp32' ? 'rgba(255,255,255,.72)' : 'var(--ink2)'}
+                        fontFamily="'Space Mono', monospace" fontSize={12}
+                        fill={inOnly ? (id === 'esp32' ? 'rgba(255,255,255,.60)' : 'var(--ink4)') : id === 'esp32' ? 'rgba(255,255,255,.72)' : 'var(--ink2)'}
                         style={{ pointerEvents: 'none' }}>
                         {p.label || p.id}
                       </text>
@@ -279,7 +279,7 @@ export default function SchematicView() {
           })}
 
           {/* legend */}
-          <g transform={`translate(16,${height - 16})`} fontFamily="'Space Mono', monospace" fontSize={8} fill="var(--ink4)">
+          <g transform={`translate(16,${height - 16})`} fontFamily="'Space Mono', monospace" fontSize={11} fill="var(--ink4)">
             <line x1={0} y1={-3} x2={18} y2={-3} stroke={WIRE_OK} strokeWidth={2} /><text x={22} y={0}>conexão ok</text>
             <line x1={92} y1={-3} x2={110} y2={-3} stroke={WIRE_WARN} strokeWidth={2} strokeDasharray="5 3" /><text x={114} y={0}>aviso</text>
             <line x1={158} y1={-3} x2={176} y2={-3} stroke={WIRE_ERR} strokeWidth={2} strokeDasharray="5 3" /><text x={180} y={0}>erro</text>
@@ -294,11 +294,11 @@ export default function SchematicView() {
           {wiringIssues.slice(0, 4).map((iss, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 5 }}>
               <span style={{
-                ...mono, fontSize: 7, letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0, marginTop: 1,
+                ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0, marginTop: 1,
                 color: '#fff', background: iss.severity === 'error' ? 'var(--err2)' : 'var(--warn2)', borderRadius: 2, padding: '1px 4px',
               }}>{SOURCE_LABEL[iss.source]}</span>
-              <span style={{ fontSize: 11, color: 'var(--ink)', fontWeight: 600, flexShrink: 0 }}>{iss.title}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--ink3)', lineHeight: 1.4 }}>{iss.detail}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--ink)', fontWeight: 600, flexShrink: 0 }}>{iss.title}</span>
+              <span style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.4 }}>{iss.detail}</span>
             </div>
           ))}
         </div>
@@ -311,6 +311,6 @@ function toolBtn() {
   return {
     padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
     border: '1px solid var(--rule)', background: 'var(--paper2)',
-    ...mono, fontSize: 8.5, letterSpacing: '.05em', color: 'var(--ink3)',
+    ...mono, fontSize: 11, letterSpacing: '.05em', color: 'var(--ink3)',
   }
 }

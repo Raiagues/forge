@@ -23,9 +23,9 @@ function Sparkline({ data, color, unit, label, value, domain }) {
   return (
     <div style={{ border: '1px solid var(--rule)', borderRadius: 6, background: 'var(--paper2)', padding: '12px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink3)' }}>{label}</span>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink3)' }}>{label}</span>
         <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color }}>
-          {value != null ? value : '—'}<span style={{ fontSize: 9, color: 'var(--ink4)', marginLeft: 4 }}>{unit}</span>
+          {value != null ? value : '—'}<span style={{ fontSize: 12, color: 'var(--ink4)', marginLeft: 4 }}>{unit}</span>
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
@@ -41,7 +41,7 @@ function Sparkline({ data, color, unit, label, value, domain }) {
         {area && <path d={area} fill={`url(#g-${label})`} />}
         {path
           ? <path d={path} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-          : <text x={W / 2} y={H / 2} textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="10" fill="var(--ink4)">aguardando amostras…</text>}
+          : <text x={W / 2} y={H / 2} textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="13" fill="var(--ink4)">aguardando amostras…</text>}
       </svg>
     </div>
   )
@@ -54,7 +54,7 @@ export default function TelemetryPanel() {
   if (!hwLink.connected) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink4)', letterSpacing: '.06em' }}>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13.5, color: 'var(--ink4)', letterSpacing: '.06em' }}>
           aguardando dados do hardware
         </span>
       </div>
@@ -75,7 +75,7 @@ export default function TelemetryPanel() {
     <div style={{ height: '100%', overflowY: 'auto', padding: '18px 22px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>Telemetria ao vivo</h2>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)', letterSpacing: '.08em' }}>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)', letterSpacing: '.08em' }}>
           {telemetry.length} amostras · t+{seq * 3}s · 0.33 Hz
         </span>
         <span className="pulse" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok2)', alignSelf: 'center' }} />
@@ -89,7 +89,7 @@ export default function TelemetryPanel() {
       </div>
 
       {charts.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 8 }}>
+        <div style={{ fontSize: 14, color: 'var(--ink3)', marginTop: 8 }}>
           Nenhum sensor com telemetria nesta missão.
         </div>
       )}

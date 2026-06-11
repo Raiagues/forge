@@ -41,7 +41,7 @@ function Toast() {
       position: 'absolute', bottom: 36, right: 18,
       background: 'var(--navy)', color: 'rgba(255,255,255,.85)',
       padding: '6px 16px', borderRadius: 18, zIndex: 90, pointerEvents: 'none',
-      fontFamily: "'Space Mono', monospace", fontSize: 9.5, letterSpacing: '.06em',
+      fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.06em',
       boxShadow: '0 4px 14px rgba(26,24,20,.18)', whiteSpace: 'nowrap',
     }}>{notice.message}</div>
   )

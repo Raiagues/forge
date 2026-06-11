@@ -21,9 +21,9 @@ export default function Topbar() {
       display: 'flex', alignItems: 'center',
       padding: '0 14px', gap: 10,
     }}>
-      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Sistema</span>
-      <span style={{ color: 'var(--ink4)', fontSize: 11 }}>›</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{sectionLabels[activeSection] || activeSection}</span>
+      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Sistema</span>
+      <span style={{ color: 'var(--ink4)', fontSize: 13.5 }}>›</span>
+      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{sectionLabels[activeSection] || activeSection}</span>
 
       <div style={{ flex: 1 }} />
 

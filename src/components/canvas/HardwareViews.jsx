@@ -30,7 +30,7 @@ export function ModeToggle({ style }) {
           onClick={() => { setCanvasMode(m.id); notify(`modo ${m.label}: ${m.hint}`) }}
           style={{
             padding: '3px 11px', border: 'none', cursor: 'pointer',
-            ...mono, fontSize: 8.5, letterSpacing: '.08em', textTransform: 'uppercase',
+            ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase',
             background: canvasMode === m.id ? 'var(--navy)' : 'var(--paper2)',
             color: canvasMode === m.id ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
           }}>{m.label}</button>
@@ -46,7 +46,7 @@ export function ViewToggle({ style }) {
       {['3d', '2d'].map(v => (
         <button key={v} onClick={() => setHardwareView(v)} style={{
           padding: '3px 11px', border: 'none', cursor: 'pointer',
-          ...mono, fontSize: 8.5, letterSpacing: '.08em', textTransform: 'uppercase',
+          ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase',
           background: hardwareView === v ? 'var(--navy)' : 'var(--paper2)',
           color: hardwareView === v ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
         }}>{v === '3d' ? '3D placa' : '2D esquema'}</button>
@@ -64,7 +64,7 @@ export default function HardwareViews({ showToggle = true }) {
       ) : (
         <Suspense fallback={
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ ...mono, fontSize: 10, color: 'var(--ink4)', letterSpacing: '.1em' }}>carregando cena 3D…</span>
+            <span style={{ ...mono, fontSize: 13, color: 'var(--ink4)', letterSpacing: '.1em' }}>carregando cena 3D…</span>
           </div>
         }>
           <ForgeCanvas />

@@ -10,7 +10,7 @@ import useForge from '../../store/useForge'
 const mono = { fontFamily: "'Space Mono', monospace" }
 
 function Label({ children }) {
-  return <div style={{ ...mono, fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '14px 0 5px' }}>{children}</div>
+  return <div style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '14px 0 5px' }}>{children}</div>
 }
 
 export default function FeatureInfoModal() {
@@ -36,11 +36,11 @@ export default function FeatureInfoModal() {
         {/* header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ ...mono, fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--warn2)', marginBottom: 5 }}>
+            <div style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--warn2)', marginBottom: 5 }}>
               em desenvolvimento
             </div>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', marginBottom: 3 }}>{info.title}</div>
-            {info.tech && <div style={{ ...mono, fontSize: 9, color: 'var(--ink3)', letterSpacing: '.05em' }}>{info.tech}</div>}
+            {info.tech && <div style={{ ...mono, fontSize: 12, color: 'var(--ink3)', letterSpacing: '.05em' }}>{info.tech}</div>}
           </div>
           <button onClick={closeFeatureInfo} style={{
             width: 24, height: 24, borderRadius: 4, border: '1px solid var(--rule)', background: 'var(--paper2)',
@@ -49,24 +49,24 @@ export default function FeatureInfoModal() {
         </div>
 
         <Label>O que faz</Label>
-        <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.6 }}>{info.what}</div>
+        <div style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6 }}>{info.what}</div>
 
         <Label>Por que importa na missão</Label>
-        <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.6 }}>{info.why}</div>
+        <div style={{ fontSize: 14, color: 'var(--ink2)', lineHeight: 1.6 }}>{info.why}</div>
 
         {info.planned?.length > 0 && (
           <>
             <Label>Planejado</Label>
             {info.planned.map((p, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--rule2)' }}>
-                <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)', flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</span>
-                <span style={{ fontSize: 11.5, color: 'var(--ink3)', lineHeight: 1.5 }}>{p}</span>
+                <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.5 }}>{p}</span>
               </div>
             ))}
           </>
         )}
 
-        <div style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginTop: 14, lineHeight: 1.5 }}>
+        <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 14, lineHeight: 1.5 }}>
           Este módulo aparece na interface para você explorar o fluxo completo da missão — a implementação chega em versões futuras.
         </div>
       </div>

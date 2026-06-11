@@ -14,13 +14,13 @@ function Finding({ f, onApply }) {
   return (
     <div style={{ borderLeft: `2px solid ${k.color}`, background: k.bg, borderRadius: 3, padding: '9px 11px', marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 7, letterSpacing: '.1em', textTransform: 'uppercase', color: k.color }}>{k.tag}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{f.title}</span>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: k.color }}>{k.tag}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{f.title}</span>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--ink3)', lineHeight: 1.55, marginBottom: f.actions?.length ? 7 : 0 }}>{f.detail}</div>
+      <div style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.55, marginBottom: f.actions?.length ? 7 : 0 }}>{f.detail}</div>
       {f.actions?.map((a, i) => (
         <button key={i} onClick={() => onApply(a)} style={{
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, cursor: 'pointer',
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, cursor: 'pointer',
           padding: '4px 10px', borderRadius: 4, marginRight: 6, marginTop: 2,
           border: '1px solid var(--rule)', background: 'var(--paper)', color: 'var(--ink2)',
         }}>{a.label}</button>
@@ -47,8 +47,8 @@ export default function CopilotPanel() {
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--rule)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: running ? 'var(--acc2)' : 'var(--ok2)', boxShadow: '0 0 5px currentColor', color: running ? 'var(--acc2)' : 'var(--ok2)' }} className={running ? 'pulse' : ''} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Copiloto de missão</div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: 'var(--ink4)', letterSpacing: '.06em' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>Copiloto de missão</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink4)', letterSpacing: '.06em' }}>
             {running ? 'analisando…' : mode === 'custom' ? 'análise da descrição' : 'revisão técnica'} · local
           </div>
         </div>
@@ -60,18 +60,18 @@ export default function CopilotPanel() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         {running && (
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink4)' }}>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13.5, color: 'var(--ink4)' }}>
             avaliando requisitos e compatibilidades…
           </div>
         )}
 
         {!running && !result && (
-          <div style={{ fontSize: 12, color: 'var(--ink3)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 14, color: 'var(--ink3)', lineHeight: 1.6 }}>
             Peça uma análise quando quiser. O copiloto revisa requisitos, detecta incompatibilidades e
             sugere melhorias — sem interromper seu fluxo.
             <button onClick={() => runCopilot('analysis')} style={{
               display: 'block', marginTop: 12, padding: '7px 14px', borderRadius: 5, cursor: 'pointer',
-              border: 'none', background: 'var(--navy)', color: 'rgba(255,255,255,.85)', fontSize: 12,
+              border: 'none', background: 'var(--navy)', color: 'rgba(255,255,255,.85)', fontSize: 14,
               fontFamily: "'Space Grotesk', sans-serif",
             }}>Analisar projeto</button>
           </div>
@@ -80,19 +80,19 @@ export default function CopilotPanel() {
         {!running && result && (
           <>
             <div style={{
-              fontSize: 12, color: 'var(--ink2)', lineHeight: 1.55, marginBottom: 12,
+              fontSize: 14, color: 'var(--ink2)', lineHeight: 1.55, marginBottom: 12,
               paddingBottom: 12, borderBottom: '1px solid var(--rule)',
             }}>
               {result.summary?.headline}
               {result.summary?.power && (
-                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: 'var(--ink4)', marginTop: 6 }}>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)', marginTop: 6 }}>
                   {result.summary.power.currentmA} mA · autonomia ~{result.summary.power.hours} h
                 </div>
               )}
             </div>
 
             {result.findings.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--ok)', lineHeight: 1.6 }}>
+              <div style={{ fontSize: 14, color: 'var(--ok)', lineHeight: 1.6 }}>
                 Nenhum problema encontrado. O projeto está coerente com os requisitos atuais.
               </div>
             )}
@@ -101,7 +101,7 @@ export default function CopilotPanel() {
             <button onClick={() => runCopilot(mode || 'analysis')} style={{
               marginTop: 6, padding: '6px 12px', borderRadius: 5, cursor: 'pointer', width: '100%',
               border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
-              fontSize: 11, fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
             }}>Reanalisar</button>
           </>
         )}

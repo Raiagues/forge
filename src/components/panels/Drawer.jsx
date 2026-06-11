@@ -13,7 +13,7 @@ const mono = { fontFamily: "'Space Mono', monospace" }
 // Tiny inline sparkline for the telemetry preview — no chart lib.
 function MiniSpark({ data, color }) {
   const pts = data.filter(v => v != null)
-  if (pts.length < 2) return <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)' }}>aguardando amostras…</span>
+  if (pts.length < 2) return <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>aguardando amostras…</span>
   const W = 250, H = 38, pad = 3
   const min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1
   const step = (W - pad * 2) / (pts.length - 1)
@@ -29,10 +29,10 @@ function MiniSpark({ data, color }) {
 function PropRow({ label, value, badge }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--rule2)' }}>
-      <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{label}</span>
+      <span style={{ fontSize: 13.5, color: 'var(--ink3)' }}>{label}</span>
       {badge
         ? <span className={`badge badge-${badge}`}>{value}</span>
-        : <span style={{ ...mono, fontSize: 11, color: 'var(--ink)' }}>{value}</span>}
+        : <span style={{ ...mono, fontSize: 13.5, color: 'var(--ink)' }}>{value}</span>}
     </div>
   )
 }
@@ -40,7 +40,7 @@ function PropRow({ label, value, badge }) {
 function Section({ label, children }) {
   return (
     <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--rule)' }}>
-      <div style={{ ...mono, fontSize: 8, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>{label}</div>
+      <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>{label}</div>
       {children}
     </div>
   )
@@ -95,7 +95,7 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {def.friendly || def.label}
           </div>
-          <div style={{ ...mono, fontSize: 9, color: 'var(--ink3)', letterSpacing: '.06em' }}>{def.label}</div>
+          <div style={{ ...mono, fontSize: 12, color: 'var(--ink3)', letterSpacing: '.06em' }}>{def.label}</div>
         </div>
         <button onClick={onClose} style={{
           width: 24, height: 24, borderRadius: 4, border: '1px solid var(--rule)', background: 'var(--paper2)',
@@ -114,7 +114,7 @@ function EntityContent({ entity, id, onClose, scrollRef }) {
           <Section label="Leituras · simulação">
             {sparks.map(s => (
               <div key={s.key} style={{ marginBottom: 10 }}>
-                <div style={{ ...mono, fontSize: 8, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 3 }}>{s.label}</div>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 3 }}>{s.label}</div>
                 <MiniSpark data={telemetry.map(t => t[s.key])} color={s.color} />
               </div>
             ))}

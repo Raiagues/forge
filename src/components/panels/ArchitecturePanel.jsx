@@ -29,7 +29,7 @@ export default function ArchitecturePanel() {
     <div style={{ height: '100%', overflow: 'auto', padding: '16px 22px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>Arquitetura do sistema</h2>
-        <span style={{ ...mono, fontSize: 9, color: 'var(--ink4)' }}>módulos de software · clique num card para ver a descrição</span>
+        <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>módulos de software · clique num card para ver a descrição</span>
       </div>
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
@@ -41,11 +41,11 @@ export default function ArchitecturePanel() {
               background: 'var(--paper2)', overflow: 'hidden',
             }}>
               <div style={{ padding: '9px 12px', borderBottom: '1px solid var(--rule)', borderTop: `2px solid ${layer.color}` }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{layer.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{layer.label}</div>
               </div>
               <div style={{ padding: '8px 10px' }}>
                 {layerMods.length === 0 && (
-                  <div style={{ ...mono, fontSize: 9, color: 'var(--ink4)', padding: '6px 2px' }}>
+                  <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)', padding: '6px 2px' }}>
                     nenhum módulo nesta camada
                   </div>
                 )}
@@ -59,10 +59,10 @@ export default function ArchitecturePanel() {
                       transition: 'all .14s',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ink)' }}>{m.label}</span>
-                        <span style={{ ...mono, fontSize: 8, color: 'var(--ink4)', marginLeft: 'auto' }}>{m.file}</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{m.label}</span>
+                        <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginLeft: 'auto' }}>{m.file}</span>
                       </div>
-                      {open && <div style={{ fontSize: 10, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 6 }}>{m.desc}</div>}
+                      {open && <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 6 }}>{m.desc}</div>}
                     </button>
                   )
                 })}
