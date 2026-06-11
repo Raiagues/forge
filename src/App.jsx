@@ -59,6 +59,14 @@ export default function App() {
     return () => clearInterval(id)
   }, [simulateTick])
 
+  // deep link: ?section=telemetry opens a section directly (also used
+  // by dev/user-testing). A deep link implies the user knows the app,
+  // so the first-visit onboarding overlay is bypassed.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('section')
+    if (wanted) useForge.setState({ activeSection: wanted, onboarding: null })
+  }, [])
+
   return (
     <>
       <div className="paper-grid" />
