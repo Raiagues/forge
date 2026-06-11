@@ -326,6 +326,10 @@ const useForge = create((set, get) => {
     serialLog: INITIAL_SERIAL,
     notice: null,             // lightweight contextual toast { id, message }
     popover: null,            // anchored disabled/coming-soon popover { id, anchor, message, hint }
+    // first-visit onboarding: 'landing' (what is FORGE + choose path) →
+    // 'flow' (guided mission intake) → null (workspace). Skippable at
+    // any point; the chosen context lands in the real missionPlan.
+    onboarding: (() => { try { return localStorage.getItem('forge_onboarded') ? null : 'landing' } catch { return 'landing' } })(),
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
@@ -381,6 +385,26 @@ const useForge = create((set, get) => {
     notify: (message) => set({ notice: { id: ++noticeSeq, message }, drawerOpen: false, selectedId: null }),
     clearNotice: () => set({ notice: null }),
     markFirstStageConfirmed: () => { if (!get().firstStageConfirmed) set({ firstStageConfirmed: true }) },
+
+    // ── onboarding ───────────────────────────────────────────────────
+    startGuided: () => { track('onboarding', { action: 'guided_start' }); set({ onboarding: 'flow' }) },
+    skipOnboarding: () => {
+      track('onboarding', { action: 'skip' })
+      try { localStorage.setItem('forge_onboarded', '1') } catch { /* ignore */ }
+      set({ onboarding: null, activeSection: 'mission' })
+    },
+    finishOnboarding: () => {
+      track('onboarding', { action: 'finish' })
+      try { localStorage.setItem('forge_onboarded', '1') } catch { /* ignore */ }
+      set({ onboarding: null, activeSection: 'mission' })
+    },
+    reopenOnboarding: () => { track('onboarding', { action: 'reopen' }); set({ onboarding: 'landing' }) },
+    // mission kind collected by the guided intake (competition /
+    // research / hobby / professional) — kept on the plan as context.
+    setMissionKind: (kind) => {
+      track('onboarding', { action: 'kind', target: kind })
+      set(s => ({ missionPlan: { ...s.missionPlan, kind } }))
+    },
 
     // ── anchored popover for disabled / coming-soon interactions ─────
     // User testing: people clicked disabled options repeatedly, got no

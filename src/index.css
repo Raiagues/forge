@@ -85,3 +85,8 @@ body {
   from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* onboarding poster satellite orbit */
+@keyframes onb-orbit {
+  to { transform: rotate(360deg); }
+}
