@@ -1,9 +1,10 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import useForge, { STATUS } from '../../store/useForge'
-import { issuesForComponent, SOURCE_LABEL, pinSummary } from '../../mission/index.js'
+import { issuesForComponent, SOURCE_LABEL, pinSummary, COMPONENT_PINS } from '../../mission/index.js'
+import { footprint } from './pinLayout.js'
 
 // ── status → color map ────────────────────────────────────────────
 const STATUS_COLOR = {
@@ -86,8 +87,56 @@ function IssueBadge({ issues, size }) {
   )
 }
 
+// ── pin-accurate header pin (from COMPONENT_PINS) ─────────────────
+// Hover identifies the pin (silkscreen label + role note); click
+// selects it — in route mode that starts/closes a trace.
+function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
+  const [hov, setHov] = useState(false)
+  const { gl } = useThree()
+  const d = pin
+  return (
+    <group position={[pos.x, pos.y, pos.z]}>
+      {/* invisible fat hit target — header pins are tiny */}
+      <mesh
+        visible={false}
+        onClick={(e) => { e.stopPropagation(); onPinClick?.(compId, d.id) }}
+        onPointerDown={(e) => { if (onPinClick) e.stopPropagation() }}
+        onPointerOver={(e) => { e.stopPropagation(); setHov(true); gl.domElement.style.cursor = 'crosshair' }}
+        onPointerOut={() => { setHov(false); gl.domElement.style.cursor = 'auto' }}
+      >
+        <boxGeometry args={[0.15, 0.22, 0.15]} />
+      </mesh>
+      {/* header pin */}
+      <mesh castShadow>
+        <boxGeometry args={[0.06, 0.12, 0.06]} />
+        <meshStandardMaterial
+          color={isPending ? '#4A7DD4' : hov ? '#D4B860' : '#8A7A40'}
+          roughness={0.3} metalness={0.9}
+          emissive={isPending ? '#2B5EA7' : '#000000'} emissiveIntensity={isPending ? 0.6 : 0}
+        />
+      </mesh>
+      {/* solder pad on the board surface — copper when a trace lands here */}
+      <mesh position={[0, -0.062, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.028, 0.055, 16]} />
+        <meshStandardMaterial color={isConnected ? '#C98E3F' : '#8A8378'} roughness={0.4} metalness={0.7} />
+      </mesh>
+      {(hov || isPending) && (
+        <Html position={[0, 0.26, 0]} center distanceFactor={7} zIndexRange={[30, 0]}>
+          <div style={{
+            fontFamily: "'Space Mono', monospace", fontSize: 9, whiteSpace: 'nowrap', pointerEvents: 'none',
+            color: '#1A1814', background: 'rgba(244,239,230,.95)', border: '1px solid rgba(26,24,20,.18)',
+            borderRadius: 3, padding: '2px 6px',
+          }}>
+            <b>{d.label || d.id}</b>{d.note ? <span style={{ color: '#7A736A' }}> · {d.note}</span> : null}
+          </div>
+        </Html>
+      )}
+    </group>
+  )
+}
+
 // ── single component chip ─────────────────────────────────────────
-function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable = true, issues = [] }) {
+function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable = true, issues = [], onPinClick, pendingPin, connectedPins }) {
   const meshRef = useRef()
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -105,10 +154,10 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
   const statusColor = STATUS_COLOR[effStatus]
   const isScanning = status === STATUS.SCANNING
 
-  // component size by category
-  const size = def.category === 'mcu' ? [1.4, 0.18, 1.1]
-             : def.category === 'power' ? [1.6, 0.16, 0.9]
-             : [0.9, 0.14, 0.7]
+  // pin-accurate footprint derived from the shared pin catalog
+  const fp = footprint(id, def)
+  const { size } = fp
+  const pinDefs = COMPONENT_PINS[id] || []
 
   // ── drag ─────────────────────────────────────────────────────────
   // A drag that starts ON a chip must translate the chip, never orbit
@@ -193,19 +242,14 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
       {/* status LED */}
       <StatusLED position={[size[0]*0.38, size[1]*0.5+0.06, size[2]*0.38]} color={statusColor} scanning={isScanning} />
 
-      {/* pin row left */}
-      {Array.from({ length: 4 }, (_, i) => (
-        <mesh key={i} position={[-size[0]/2 - 0.06, -0.02, -size[2]/3 + i * (size[2]/3)]} castShadow>
-          <boxGeometry args={[0.1, 0.06, 0.04]} />
-          <meshStandardMaterial color="#8A7A40" roughness={0.3} metalness={0.9} />
-        </mesh>
-      ))}
-      {/* pin row right */}
-      {Array.from({ length: 4 }, (_, i) => (
-        <mesh key={i} position={[size[0]/2 + 0.06, -0.02, -size[2]/3 + i * (size[2]/3)]} castShadow>
-          <boxGeometry args={[0.1, 0.06, 0.04]} />
-          <meshStandardMaterial color="#8A7A40" roughness={0.3} metalness={0.9} />
-        </mesh>
+      {/* real pins from the shared catalog — exact count and order */}
+      {pinDefs.map((p) => fp.pins[p.id] && (
+        <PinMesh
+          key={p.id} compId={id} pin={p} pos={fp.pins[p.id]}
+          onPinClick={onPinClick}
+          isPending={pendingPin?.comp === id && pendingPin?.pin === p.id}
+          isConnected={!!connectedPins?.has?.(`${id}.${p.id}`)}
+        />
       ))}
 
       {/* label billboard - always faces camera */}
@@ -344,8 +388,15 @@ function IsoCamera() {
 
 // ── Main canvas ───────────────────────────────────────────────────
 export default function ForgeCanvas() {
-  const { entities, selectedId, selectEntity, updatePosition, live, canvasMode } = useForge()
+  const { entities, selectedId, selectEntity, updatePosition, live, canvasMode, wires } = useForge()
   const validation = live?.validation
+
+  // pins that have at least one trace landing on them (copper pads)
+  const connectedPins = useMemo(() => {
+    const s = new Set()
+    wires.forEach(w => { s.add(`${w.from.comp}.${w.from.pin}`); s.add(`${w.to.comp}.${w.to.pin}`) })
+    return s
+  }, [wires])
 
   return (
     <Canvas
@@ -393,6 +444,7 @@ export default function ForgeCanvas() {
           onSelect={selectEntity}
           onDragEnd={updatePosition}
           draggable={canvasMode === 'edit'}
+          connectedPins={connectedPins}
           issues={issuesForComponent(validation, id)}
         />
       ))}
