@@ -39,7 +39,16 @@ npm run lint
 ## Visual language (preserve this)
 - Muted, paper-like workspace tones (`--paper*`) with navy sidebars (`--navy*`).
 - Subtle fixed grid background; calm, technical, aerospace-lab feeling.
-- Restrained typography: Space Grotesk for UI, Space Mono for data/labels.
+- Restrained typography: Space Grotesk for UI, Space Mono for data/labels,
+  Zilla Slab for display headers on the poster surfaces (onboarding, ground
+  station).
+- **Poster surfaces** (onboarding + Telemetry ground station): vintage
+  space-agency direction — deep navy field, cream `#F4EFE6`, mission-patch
+  gold `#C9A227` / burnt orange, flat JPL-poster planets, mono annotations.
+- **Legibility is enforced**: `node scripts/legibility_audit.mjs` checks
+  WCAG AA contrast on every token pair + inline font sizes (`--fix` raises
+  the floor). Body text ≥14px; micro mono labels ≥10px; never put text
+  colors below 4.5:1.
 - Engineering-workstation proportions: 48px icon rail, resizable context nav,
   central workspace, contextual right drawer, thin top/bottom bars.
 - Status palette: OK `#3A9060`, WARN `#C8831A`, ERR `#C04030`,
@@ -236,6 +245,25 @@ No dead controls. If a button exists it must change state or navigate. Prefer
 wiring a minimal real behavior over rendering a disabled/placeholder affordance.
 The nav is resizable and remembers its width; selection drives the drawer; the
 scan, telemetry and serial all reflect live state.
+- **Disabled/coming-soon clicks answer with an anchored popover**
+  (`store.showPopover` / `comingSoon(label, anchorEl, featureKey)` →
+  `AnchoredPopover` in App): one sentence WHY + planned WHEN, anchored to the
+  clicked element, dismissing on outside click/Esc/5s. Texts come from
+  `FUTURE_FEATURES`. Corner toasts are only the no-anchor fallback.
+- **Onboarding** (`src/components/onboarding/Onboarding.jsx`): first visit
+  shows a poster landing (what FORGE is + "configuração guiada" vs "pular")
+  then a guided mission intake (kind → competition → objective → identity)
+  that writes to the REAL missionPlan at every step; skippable anytime;
+  persisted via localStorage `forge_onboarded`.
+- **Mission handoff**: the Firmware (serialtest) screen shows a completion
+  banner (real flash done, or wired mission + generated firmware in
+  simulation) leading to the Telemetry ground station.
+- **Telemetry = ground station** (`TelemetryPanel.jsx`): command console
+  (placeholder commands), orbit viewport (flat poster Earth + satellite on
+  animateMotion, uplink/downlink pulses), telemetry readout + sparklines.
+  Tagged "dados simulados" until a real hwLink exists.
+- Deep links: `?section=<id>` opens a section directly and bypasses
+  onboarding (dev/user-testing).
 
 ## Future roadmap
 1. Live LLM copilot: implement the `anthropic` provider behind `runCopilot()`
