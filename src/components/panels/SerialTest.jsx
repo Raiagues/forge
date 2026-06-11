@@ -4,6 +4,7 @@ import CodeEditor from '../ui/CodeEditor'
 import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
 import { ADDR_STRAPS } from '../../mission/wiring.js'
+import { track } from '../../lib/analytics.js'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the FORGE
@@ -252,6 +253,9 @@ export default function SerialTest() {
   // single store touchpoint: report the REAL link state so the rest of
   // the platform can honestly distinguish hardware from simulation.
   const setHwLink = useForge(s => s.setHwLink)
+  const setSection = useForge(s => s.setSection)
+  const liveWiring = useForge(s => s.live?.wiring)
+  const entityIds = useForge(s => Object.keys(s.entities).join(','))
   const wires = useForge(s => s.wires)
   const fwFiles = useForge(s => s.fwFiles)
   const fwEdits = useForge(s => s.fwEdits)
@@ -528,8 +532,52 @@ export default function SerialTest() {
           ? { label: 'Pronto para flash', color: 'var(--warn2)' }
           : { label: 'Aguardando conexão', color: 'var(--ink4)' }
 
+  // ── mission handoff: programming done → ground station ────────────
+  // User testing: after programming the board there was no next step.
+  // When the firmware is actually on the board (real flash) — or, in
+  // simulation, when the whole mission is wired and the generated
+  // firmware exists — the screen presents the handoff: the board flies,
+  // you move to ground station mode (Telemetry).
+  const ids = entityIds ? entityIds.split(',') : []
+  const allWired = ids.length > 1 && ids.every(id => liveWiring?.[id]?.wired)
+  const flashDone = stages.upload === ST_DONE
+  const readyForOps = flashDone || (missionMode && allWired && !connected)
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
+      {/* mission handoff banner */}
+      {readyForOps && (
+        <div style={{
+          flexShrink: 0, marginBottom: 12, borderRadius: 8, overflow: 'hidden',
+          background: 'linear-gradient(105deg, var(--navy) 0%, var(--navy2) 70%, var(--navy3) 100%)',
+          border: '1px solid var(--navy3)', display: 'flex', alignItems: 'center', gap: 16,
+          padding: '14px 18px',
+        }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+            <circle cx="24" cy="24" r="21" fill="none" stroke="#C9A227" strokeWidth="1.6" strokeDasharray="3 4" />
+            <rect x="19" y="19" width="10" height="10" fill="#F4EFE6" />
+            <rect x="8" y="21.5" width="9" height="5" fill="#C9A227" />
+            <rect x="31" y="21.5" width="9" height="5" fill="#C9A227" />
+          </svg>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.18em',
+              textTransform: 'uppercase', color: '#C9A227', marginBottom: 2,
+            }}>{flashDone ? 'firmware a bordo' : 'missão pronta · simulação'}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,.92)' }}>
+              {flashDone
+                ? 'Placa programada. A partir daqui, a missão é sua: assuma a estação terrestre.'
+                : 'Projeto fiado e firmware gerado. Assuma a estação terrestre para operar a missão simulada.'}
+            </div>
+          </div>
+          <button onClick={() => { track('handoff_to_telemetry', { target: flashDone ? 'real' : 'sim' }); setSection('telemetry') }} style={{
+            flexShrink: 0, padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: '#F4EFE6', color: 'var(--navy)', fontSize: 14.5, fontWeight: 700,
+            fontFamily: "'Space Grotesk', sans-serif",
+          }}>Assumir a estação terrestre →</button>
+        </div>
+      )}
+
       {/* header / toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexShrink: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
