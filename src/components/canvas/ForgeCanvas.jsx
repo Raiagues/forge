@@ -70,7 +70,7 @@ function IssueBadge({ issues, size }) {
     <Html position={[0, size[1] + 0.55, 0]} center distanceFactor={9} zIndexRange={[20, 0]}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 5,
-        background: 'rgba(244,239,230,.95)', border: `1px solid ${color}`,
+        background: 'var(--paper2)', border: `1px solid ${color}`,
         borderLeft: `3px solid ${color}`, borderRadius: 4,
         padding: '3px 7px', pointerEvents: 'none', whiteSpace: 'nowrap',
         fontFamily: "'Space Mono', monospace", fontSize: 12,
@@ -78,9 +78,9 @@ function IssueBadge({ issues, size }) {
       }}>
         <span style={{
           fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
-          color: '#F4EFE6', background: color, borderRadius: 2, padding: '1px 4px',
+          color: 'var(--btn-fg)', background: color, borderRadius: 2, padding: '1px 4px',
         }}>{SOURCE_LABEL[first.source] || first.source}</span>
-        <span style={{ color: '#1A1814' }}>
+        <span style={{ color: 'var(--ink)' }}>
           {first.title}{issues.length > 1 ? ` +${issues.length - 1}` : ''}
         </span>
       </div>
@@ -125,10 +125,10 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
         <Html position={[0, 0.26, 0]} center distanceFactor={7} zIndexRange={[30, 0]}>
           <div style={{
             fontFamily: "'Space Mono', monospace", fontSize: 12, whiteSpace: 'nowrap', pointerEvents: 'none',
-            color: '#1A1814', background: 'rgba(244,239,230,.95)', border: '1px solid rgba(26,24,20,.18)',
+            color: 'var(--ink)', background: 'var(--paper2)', border: '1px solid var(--rule)',
             borderRadius: 3, padding: '2px 6px',
           }}>
-            <b>{d.label || d.id}</b>{d.note ? <span style={{ color: '#7A736A' }}> · {d.note}</span> : null}
+            <b>{d.label || d.id}</b>{d.note ? <span style={{ color: 'var(--ink4)' }}> · {d.note}</span> : null}
           </div>
         </Html>
       )}
@@ -264,10 +264,10 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
         <Html position={[0, -0.18, size[2] / 2 + 0.32]} center distanceFactor={9} zIndexRange={[10, 0]}>
           <div style={{
             fontFamily: "'Space Mono', monospace", fontSize: 12, whiteSpace: 'nowrap',
-            color: '#3E3A34', background: 'rgba(244,239,230,.9)', pointerEvents: 'none',
+            color: 'var(--ink2)', background: 'var(--paper2)', pointerEvents: 'none',
             border: '1px solid rgba(26,24,20,.09)', borderRadius: 3, padding: '2px 6px',
           }}>
-            {def.friendly || def.label}<span style={{ color: '#ADA69E' }}> · {def.label}</span>
+            {def.friendly || def.label}<span style={{ color: 'var(--ink4)' }}> · {def.label}</span>
           </div>
         </Html>
       )}
@@ -375,7 +375,7 @@ function Trace({ from, to, issue, selected, onClick }) {
           <div style={{
             fontFamily: "'Space Mono', monospace", fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
             color: issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4',
-            background: 'rgba(244,239,230,.94)', borderRadius: 3, padding: '1px 6px',
+            background: 'var(--paper2)', borderRadius: 3, padding: '1px 6px',
             border: `1px ${issue ? 'dashed' : 'solid'} ${issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4'}`,
           }}>{issue ? issue.title : 'trilha selecionada · Delete remove'}</div>
         </Html>
@@ -416,7 +416,7 @@ function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, 
           new THREE.Vector3(e.position[0], TRACE_Y, e.position[2]),
         ])
         const line = new THREE.Line(geo, new THREE.LineDashedMaterial({
-          color: '#7A736A', dashSize: 0.16, gapSize: 0.14, transparent: true, opacity: 0.35,
+          color: 'var(--ink4)', dashSize: 0.16, gapSize: 0.14, transparent: true, opacity: 0.35,
         }))
         line.computeLineDistances()
         const mid = [(mcu.position[0] + e.position[0]) / 2, (mcu.position[2] + e.position[2]) / 2]
@@ -427,8 +427,8 @@ function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, 
               <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[5, 0]}>
                 <div style={{
                   fontFamily: "'Space Mono', monospace", fontSize: 11, whiteSpace: 'nowrap',
-                  color: '#7A736A', background: 'rgba(244,239,230,.92)', pointerEvents: 'none',
-                  border: '1px dashed #ADA69E', borderRadius: 3, padding: '1px 6px', opacity: .92,
+                  color: 'var(--ink4)', background: 'var(--paper2)', pointerEvents: 'none',
+                  border: '1px dashed var(--ink4)', borderRadius: 3, padding: '1px 6px', opacity: .92,
                 }}>não conectado · rota sugerida</div>
               </Html>
             )}
@@ -550,7 +550,7 @@ export default function ForgeCanvas() {
     <Canvas
       shadows
       camera={{ fov: 45, near: 0.1, far: 100 }}
-      style={{ background: '#F4EFE6' }}
+      style={{ background: 'var(--paper)' }}
       onPointerMissed={() => { selectEntity(null); setPendingPin(null); setSelWire(null) }}
     >
       <IsoCamera />

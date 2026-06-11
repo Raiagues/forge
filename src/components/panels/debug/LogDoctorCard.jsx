@@ -33,7 +33,7 @@ function Finding({ f, rating, onRate, onFix }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
         <span style={{
           ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
-          color: '#fff', background: CONF_COLOR[f.confidence], borderRadius: 2, padding: '1px 5px',
+          color: 'var(--btn-fg)', background: CONF_COLOR[f.confidence], borderRadius: 2, padding: '1px 5px',
         }}>confiança {f.confidence}</span>
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{f.title}</span>
       </div>
@@ -113,7 +113,7 @@ export default function LogDoctorCard() {
       <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
         <button onClick={() => runLogDoctorOnText(text, 'paste')} disabled={running} style={{
           padding: '6px 14px', borderRadius: 5, border: 'none', cursor: running ? 'default' : 'pointer',
-          background: 'var(--navy)', color: 'rgba(255,255,255,.88)', fontSize: 13.5,
+          background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13.5,
           fontFamily: "'Space Grotesk', sans-serif",
         }}>{running ? 'Analisando…' : 'Diagnosticar log'}</button>
         <button onClick={runLogDoctorOnSerial} disabled={running || serialLog.length === 0} style={{

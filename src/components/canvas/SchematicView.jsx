@@ -295,7 +295,7 @@ export default function SchematicView() {
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 5 }}>
               <span style={{
                 ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0, marginTop: 1,
-                color: '#fff', background: iss.severity === 'error' ? 'var(--err2)' : 'var(--warn2)', borderRadius: 2, padding: '1px 4px',
+                color: 'var(--btn-fg)', background: iss.severity === 'error' ? 'var(--err2)' : 'var(--warn2)', borderRadius: 2, padding: '1px 4px',
               }}>{SOURCE_LABEL[iss.source]}</span>
               <span style={{ fontSize: 13.5, color: 'var(--ink)', fontWeight: 600, flexShrink: 0 }}>{iss.title}</span>
               <span style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.4 }}>{iss.detail}</span>

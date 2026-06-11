@@ -1,69 +1,84 @@
 /* eslint-disable react-refresh/only-export-components */
 // ──────────────────────────────────────────────────────────────────
 // posterKit — shared pieces of the FORGE poster surfaces (the landing
-// overlay and the Mission window): palette, type, buttons, cards, the
-// step rail, the poster planet and the mission-patch emblems.
-// Aesthetic rationale lives in Onboarding.jsx. (Mixing constants and
-// components here intentionally trades fast-refresh granularity for a
-// single import point — hence the lint exception.)
+// overlay, the Mission window and the Telemetry ground station):
+// palette, type, buttons, cards, the step rail, the poster planet and
+// the mission-patch emblems.
+//
+// Every colour here is a CSS token (see index.css → --poster-*), so the
+// poster surfaces flip with the theme: a navy/cream space-agency poster
+// in dark, a paper/ink poster in light. CREAM/GOLD/ORANGE/NAVY_FIELD are
+// kept as named exports for compatibility, now resolving to tokens.
+// (Mixing constants and components here intentionally trades fast-refresh
+// granularity for a single import point — hence the lint exception.)
 // ──────────────────────────────────────────────────────────────────
 
 export const mono = { fontFamily: "'Space Mono', monospace" }
 export const slab = { fontFamily: "'Zilla Slab', 'Space Grotesk', serif" }
-export const CREAM = '#F4EFE6'
-export const GOLD = '#C9A227'
-export const ORANGE = '#C96F2B'
+// poster foreground / accents (themed via index.css)
+export const CREAM = 'var(--poster-fg)'
+export const GOLD = 'var(--poster-gold)'
+export const ORANGE = 'var(--poster-orange)'
+export const DIM = 'var(--poster-fg-dim)'
+export const LINE = 'var(--poster-line)'
 
-export const NAVY_FIELD = 'radial-gradient(120% 120% at 75% 20%, #223255 0%, #18243A 55%, #101A2C 100%)'
+export const NAVY_FIELD = 'var(--poster-bg)'
 
 export const primaryBtn = {
   ...slab, fontSize: 19, fontWeight: 700, letterSpacing: '.01em',
-  background: CREAM, color: '#18243A', border: 'none', borderRadius: 8,
+  background: 'var(--btn-bg)', color: 'var(--btn-fg)', border: 'none', borderRadius: 'var(--r-md)',
   padding: '13px 28px', cursor: 'pointer',
 }
 export const ghostBtn = {
   ...slab, fontSize: 19, fontWeight: 600,
-  background: 'transparent', color: CREAM, borderRadius: 8,
-  border: '1.5px solid rgba(244,239,230,.5)', padding: '13px 28px', cursor: 'pointer',
+  background: 'transparent', color: CREAM, borderRadius: 'var(--r-md)',
+  border: '1.5px solid var(--poster-line)', padding: '13px 28px', cursor: 'pointer',
 }
 
 export const h2 = { ...slab, fontSize: 40, fontWeight: 700, color: CREAM, textAlign: 'center', margin: '0 0 8px' }
-export const sub = { ...mono, fontSize: 13.5, color: 'rgba(244,239,230,.7)', textAlign: 'center', margin: '0 0 30px', lineHeight: 1.5 }
+export const sub = { ...mono, fontSize: 13.5, color: DIM, textAlign: 'center', margin: '0 0 30px', lineHeight: 1.5 }
 export const inputStyle = {
-  display: 'block', width: '100%', marginTop: 6, padding: '11px 13px', borderRadius: 7,
-  background: 'rgba(244,239,230,.07)', border: '1.5px solid rgba(244,239,230,.3)',
+  display: 'block', width: '100%', marginTop: 6, padding: '11px 13px', borderRadius: 'var(--r-sm)',
+  background: 'var(--poster-input)', border: '1.5px solid var(--poster-line)',
   color: CREAM, fontSize: 17, fontFamily: "'Space Grotesk', sans-serif", outline: 'none',
 }
 
 // ── poster graphic: planet + orbit + satellite (pure SVG, flat) ────
+// SVG presentation attributes don't resolve var() in Chrome/Safari, so the
+// poster ink is driven by currentColor (svg style.color = --poster-fg) and
+// the gold/orange accents go through inline style.fill (which does resolve
+// var() everywhere). Same pattern in PatchEmblem and SatelliteAssembly.
+const gold = { fill: 'var(--poster-gold)' }
+const orange = { fill: 'var(--poster-orange)' }
 export function PosterArt({ size = 460 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 460 460" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 460 460" aria-hidden="true" style={{ color: 'var(--poster-fg)' }}>
       {Array.from({ length: 40 }, (_, i) => {
         const x = (i * 97) % 460, y = (i * 53 + 31) % 460
-        return <circle key={i} cx={x} cy={y} r={i % 7 === 0 ? 1.6 : 0.9} fill={CREAM} opacity={0.4} />
+        return <circle key={i} cx={x} cy={y} r={i % 7 === 0 ? 1.6 : 0.9} fill="currentColor" opacity={0.4} />
       })}
-      <circle cx="230" cy="250" r="120" fill={ORANGE} />
+      <circle cx="230" cy="250" r="120" style={orange} />
       <circle cx="230" cy="250" r="120" fill="url(#shade)" />
       <path d="M110 250a120 120 0 0 0 240 0" fill="#A3551D" opacity=".5" />
-      <ellipse cx="230" cy="250" rx="120" ry="120" fill="none" stroke={CREAM} strokeOpacity=".14" />
-      <ellipse cx="230" cy="250" rx="64" ry="120" fill="none" stroke={CREAM} strokeOpacity=".12" />
-      <ellipse cx="230" cy="250" rx="120" ry="44" fill="none" stroke={CREAM} strokeOpacity=".12" />
-      <ellipse cx="230" cy="250" rx="196" ry="86" fill="none" stroke={CREAM} strokeOpacity=".5"
+      <ellipse cx="230" cy="250" rx="120" ry="120" fill="none" stroke="currentColor" strokeOpacity=".14" />
+      <ellipse cx="230" cy="250" rx="64" ry="120" fill="none" stroke="currentColor" strokeOpacity=".12" />
+      <ellipse cx="230" cy="250" rx="120" ry="44" fill="none" stroke="currentColor" strokeOpacity=".12" />
+      <ellipse cx="230" cy="250" rx="196" ry="86" fill="none" stroke="currentColor" strokeOpacity=".5"
         strokeWidth="1.2" strokeDasharray="5 7" transform="rotate(-18 230 250)" />
       <g style={{ animation: 'onb-orbit 26s linear infinite', transformOrigin: '230px 250px' }}>
         <g transform="rotate(-18 230 250)">
           <g transform="translate(426 250)">
-            <rect x="-7" y="-7" width="14" height="14" fill={CREAM} />
-            <rect x="-23" y="-3.5" width="13" height="7" fill={GOLD} />
-            <rect x="10" y="-3.5" width="13" height="7" fill={GOLD} />
+            <rect x="-7" y="-7" width="14" height="14" fill="currentColor" />
+            <rect x="-23" y="-3.5" width="13" height="7" style={gold} />
+            <rect x="10" y="-3.5" width="13" height="7" style={gold} />
           </g>
         </g>
       </g>
       <defs>
+        {/* sphere shading is light-independent: a white highlight → black core */}
         <radialGradient id="shade" cx="36%" cy="32%" r="80%">
-          <stop offset="0%" stopColor={CREAM} stopOpacity=".25" />
-          <stop offset="55%" stopColor={CREAM} stopOpacity="0" />
+          <stop offset="0%" stopColor="#fff" stopOpacity=".25" />
+          <stop offset="55%" stopColor="#fff" stopOpacity="0" />
           <stop offset="100%" stopColor="#000" stopOpacity=".3" />
         </radialGradient>
       </defs>
@@ -73,16 +88,17 @@ export function PosterArt({ size = 460 }) {
 
 // ── mission-patch style emblem per mission kind ────────────────────
 export function PatchEmblem({ kind }) {
+  const gs = { stroke: 'var(--poster-gold)' }
   const inner = {
-    competition: <><circle cx="24" cy="24" r="9" fill="none" stroke={GOLD} strokeWidth="2" /><path d="M24 8v7M24 33v7M8 24h7M33 24h7" stroke={GOLD} strokeWidth="2" /></>,
-    research:    <><circle cx="21" cy="21" r="8" fill="none" stroke={GOLD} strokeWidth="2.4" /><path d="M27 27l9 9" stroke={GOLD} strokeWidth="2.6" strokeLinecap="round" /></>,
-    hobby:       <><path d="M24 9l3.6 9.6L38 22l-9 6.4 2.6 10.6L24 33l-7.6 6 2.6-10.6-9-6.4 10.4-3.4z" fill="none" stroke={GOLD} strokeWidth="2" strokeLinejoin="round" /></>,
-    professional:<><rect x="13" y="17" width="22" height="16" rx="2" fill="none" stroke={GOLD} strokeWidth="2" /><path d="M19 17v-3a5 5 0 0 1 10 0v3" fill="none" stroke={GOLD} strokeWidth="2" /></>,
+    competition: <><circle cx="24" cy="24" r="9" fill="none" style={gs} strokeWidth="2" /><path d="M24 8v7M24 33v7M8 24h7M33 24h7" style={gs} strokeWidth="2" /></>,
+    research:    <><circle cx="21" cy="21" r="8" fill="none" style={gs} strokeWidth="2.4" /><path d="M27 27l9 9" style={gs} strokeWidth="2.6" strokeLinecap="round" /></>,
+    hobby:       <><path d="M24 9l3.6 9.6L38 22l-9 6.4 2.6 10.6L24 33l-7.6 6 2.6-10.6-9-6.4 10.4-3.4z" fill="none" style={gs} strokeWidth="2" strokeLinejoin="round" /></>,
+    professional:<><rect x="13" y="17" width="22" height="16" rx="2" fill="none" style={gs} strokeWidth="2" /><path d="M19 17v-3a5 5 0 0 1 10 0v3" fill="none" style={gs} strokeWidth="2" /></>,
   }[kind]
   return (
-    <svg width="64" height="64" viewBox="0 0 48 48">
-      <circle cx="24" cy="24" r="22" fill="none" stroke={CREAM} strokeOpacity=".8" strokeWidth="1.6" />
-      <circle cx="24" cy="24" r="18.5" fill="none" stroke={CREAM} strokeOpacity=".3" strokeWidth="1" strokeDasharray="2 3" />
+    <svg width="64" height="64" viewBox="0 0 48 48" style={{ color: 'var(--poster-fg)' }}>
+      <circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" strokeOpacity=".8" strokeWidth="1.6" />
+      <circle cx="24" cy="24" r="18.5" fill="none" stroke="currentColor" strokeOpacity=".3" strokeWidth="1" strokeDasharray="2 3" />
       {inner}
     </svg>
   )
@@ -104,14 +120,14 @@ export function StepDots({ steps, current }) {
             width: 26, height: 26, borderRadius: '50%', ...mono, fontSize: 12, fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: i < current ? GOLD : i === current ? CREAM : 'transparent',
-            color: i <= current ? '#18243A' : 'rgba(244,239,230,.6)',
-            border: `1.5px solid ${i <= current ? 'transparent' : 'rgba(244,239,230,.4)'}`,
+            color: i <= current ? 'var(--poster-bg-solid)' : DIM,
+            border: `1.5px solid ${i <= current ? 'transparent' : LINE}`,
           }}>{i < current ? '✓' : i + 1}</span>
           <span style={{
             ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase',
-            color: i === current ? CREAM : 'rgba(244,239,230,.55)',
+            color: i === current ? CREAM : DIM,
           }}>{s}</span>
-          {i < steps.length - 1 && <span style={{ width: 26, height: 1, background: 'rgba(244,239,230,.3)' }} />}
+          {i < steps.length - 1 && <span style={{ width: 26, height: 1, background: LINE }} />}
         </div>
       ))}
     </div>
@@ -121,13 +137,13 @@ export function StepDots({ steps, current }) {
 export function Card({ selected, onClick, children, width = 300 }) {
   return (
     <button onClick={onClick} style={{
-      width, textAlign: 'left', cursor: 'pointer', borderRadius: 10, padding: '20px 20px 18px',
-      background: selected ? 'rgba(244,239,230,.12)' : 'rgba(244,239,230,.04)',
-      border: `1.5px solid ${selected ? GOLD : 'rgba(244,239,230,.25)'}`,
+      width, textAlign: 'left', cursor: 'pointer', borderRadius: 'var(--r-lg)', padding: '20px 20px 18px',
+      background: selected ? 'var(--poster-card-sel)' : 'var(--poster-card)',
+      border: `1.5px solid ${selected ? GOLD : 'var(--poster-line)'}`,
       transition: 'all .15s', color: CREAM,
     }}
-      onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = 'rgba(244,239,230,.55)' }}
-      onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = 'rgba(244,239,230,.25)' }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--poster-fg-dim)' }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--poster-line)' }}
     >{children}</button>
   )
 }

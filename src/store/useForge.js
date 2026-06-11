@@ -224,6 +224,22 @@ function loadNavWidth() {
   return 210
 }
 
+// Persisted color theme. 'light' (paper, default) | 'dark' (navy). The
+// active theme is mirrored onto <html data-theme> so the CSS token blocks
+// in index.css take over; applyTheme keeps DOM + storage in sync.
+const THEME_KEY = 'forge.theme'
+function loadTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY)
+    if (t === 'light' || t === 'dark') return t
+  } catch { /* SSR / no storage */ }
+  return 'light'
+}
+export function applyTheme(theme) {
+  try { document.documentElement.dataset.theme = theme } catch { /* SSR */ }
+  try { localStorage.setItem(THEME_KEY, theme) } catch { /* ignore */ }
+}
+
 const EMPTY_PLAN = {
   frameworkId: null,
   name: '',
@@ -326,6 +342,7 @@ const useForge = create((set, get) => {
     // via Web Serial (Serial Test tab). Everything else is simulation.
     hwLink: { connected: false, port: '' },
     navWidth: loadNavWidth(),
+    theme: loadTheme(),       // 'light' (paper) | 'dark' (navy) — see index.css
     seq: 0,
     telemetry: [],            // rolling time-series for the Telemetry charts
     serialLog: INITIAL_SERIAL,
@@ -385,6 +402,14 @@ const useForge = create((set, get) => {
       try { localStorage.setItem(NAV_KEY, String(clamped)) } catch { /* ignore */ }
       set({ navWidth: clamped })
     },
+
+    setTheme: (theme) => {
+      if (theme !== 'light' && theme !== 'dark') return
+      applyTheme(theme)
+      track('theme_change', { theme })
+      set({ theme })
+    },
+    toggleTheme: () => get().setTheme(get().theme === 'dark' ? 'light' : 'dark'),
 
     // toasts take the user's attention — the drawer yields to them
     notify: (message) => set({ notice: { id: ++noticeSeq, message }, drawerOpen: false, selectedId: null }),

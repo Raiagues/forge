@@ -61,7 +61,7 @@ export default function DebugPanel() {
           {['err', 'warn', 'ok'].map((k) => (tally[k] ? <Badge key={k} tone={k}>{tally[k]} {STATUS_WORD[k]}</Badge> : null))}
           <button onClick={() => setRunKey((n) => n + 1)} style={{
             padding: '5px 14px', borderRadius: 5, cursor: 'pointer', border: 'none',
-            background: 'var(--navy)', color: 'rgba(255,255,255,.88)', fontSize: 13.5,
+            background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13.5,
             fontFamily: "'Space Grotesk', sans-serif",
           }}>Rodar tudo</button>
         </div>

@@ -31,7 +31,7 @@ export function ModeToggle({ style }) {
           style={{
             padding: '3px 11px', border: 'none', cursor: 'pointer',
             ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase',
-            background: canvasMode === m.id ? 'var(--navy)' : 'var(--paper2)',
+            background: canvasMode === m.id ? 'var(--btn-bg)' : 'var(--paper2)',
             color: canvasMode === m.id ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
           }}>{m.label}</button>
       ))}
@@ -47,7 +47,7 @@ export function ViewToggle({ style }) {
         <button key={v} onClick={() => setHardwareView(v)} style={{
           padding: '3px 11px', border: 'none', cursor: 'pointer',
           ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase',
-          background: hardwareView === v ? 'var(--navy)' : 'var(--paper2)',
+          background: hardwareView === v ? 'var(--btn-bg)' : 'var(--paper2)',
           color: hardwareView === v ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
         }}>{v === '3d' ? '3D placa' : '2D esquema'}</button>
       ))}

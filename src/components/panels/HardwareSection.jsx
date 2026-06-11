@@ -54,7 +54,7 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
           width: 16, height: 16, borderRadius: '50%', flexShrink: 0, ...mono, fontSize: 11,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
           background: done ? 'var(--ok2)' : open ? 'var(--acc)' : 'var(--paper4)',
-          color: done || open ? '#fff' : 'var(--ink3)', zIndex: 1, position: 'relative',
+          color: done || open ? 'var(--btn-fg)' : 'var(--ink3)', zIndex: 1, position: 'relative',
         }}>{done ? '✓' : n}</span>
         <span style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: open ? 'var(--ink2)' : 'var(--ink3)', flexShrink: 0 }}>{title}</span>
         <span style={{ flex: 1 }} />
@@ -91,8 +91,8 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
                   style={{
                     padding: '6px 14px', borderRadius: 5, border: 'none',
                     cursor: canConfirm ? 'pointer' : 'not-allowed',
-                    background: canConfirm ? 'var(--navy)' : 'var(--paper4)',
-                    color: canConfirm ? 'rgba(255,255,255,.9)' : 'var(--ink4)',
+                    background: canConfirm ? 'var(--btn-bg)' : 'var(--paper4)',
+                    color: canConfirm ? 'var(--btn-fg)' : 'var(--ink4)',
                     fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
                   }}
                 >{confirmLabel}</button>
@@ -135,7 +135,7 @@ function MissionContextCard() {
         </div>
         <button onClick={() => setSection('mission')} style={{
           padding: '6px 14px', borderRadius: 5, border: 'none', cursor: 'pointer',
-          background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 13,
+          background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13,
           fontFamily: "'Space Grotesk', sans-serif",
         }}>Definir a missão →</button>
       </div>
@@ -257,7 +257,7 @@ function HardwareStage() {
                     width: 14, height: 14, borderRadius: 3, flexShrink: 0,
                     border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
                     background: placed ? 'var(--ok2)' : 'transparent',
-                    color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--btn-fg)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>{placed ? '✓' : ''}</span>
                 </button>
               )
@@ -294,7 +294,7 @@ function WiringStage() {
       })}
       <button onClick={() => setHardwareView('2d')} style={{
         width: '100%', padding: '7px 10px', borderRadius: 5, marginTop: 4, cursor: 'pointer',
-        border: 'none', background: 'var(--navy)', color: 'rgba(255,255,255,.85)',
+        border: 'none', background: 'var(--btn-bg)', color: 'var(--btn-fg)',
         fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
       }}>Abrir editor de fiação 2D →</button>
       <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 6 }}>
@@ -327,7 +327,7 @@ function ValidationNotices() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
             <span style={{
               ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
-              color: '#fff', background: SEV_COLOR[iss.severity], borderRadius: 2, padding: '1px 4px', flexShrink: 0,
+              color: 'var(--btn-fg)', background: SEV_COLOR[iss.severity], borderRadius: 2, padding: '1px 4px', flexShrink: 0,
             }}>{SOURCE_LABEL[iss.source] || iss.source}</span>
             <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{iss.title}</span>
           </div>
@@ -424,7 +424,7 @@ function BuilderCanvas() {
           <div style={{
             position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -40%)',
             textAlign: 'center', pointerEvents: 'none',
-            background: 'rgba(244,239,230,.92)', border: '1px solid var(--rule)',
+            background: 'var(--paper2)', border: '1px solid var(--rule)',
             borderRadius: 8, padding: '14px 22px',
           }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink3)', marginBottom: 4 }}>Placa vazia</div>
@@ -545,7 +545,7 @@ export default function HardwareSection() {
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={restoreDraft} style={{
                   padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
-                  background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 13,
+                  background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13,
                   fontFamily: "'Space Grotesk', sans-serif",
                 }}>Restaurar</button>
                 <button onClick={discardDraft} style={{
@@ -578,7 +578,7 @@ export default function HardwareSection() {
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
             <button onClick={() => setSection('serialtest')} style={{
               width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              background: 'var(--navy)', color: 'rgba(255,255,255,.9)', fontSize: 14,
+              background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14,
               fontFamily: "'Space Grotesk', sans-serif",
             }}>Iniciar testes de hardware</button>
           </div>

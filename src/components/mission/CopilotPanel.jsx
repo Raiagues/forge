@@ -71,7 +71,7 @@ export default function CopilotPanel() {
             sugere melhorias — sem interromper seu fluxo.
             <button onClick={() => runCopilot('analysis')} style={{
               display: 'block', marginTop: 12, padding: '7px 14px', borderRadius: 5, cursor: 'pointer',
-              border: 'none', background: 'var(--navy)', color: 'rgba(255,255,255,.85)', fontSize: 14,
+              border: 'none', background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14,
               fontFamily: "'Space Grotesk', sans-serif",
             }}>Analisar projeto</button>
           </div>

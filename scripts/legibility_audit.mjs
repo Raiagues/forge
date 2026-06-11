@@ -42,43 +42,64 @@ const ratio = (a, b) => {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-// ── 1 · token pairs ────────────────────────────────────────────────
+// ── 1 · token pairs (BOTH themes) ──────────────────────────────────
+// The light theme lives in `:root {…}`, the dark theme in
+// `[data-theme="dark"] {…}`. Each theme is checked against the same
+// conceptual pairs; tokens missing from the dark block fall back to the
+// light value (dark only overrides what changes).
 const css = readFileSync(join(SRC, 'index.css'), 'utf8')
-const token = (name) => css.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{3,6})`))?.[1]
-const alphaToken = (name) => {
-  const m = css.match(new RegExp(`--${name}:\\s*rgba\\(255,255,255,([\\d.]+)\\)`))
+const block = (re) => {
+  const m = css.match(re)          // selector immediately followed by `{`
+  if (!m) return ''
+  const open = m.index + m[0].length - 1
+  return css.slice(open + 1, css.indexOf('}', open))
+}
+const light = block(/:root\s*\{/)
+const dark = block(/\[data-theme="dark"\]\s*\{/)
+const tokenIn = (txt, name) => txt.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{3,6})`))?.[1]
+const alphaIn = (txt, name) => {
+  const m = txt.match(new RegExp(`--${name}:\\s*rgba\\(255,255,255,([\\d.]+)\\)`))
   return m ? parseFloat(m[1]) : null
 }
-
-const paper = hex(token('paper')); const paper2 = hex(token('paper2')); const paper3 = hex(token('paper3'))
-const navy = hex(token('navy')); const navy2 = hex(token('navy2'))
 const WHITE = [255, 255, 255]
 
-const pairs = [
-  ['ink   on paper ', hex(token('ink')), paper],
-  ['ink2  on paper ', hex(token('ink2')), paper],
-  ['ink3  on paper ', hex(token('ink3')), paper],
-  ['ink3  on paper2', hex(token('ink3')), paper2],
-  ['ink3  on paper3', hex(token('ink3')), paper3],
-  ['ink4  on paper ', hex(token('ink4')), paper],
-  ['ink4  on paper2', hex(token('ink4')), paper2],
-  ['acc   on paper ', hex(token('acc')), paper],
-  ['acc2  on paper ', hex(token('acc2')), paper],
-  ['ok2   on paper ', hex(token('ok2')), paper],
-  ['warn2 on paper ', hex(token('warn2')), paper],
-  ['err2  on paper ', hex(token('err2')), paper],
-  ['navyt  on navy ', blend(WHITE, alphaToken('navyt'), navy), navy],
-  ['navyt2 on navy ', blend(WHITE, alphaToken('navyt2'), navy), navy],
-  ['navyt3 on navy2', blend(WHITE, alphaToken('navyt3'), navy2), navy2],
-]
+// resolve a token for a theme (dark overrides light, else inherits light)
+const make = (themeTxt) => {
+  const t = (name) => hex(tokenIn(themeTxt, name) || tokenIn(light, name))
+  const a = (name) => alphaIn(themeTxt, name) ?? alphaIn(light, name)
+  const paper = t('paper'), paper2 = t('paper2'), paper3 = t('paper3')
+  const navy = t('navy'), navy2 = t('navy2')
+  return [
+    ['ink   on paper ', t('ink'), paper],
+    ['ink2  on paper ', t('ink2'), paper],
+    ['ink3  on paper ', t('ink3'), paper],
+    ['ink3  on paper2', t('ink3'), paper2],
+    ['ink3  on paper3', t('ink3'), paper3],
+    ['ink4  on paper ', t('ink4'), paper],
+    ['ink4  on paper2', t('ink4'), paper2],
+    ['acc   on paper ', t('acc'), paper],
+    ['acc2  on paper ', t('acc2'), paper],
+    ['ok2   on paper ', t('ok2'), paper],
+    ['warn2 on paper ', t('warn2'), paper],
+    ['err2  on paper ', t('err2'), paper],
+    ['poster-fg on solid', t('poster-fg'), t('poster-bg-solid')],
+    ['poster-gold on solid', t('poster-gold'), t('poster-bg-solid')],
+    ['navyt  on navy ', blend(WHITE, a('navyt'), navy), navy],
+    ['navyt2 on navy ', blend(WHITE, a('navyt2'), navy), navy],
+    ['navyt3 on navy2', blend(WHITE, a('navyt3'), navy2), navy2],
+  ]
+}
 
 console.log('── token contrast (WCAG AA: 4.5 normal · 3.0 large) ──')
 let contrastFails = 0
-for (const [label, fg, bg] of pairs) {
-  const r = ratio(fg, bg)
-  const ok = r >= 4.5
-  if (!ok) contrastFails++
-  console.log(`${ok ? ' ok ' : 'FAIL'}  ${label}  ${r.toFixed(2)}:1`)
+for (const [theme, pairs] of [['LIGHT', make(light)], ['DARK', make(dark)]]) {
+  console.log(`\n  [${theme}]`)
+  for (const [label, fg, bg] of pairs) {
+    const r = ratio(fg, bg)
+    const ok = r >= 4.5
+    if (!ok) contrastFails++
+    console.log(`  ${ok ? ' ok ' : 'FAIL'}  ${label}  ${r.toFixed(2)}:1`)
+  }
 }
 
 // ── 2+3 · scan JSX ────────────────────────────────────────────────

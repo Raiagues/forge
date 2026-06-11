@@ -549,22 +549,22 @@ export default function SerialTest() {
       {readyForOps && (
         <div style={{
           flexShrink: 0, marginBottom: 12, borderRadius: 8, overflow: 'hidden',
-          background: 'linear-gradient(105deg, var(--navy) 0%, var(--navy2) 70%, var(--navy3) 100%)',
-          border: '1px solid var(--navy3)', display: 'flex', alignItems: 'center', gap: 16,
+          background: 'var(--poster-bg)',
+          border: '1px solid var(--poster-line)', display: 'flex', alignItems: 'center', gap: 16,
           padding: '14px 18px',
         }}>
-          <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
-            <circle cx="24" cy="24" r="21" fill="none" stroke="#C9A227" strokeWidth="1.6" strokeDasharray="3 4" />
-            <rect x="19" y="19" width="10" height="10" fill="#F4EFE6" />
-            <rect x="8" y="21.5" width="9" height="5" fill="#C9A227" />
-            <rect x="31" y="21.5" width="9" height="5" fill="#C9A227" />
+          <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true" style={{ color: 'var(--poster-fg)' }}>
+            <circle cx="24" cy="24" r="21" fill="none" style={{ stroke: 'var(--poster-gold)' }} strokeWidth="1.6" strokeDasharray="3 4" />
+            <rect x="19" y="19" width="10" height="10" fill="currentColor" />
+            <rect x="8" y="21.5" width="9" height="5" style={{ fill: 'var(--poster-gold)' }} />
+            <rect x="31" y="21.5" width="9" height="5" style={{ fill: 'var(--poster-gold)' }} />
           </svg>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.18em',
-              textTransform: 'uppercase', color: '#C9A227', marginBottom: 2,
+              textTransform: 'uppercase', color: 'var(--poster-gold)', marginBottom: 2,
             }}>{flashDone ? 'firmware a bordo' : 'missão pronta · simulação'}</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,.92)' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--poster-fg)' }}>
               {flashDone
                 ? 'Placa programada. A partir daqui, a missão é sua: assuma a estação terrestre.'
                 : 'Projeto fiado e firmware gerado. Assuma a estação terrestre para operar a missão simulada.'}
@@ -572,7 +572,7 @@ export default function SerialTest() {
           </div>
           <button onClick={() => { track('handoff_to_telemetry', { target: flashDone ? 'real' : 'sim' }); setSection('telemetry') }} style={{
             flexShrink: 0, padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            background: '#F4EFE6', color: 'var(--navy)', fontSize: 14.5, fontWeight: 700,
+            background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14.5, fontWeight: 700,
             fontFamily: "'Space Grotesk', sans-serif",
           }}>Assumir a estação terrestre →</button>
         </div>
@@ -756,7 +756,7 @@ function GuidedSteps({ steps, expanded, onToggle }) {
               <button onClick={s.action} disabled={s.busy} style={{
                 width: '100%', padding: '7px 12px', borderRadius: 5, border: 'none',
                 cursor: s.busy ? 'default' : 'pointer',
-                background: s.busy ? 'var(--paper4)' : 'var(--navy)', color: 'rgba(255,255,255,.9)',
+                background: s.busy ? 'var(--paper4)' : 'var(--btn-bg)', color: 'var(--btn-fg)',
                 fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
               }}>{s.btn}</button>
             )}
@@ -786,7 +786,7 @@ function Card({ title, children }) {
 // Grouped by layer: núcleo (fundo escuro) → drivers (médio) → sistema
 // (claro). Compact blocks, filename only; the active one is highlighted.
 const GROUP_STYLE = {
-  core:   { bg: 'var(--navy)',   fg: 'rgba(255,255,255,.88)', border: 'transparent' },
+  core:   { bg: 'var(--btn-bg)',   fg: 'var(--btn-fg)', border: 'transparent' },
   driver: { bg: 'var(--paper4)', fg: 'var(--ink)',            border: 'transparent' },
   system: { bg: 'var(--paper)',  fg: 'var(--ink2)',           border: 'var(--rule)' },
 }
@@ -990,21 +990,21 @@ const ghostBtn = {
 }
 const primaryBtn = {
   padding: '6px 16px', borderRadius: 5, border: 'none', cursor: 'pointer',
-  background: 'var(--navy)', color: 'rgba(255,255,255,.88)', fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
+  background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
 }
 function tabBtn(active) {
   return {
     padding: '3px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
     fontFamily: "'Space Mono', monospace", letterSpacing: '.04em',
-    border: `1px solid ${active ? 'var(--navy)' : 'var(--rule)'}`,
-    background: active ? 'var(--navy)' : 'var(--paper2)',
-    color: active ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
+    border: `1px solid ${active ? 'var(--btn-bg)' : 'var(--rule)'}`,
+    background: active ? 'var(--btn-bg)' : 'var(--paper2)',
+    color: active ? 'var(--btn-fg)' : 'var(--ink3)',
   }
 }
 function solidBtn(busy) {
   return {
     padding: '5px 14px', borderRadius: 5, border: 'none', cursor: busy ? 'default' : 'pointer',
-    background: busy ? 'var(--paper4)' : 'var(--navy)', color: 'rgba(255,255,255,.9)',
+    background: busy ? 'var(--paper4)' : 'var(--btn-bg)', color: 'var(--btn-fg)',
     fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
   }
 }

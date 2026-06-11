@@ -20,7 +20,7 @@ export default function EmptyState({ section }) {
           onClick={() => setSection('mission')}
           style={{
             padding: '7px 16px', borderRadius: 5, border: '1px solid var(--rule)',
-            background: 'var(--navy)', color: 'rgba(255,255,255,.8)', cursor: 'pointer',
+            background: 'var(--btn-bg)', color: 'var(--btn-fg)', cursor: 'pointer',
             fontFamily: "'Space Grotesk', sans-serif", fontSize: 14,
           }}
         >Ir para Mission →</button>

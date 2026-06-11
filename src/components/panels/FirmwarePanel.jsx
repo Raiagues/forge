@@ -58,7 +58,7 @@ export default function FirmwarePanel() {
               padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
               ...mono, fontSize: 12,
               border: '1px solid var(--rule)',
-              background: active ? 'var(--navy)' : 'var(--paper2)',
+              background: active ? 'var(--btn-bg)' : 'var(--paper2)',
               color: active ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: LAYER_COLOR[m.layer], flexShrink: 0 }} />

@@ -31,11 +31,11 @@ export default function Onboarding() {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 150, overflow: 'hidden',
-      background: 'radial-gradient(120% 120% at 75% 20%, #223255 0%, #18243A 55%, #101A2C 100%)',
+      background: 'var(--poster-bg)',
     }}>
       {/* worn-poster frame, in the spirit of printed mission art */}
       <div style={{
-        position: 'absolute', inset: 14, border: '1.5px solid rgba(244,239,230,.22)',
+        position: 'absolute', inset: 14, border: '1.5px solid var(--poster-line)',
         borderRadius: 4, pointerEvents: 'none',
       }} />
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, padding: '0 48px' }}>
@@ -46,11 +46,11 @@ export default function Onboarding() {
           <h1 style={{ ...slab, fontSize: 96, fontWeight: 700, lineHeight: .95, color: CREAM, margin: '0 0 22px', letterSpacing: '-0.01em' }}>
             FORGE
           </h1>
-          <p style={{ fontSize: 21, lineHeight: 1.5, color: 'rgba(244,239,230,.92)', margin: '0 0 10px', maxWidth: 520 }}>
+          <p style={{ fontSize: 21, lineHeight: 1.5, color: CREAM, margin: '0 0 10px', maxWidth: 520 }}>
             Monte, valide, programe e opere o satélite da sua equipe — da escolha
             dos sensores à estação terrestre, em um só lugar.
           </p>
-          <p style={{ ...mono, fontSize: 13.5, lineHeight: 1.6, color: 'rgba(244,239,230,.7)', margin: '0 0 34px' }}>
+          <p style={{ ...mono, fontSize: 13.5, lineHeight: 1.6, color: 'var(--poster-fg-dim)', margin: '0 0 34px' }}>
             feito para equipes universitárias de CubeSat e balão estratosférico ·
             OBSAT e além · simulação honesta de hardware
           </p>
@@ -58,7 +58,7 @@ export default function Onboarding() {
             <button onClick={startGuided} style={primaryBtn}>Começar com configuração guiada</button>
             <button onClick={skipOnboarding} style={ghostBtn}>Pular para o workspace</button>
           </div>
-          <div style={{ ...mono, fontSize: 11.5, color: 'rgba(244,239,230,.55)', marginTop: 14 }}>
+          <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', marginTop: 14 }}>
             a configuração guiada define a missão em ~2 minutos · dá para sair a qualquer momento
           </div>
         </div>
@@ -66,7 +66,7 @@ export default function Onboarding() {
       </div>
       <div style={{
         position: 'absolute', bottom: 22, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none',
-        ...mono, fontSize: 10.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'rgba(244,239,230,.45)',
+        ...mono, fontSize: 10.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)',
       }}>forge mission systems · est. 2025 · simulação honesta</div>
     </div>
   )
