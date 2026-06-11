@@ -87,7 +87,7 @@ function IssueBadge({ issues, size }) {
 }
 
 // ── single component chip ─────────────────────────────────────────
-function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [] }) {
+function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable = true, issues = [] }) {
   const meshRef = useRef()
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -119,6 +119,7 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [
   const onPointerDown = useCallback((e) => {
     e.stopPropagation()
     onSelect(id)
+    if (!draggable) return                // navigate/route modes: click selects, drag orbits
     if (e.button !== 0) return            // right/middle button → camera pan stays free
     e.target.setPointerCapture(e.pointerId)
     if (controls) controls.enabled = false
@@ -127,7 +128,7 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [
     const intersect = new THREE.Vector3()
     e.ray.intersectPlane(dragPlane.current, intersect)
     dragOffset.current.subVectors(new THREE.Vector3(...position), intersect)
-  }, [id, position, onSelect, gl, controls])
+  }, [id, position, onSelect, gl, controls, draggable])
 
   const onPointerMove = useCallback((e) => {
     if (!dragging) return
@@ -166,7 +167,7 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, issues = [
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); gl.domElement.style.cursor = 'grab' }}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); gl.domElement.style.cursor = draggable ? 'grab' : 'pointer' }}
       onPointerOut={() => { setHovered(false); if (!dragging) gl.domElement.style.cursor = 'auto' }}
     >
       {/* selection ring */}
@@ -343,7 +344,7 @@ function IsoCamera() {
 
 // ── Main canvas ───────────────────────────────────────────────────
 export default function ForgeCanvas() {
-  const { entities, selectedId, selectEntity, updatePosition, live } = useForge()
+  const { entities, selectedId, selectEntity, updatePosition, live, canvasMode } = useForge()
   const validation = live?.validation
 
   return (
@@ -391,6 +392,7 @@ export default function ForgeCanvas() {
           isSelected={selectedId === id}
           onSelect={selectEntity}
           onDragEnd={updatePosition}
+          draggable={canvasMode === 'edit'}
           issues={issuesForComponent(validation, id)}
         />
       ))}

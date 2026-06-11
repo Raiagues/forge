@@ -328,6 +328,13 @@ const useForge = create((set, get) => {
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
+    // 3D interaction mode. Researched against KiCad/EasyEDA (modal
+    // tools) and Figma (direct manipulation): the default 'edit' mode
+    // is direct manipulation — drag a chip to move it, drag the
+    // background to orbit — which is the least surprising for students.
+    // 'navigate' guarantees no accidental edits (every drag orbits);
+    // 'route' turns pins into trace endpoints (click pin → click pin).
+    canvasMode: 'edit',       // 'edit' | 'navigate' | 'route'
     wires: [],                // user-made pin connections [{from:{comp,pin},to:{comp,pin}}]
 
     // ── mission planning layer (drives the whole platform) ──────────
@@ -390,6 +397,7 @@ const useForge = create((set, get) => {
     },
 
     setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },
+    setCanvasMode: (m) => { track('canvas_mode', { target: m }); set({ canvasMode: m }) },
 
     // ── manual wiring (2D schematic) ─────────────────────────────────
     // Wires persist even when electrically wrong — the error must be

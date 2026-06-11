@@ -11,6 +11,32 @@ import SchematicView from './SchematicView'
 
 const mono = { fontFamily: "'Space Mono', monospace" }
 
+// 3D interaction modes (see store.canvasMode for the design rationale):
+// editar = direct manipulation (drag chip moves it, drag background
+// orbits) · navegar = camera only, no accidental edits.
+const MODES = [
+  { id: 'navigate', label: 'navegar',  hint: 'arrastar orbita a câmera · clique seleciona' },
+  { id: 'edit',     label: 'editar',   hint: 'arraste um chip para movê-lo · fundo orbita' },
+]
+
+export function ModeToggle({ style }) {
+  const { canvasMode, setCanvasMode, notify } = useForge()
+  return (
+    <div style={{ display: 'flex', gap: 0, border: '1px solid var(--rule)', borderRadius: 4, overflow: 'hidden', ...style }}>
+      {MODES.map(m => (
+        <button key={m.id} title={m.hint}
+          onClick={() => { setCanvasMode(m.id); notify(`modo ${m.label}: ${m.hint}`) }}
+          style={{
+            padding: '3px 11px', border: 'none', cursor: 'pointer',
+            ...mono, fontSize: 8.5, letterSpacing: '.08em', textTransform: 'uppercase',
+            background: canvasMode === m.id ? 'var(--navy)' : 'var(--paper2)',
+            color: canvasMode === m.id ? 'rgba(255,255,255,.85)' : 'var(--ink3)',
+          }}>{m.label}</button>
+      ))}
+    </div>
+  )
+}
+
 export function ViewToggle({ style }) {
   const { hardwareView, setHardwareView } = useForge()
   return (
@@ -43,7 +69,8 @@ export default function HardwareViews({ showToggle = true }) {
         </Suspense>
       )}
       {showToggle && (
-        <div style={{ position: 'absolute', top: 8, right: 10, zIndex: 12 }}>
+        <div style={{ position: 'absolute', top: 8, right: 10, zIndex: 12, display: 'flex', gap: 8 }}>
+          {hardwareView === '3d' && <ModeToggle />}
           <ViewToggle />
         </div>
       )}
