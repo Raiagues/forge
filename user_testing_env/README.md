@@ -8,7 +8,7 @@ desenvolvedor ocultas, analytics gravando em disco.
 ## Como rodar (1 comando)
 
 ```bash
-./start_test_user.sh
+VITE_USER_TEST=1 ./start.sh
 ```
 
 O script instala dependências se necessário, sobe backend + frontend, abre o

@@ -90,8 +90,8 @@ Mission templates are *generators* of that state, not just labels.
   /analytics/sessions, GET /analytics/export). Inspect in the dev
   Analytics view (gear icon); "nova sessão de teste" there resets between
   testers (flush + new session id + reload).
-- **User testing**: `./start_test_user.sh` = one-command session launcher
-  (user-test mode via `VITE_USER_TEST=1` hides the Serial Test rail entry).
+- **User testing**: `VITE_USER_TEST=1 ./start.sh` launches a session in
+  user-test mode (hides the Serial Test rail entry).
   Facilitator guide + metrics interpretation in `user_testing_env/README.md`;
   `node user_testing_env/aggregate.js` merges all sessions into
   `analytics/aggregate.json` with a validation summary.

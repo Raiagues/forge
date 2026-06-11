@@ -24,7 +24,7 @@ export default function IconSidebar() {
   const issueLevel = hasErr ? 'err' : hasWarn ? 'warn' : null
   const ISSUE_SECTIONS = { architecture: issueLevel, debug: issueLevel }
 
-  // user-testing mode (./start_test_user.sh): hide developer-facing
+  // user-testing mode (VITE_USER_TEST=1 ./start.sh): hide developer-facing
   // sections from the rail so testers see only the product workflow
   const userTest = import.meta.env?.VITE_USER_TEST === '1'
   const visibleSections = userTest ? SECTIONS.filter(s => s.id !== 'serialtest') : SECTIONS

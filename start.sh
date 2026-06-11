@@ -15,6 +15,17 @@ SRV_LOG=".forge-server.log"
 
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 
+# best-effort browser open (never fatal) — exactly ONE window:
+# if/elif so success of one opener never chains into the next
+open_browser() {
+  (
+    if command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL"
+    elif command -v open >/dev/null 2>&1; then open "$URL"
+    elif command -v google-chrome >/dev/null 2>&1; then google-chrome "$URL"
+    fi
+  ) >/dev/null 2>&1 &
+}
+
 # ── already running? verify it is actually HEALTHY ─────────────────
 # A live pid is not enough: a stale Vite dep-optimizer cache makes the
 # server answer 200 while the browser gets "Outdated Optimize Dep"
@@ -29,6 +40,7 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     bold "FORGE already running (pid $(cat "$PIDFILE"))."
     echo "  $URL"
     echo "  ./stop.sh to stop it."
+    open_browser
     exit 0
   fi
   bold "FORGE process exists but is unhealthy — restarting cleanly…"
@@ -80,14 +92,7 @@ for _ in $(seq 1 40); do
     bold "FORGE is running:"
     echo "  ➜  ${URL}"
     echo "  flash server: http://localhost:${SERVER_PORT}/  (POST /flash)"
-    # best-effort browser open (never fatal) — exactly ONE window:
-    # if/elif so success of one opener never chains into the next
-    (
-      if command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL"
-      elif command -v open >/dev/null 2>&1; then open "$URL"
-      elif command -v google-chrome >/dev/null 2>&1; then google-chrome "$URL"
-      fi
-    ) >/dev/null 2>&1 &
+    open_browser
     echo "  logs:  tail -f ${LOG}  ·  tail -f ${SRV_LOG}"
     echo "  stop:  ./stop.sh"
     exit 0

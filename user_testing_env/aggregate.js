@@ -16,7 +16,7 @@ const files = (await readdir(SESSIONS_DIR).catch(() => []))
   .filter((f) => f.endsWith('.jsonl'))
 
 if (!files.length) {
-  console.log('Nenhuma sessão encontrada em analytics/sessions/. Rode ./start_test_user.sh e teste com usuários primeiro.')
+  console.log('Nenhuma sessão encontrada em analytics/sessions/. Rode VITE_USER_TEST=1 ./start.sh e teste com usuários primeiro.')
   process.exit(0)
 }
 
