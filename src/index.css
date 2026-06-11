@@ -8,108 +8,119 @@
  * scripts/legibility_audit.mjs. Never hardcode a color in a component —
  * add a semantic token here so it themes. */
 
+/* Palette follows Emilly's retro-futurist editorial design system:
+ * parchment + midnight, amber the single confident accent, terracotta
+ * support, mist for quiet data. Warm-tinted throughout — never pure black,
+ * neon or gray-heavy. Light = parchment field; dark = midnight field. */
 :root {
-  /* workspace surfaces (light → dark elevation as the index grows) */
-  --paper:  #F4EFE6;
-  --paper2: #EBE5DB;
-  --paper3: #E0D9CE;
-  --paper4: #D4CCBF;
-  /* text — ink3/ink4 pass 4.5:1 on every paper background */
-  --ink:    #1A1814;
-  --ink2:   #3E3A34;
-  --ink3:   #5F584F;
-  --ink4:   #6B645B;
-  /* navy = dark brand surface, valid in BOTH themes (rail/hero/poster);
-     the navyt and navyb tokens are white-alpha text/fills set on navy */
-  --navy:   #18243A;
-  --navy2:  #1F2E49;
-  --navy3:  #263659;
-  --navyt:  rgba(255,255,255,0.86);
-  --navyt2: rgba(255,255,255,0.66);
-  --navyt3: rgba(255,255,255,0.55);
-  --navyb:  rgba(255,255,255,0.06);
-  --navyb2: rgba(255,255,255,0.11);
-  --acc:    #2B5EA7;
-  --acc2:   #3A66B5;
-  --ok:     #2A6B4A;
+  /* workspace surfaces — warm parchment steps (light → deeper) */
+  --paper:  #F6EEDC;
+  --paper2: #EFE6D0;
+  --paper3: #E6DBC2;
+  --paper4: #DACDAF;
+  /* text — warm midnight inks; ink3/ink4 pass 4.5:1 on every parchment */
+  --ink:    #142231;
+  --ink2:   #313F4F;
+  --ink3:   #505E6B;
+  --ink4:   #5B6873;
+  /* midnight = dark brand surface, valid in BOTH themes (rail/hero/poster);
+     navyt/navyb tokens are cream/white-alpha text/fills set on midnight */
+  --navy:   #0E1E33;
+  --navy2:  #17293F;
+  --navy3:  #21364C;
+  --navyt:  rgba(247,239,221,0.88);
+  --navyt2: rgba(247,239,221,0.66);
+  --navyt3: rgba(247,239,221,0.55);
+  --navyb:  rgba(247,239,221,0.06);
+  --navyb2: rgba(247,239,221,0.12);
+  /* accent = terracotta (readable on parchment); amber lives in --btn/-gold */
+  --acc:    #9E4A2C;
+  --acc2:   #A4482A;
+  --ok:     #2E6B49;
   --ok2:    #2E7A4F;
-  --warn:   #8A5A14;
-  --warn2:  #8F5E10;
-  --err:    #963020;
-  --err2:   #C04030;
-  --rule:   rgba(26,24,20,0.09);
-  --rule2:  rgba(26,24,20,0.05);
+  --warn:   #8A5E12;
+  --warn2:  #8A5E12;
+  --err:    #A8341E;
+  --err2:   #B23A22;
+  --rule:   rgba(14,30,51,0.12);
+  --rule2:  rgba(14,30,51,0.06);
 
-  /* left rail chrome (navy in light; subtly darker in dark) */
-  --rail-bg:        #18243A;
-  --rail-fg:        rgba(255,255,255,0.70);
-  --rail-fg-dim:    rgba(255,255,255,0.40);
-  --rail-hover:     rgba(255,255,255,0.06);
-  --rail-active-bg: rgba(255,255,255,0.11);
-  --rail-active-fg: #8FC0F0;
-  --rail-line:      rgba(255,255,255,0.16);
+  /* left rail chrome (midnight field, cream ink, amber active) */
+  --rail-bg:        #0E1E33;
+  --rail-fg:        rgba(247,239,221,0.74);
+  --rail-fg-dim:    rgba(247,239,221,0.42);
+  --rail-hover:     rgba(247,239,221,0.07);
+  --rail-active-bg: rgba(247,239,221,0.13);
+  --rail-active-fg: #E3A132;
+  --rail-line:      rgba(247,239,221,0.16);
 
-  /* primary action button */
-  --btn-bg:       #18243A;
-  --btn-fg:       rgba(255,255,255,0.92);
-  --btn-bg-hover: #1F2E49;
+  /* primary action button — midnight on parchment */
+  --btn-bg:       #0E1E33;
+  --btn-fg:       #F7EFDD;
+  --btn-bg-hover: #17293F;
 
-  /* poster surfaces (onboarding + telemetry ground station + mission/
-     firmware heroes). Light = cream-on-paper poster; dark = navy field. */
-  --poster-bg:       radial-gradient(120% 120% at 75% 20%, #F8F4ED 0%, #ECE5D9 55%, #E1D8CA 100%);
-  --poster-bg-solid: #F4EFE6;   /* solid base — text colour for filled accent chips */
-  --poster-fg:       #1A1814;
-  --poster-fg-dim:   rgba(26,24,20,0.62);
-  --poster-gold:     #7C6210;   /* dark amber: passes AA as text on cream */
-  --poster-orange:   #B5561E;
-  --poster-line:     rgba(26,24,20,0.18);
-  --poster-card:     rgba(26,24,20,0.04);
-  --poster-card-sel: rgba(26,24,20,0.09);
-  --poster-input:    rgba(26,24,20,0.05);
+  /* poster surfaces (onboarding + telemetry + mission/firmware heroes).
+     Light = ink-on-parchment poster; dark = cream-on-midnight field. */
+  --poster-bg:       radial-gradient(120% 120% at 75% 20%, #FBF4E4 0%, #F2E8D2 55%, #E7DBC2 100%);
+  --poster-bg-solid: #F6EEDC;   /* solid base — text colour for filled accent chips */
+  --poster-fg:       #142231;
+  --poster-fg-dim:   rgba(20,34,49,0.64);
+  --poster-gold:     #7C6210;   /* dark amber: passes AA as text on parchment */
+  --poster-orange:   #9E4327;   /* terracotta */
+  --poster-line:     rgba(20,34,49,0.18);
+  --poster-card:     rgba(20,34,49,0.04);
+  --poster-card-sel: rgba(20,34,49,0.09);
+  --poster-input:    rgba(20,34,49,0.05);
 
-  /* shared radii — stop hardcoding borderRadius */
-  --r-sm: 5px;
-  --r-md: 8px;
+  /* small architectural radii (Emilly DS: 3/6/12, never bubbly) */
+  --r-sm: 3px;
+  --r-md: 6px;
   --r-lg: 12px;
+
+  /* type — engineering-software discipline: ONE sans for titles+text,
+     ONE mono for technical/CAD labels & data. No artistic display face. */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body:    'Space Grotesk', sans-serif;
+  --font-mono:    'Space Mono', monospace;
 }
 
 [data-theme="dark"] {
-  --paper:  #101A2C;
-  --paper2: #18243A;
-  --paper3: #1F2E49;
-  --paper4: #2A3A5A;
-  --ink:    #F2EDE4;
-  --ink2:   #DAD4CA;
-  --ink3:   #B7B0A6;
-  --ink4:   #9E978D;
-  --acc:    #6E9BE0;
-  --acc2:   #5E8AD2;
+  --paper:  #0E1E33;
+  --paper2: #16293F;
+  --paper3: #1F3550;
+  --paper4: #2B4360;
+  --ink:    #F7EFDD;
+  --ink2:   #E2DAC8;
+  --ink3:   #B7AE9E;
+  --ink4:   #A39A86;
+  --acc:    #8FAAC0;   /* mist — quiet data, readable on midnight */
+  --acc2:   #A6BECF;
   --ok:     #5BB587;
-  --ok2:    #57AE82;
-  --warn:   #D69A3A;
-  --warn2:  #D69A3A;
-  --err:    #E07A66;
-  --err2:   #E07A66;
-  --rule:   rgba(255,255,255,0.10);
-  --rule2:  rgba(255,255,255,0.05);
+  --ok2:    #5BB587;
+  --warn:   #E3A132;   /* amber */
+  --warn2:  #E3A132;
+  --err:    #E0795F;
+  --err2:   #E0795F;
+  --rule:   rgba(247,239,221,0.12);
+  --rule2:  rgba(247,239,221,0.06);
 
-  --rail-bg:        #0C1422;
-  --rail-active-fg: #8FC0F0;
+  --rail-bg:        #0A1626;
+  --rail-active-fg: #E3A132;
 
-  --btn-bg:       #4F84D6;
-  --btn-fg:       #0E1626;
-  --btn-bg-hover: #5E8FE0;
+  --btn-bg:       #E3A132;   /* amber primary on midnight — the confident accent */
+  --btn-fg:       #0E1E33;
+  --btn-bg-hover: #EDAE45;
 
-  --poster-bg:       radial-gradient(120% 120% at 75% 20%, #223255 0%, #18243A 55%, #101A2C 100%);
-  --poster-bg-solid: #18243A;
-  --poster-fg:       #F4EFE6;
-  --poster-fg-dim:   rgba(244,239,230,0.70);
-  --poster-gold:     #C9A227;
+  --poster-bg:       radial-gradient(120% 120% at 75% 20%, #1B3050 0%, #122544 55%, #0C1A30 100%);
+  --poster-bg-solid: #0E1E33;
+  --poster-fg:       #F7EFDD;
+  --poster-fg-dim:   rgba(247,239,221,0.72);
+  --poster-gold:     #E3A132;   /* amber */
   --poster-orange:   #C96F2B;
-  --poster-line:     rgba(244,239,230,0.30);
-  --poster-card:     rgba(244,239,230,0.04);
-  --poster-card-sel: rgba(244,239,230,0.12);
-  --poster-input:    rgba(244,239,230,0.07);
+  --poster-line:     rgba(247,239,221,0.28);
+  --poster-card:     rgba(247,239,221,0.05);
+  --poster-card-sel: rgba(247,239,221,0.13);
+  --poster-input:    rgba(247,239,221,0.07);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -117,7 +128,7 @@ html, body, #root { height: 100%; overflow: hidden; }
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }

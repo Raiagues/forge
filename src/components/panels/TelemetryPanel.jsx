@@ -30,7 +30,7 @@ import { track } from '../../lib/analytics.js'
 // ──────────────────────────────────────────────────────────────────
 
 const mono = { fontFamily: "'Space Mono', monospace" }
-const slab = { fontFamily: "'Zilla Slab', 'Space Grotesk', serif" }
+const slab = { fontFamily: "'Space Grotesk', sans-serif" }
 const CREAM = 'var(--poster-fg)'
 const GOLD = 'var(--poster-gold)'
 const DIM = 'var(--poster-fg-dim)'

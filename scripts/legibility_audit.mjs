@@ -57,16 +57,20 @@ const block = (re) => {
 const light = block(/:root\s*\{/)
 const dark = block(/\[data-theme="dark"\]\s*\{/)
 const tokenIn = (txt, name) => txt.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{3,6})`))?.[1]
-const alphaIn = (txt, name) => {
-  const m = txt.match(new RegExp(`--${name}:\\s*rgba\\(255,255,255,([\\d.]+)\\)`))
-  return m ? parseFloat(m[1]) : null
+// parse rgba(r,g,b,a) → { rgb:[r,g,b], a } (handles cream or white alpha inks)
+const rgbaIn = (txt, name) => {
+  const m = txt.match(new RegExp(`--${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([\\d.]+)\\)`))
+  return m ? { rgb: [+m[1], +m[2], +m[3]], a: parseFloat(m[4]) } : null
 }
-const WHITE = [255, 255, 255]
 
 // resolve a token for a theme (dark overrides light, else inherits light)
 const make = (themeTxt) => {
   const t = (name) => hex(tokenIn(themeTxt, name) || tokenIn(light, name))
-  const a = (name) => alphaIn(themeTxt, name) ?? alphaIn(light, name)
+  // alpha ink blended onto its dark background
+  const onNavy = (name, bg) => {
+    const c = rgbaIn(themeTxt, name) || rgbaIn(light, name)
+    return blend(c.rgb, c.a, bg)
+  }
   const paper = t('paper'), paper2 = t('paper2'), paper3 = t('paper3')
   const navy = t('navy'), navy2 = t('navy2')
   return [
@@ -84,9 +88,9 @@ const make = (themeTxt) => {
     ['err2  on paper ', t('err2'), paper],
     ['poster-fg on solid', t('poster-fg'), t('poster-bg-solid')],
     ['poster-gold on solid', t('poster-gold'), t('poster-bg-solid')],
-    ['navyt  on navy ', blend(WHITE, a('navyt'), navy), navy],
-    ['navyt2 on navy ', blend(WHITE, a('navyt2'), navy), navy],
-    ['navyt3 on navy2', blend(WHITE, a('navyt3'), navy2), navy2],
+    ['navyt  on navy ', onNavy('navyt', navy), navy],
+    ['navyt2 on navy ', onNavy('navyt2', navy), navy],
+    ['navyt3 on navy2', onNavy('navyt3', navy2), navy2],
   ]
 }
 

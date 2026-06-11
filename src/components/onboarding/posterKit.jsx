@@ -14,7 +14,7 @@
 // ──────────────────────────────────────────────────────────────────
 
 export const mono = { fontFamily: "'Space Mono', monospace" }
-export const slab = { fontFamily: "'Zilla Slab', 'Space Grotesk', serif" }
+export const slab = { fontFamily: "'Space Grotesk', sans-serif" }
 // poster foreground / accents (themed via index.css)
 export const CREAM = 'var(--poster-fg)'
 export const GOLD = 'var(--poster-gold)'
@@ -35,7 +35,7 @@ export const ghostBtn = {
   border: '1.5px solid var(--poster-line)', padding: '13px 28px', cursor: 'pointer',
 }
 
-export const h2 = { ...slab, fontSize: 40, fontWeight: 700, color: CREAM, textAlign: 'center', margin: '0 0 8px' }
+export const h2 = { ...slab, fontSize: 28, fontWeight: 600, color: CREAM, textAlign: 'center', margin: '0 0 8px', letterSpacing: '-0.01em' }
 export const sub = { ...mono, fontSize: 13.5, color: DIM, textAlign: 'center', margin: '0 0 30px', lineHeight: 1.5 }
 export const inputStyle = {
   display: 'block', width: '100%', marginTop: 6, padding: '11px 13px', borderRadius: 'var(--r-sm)',
@@ -105,10 +105,10 @@ export function PatchEmblem({ kind }) {
 }
 
 export const MISSION_KINDS = [
-  { id: 'competition',  label: 'Competição universitária', desc: 'OBSAT, CanSat e afins — regras e pontuação guiam o projeto.' },
-  { id: 'research',     label: 'Pesquisa acadêmica',       desc: 'Coleta de dados científicos com rigor de metodologia.' },
-  { id: 'hobby',        label: 'Projeto pessoal',          desc: 'Aprender fazendo: um payload de balão ou bancada, no seu ritmo.' },
-  { id: 'professional', label: 'Missão profissional',      desc: 'Prototipagem séria com requisitos e orçamento de verdade.' },
+  { id: 'competition',  tag: 'Competição', label: 'Competição universitária', desc: 'OBSAT, CanSat e afins — regras e pontuação guiam o projeto.' },
+  { id: 'research',     tag: 'Pesquisa',   label: 'Pesquisa acadêmica',       desc: 'Coleta de dados científicos com rigor de metodologia.' },
+  { id: 'hobby',        tag: 'Pessoal',    label: 'Projeto pessoal',          desc: 'Aprender fazendo: um payload de balão ou bancada, no seu ritmo.' },
+  { id: 'professional', tag: 'Profissional', label: 'Missão profissional',    desc: 'Prototipagem séria com requisitos e orçamento de verdade.' },
 ]
 
 export function StepDots({ steps, current }) {

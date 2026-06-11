@@ -43,7 +43,7 @@ export default function Onboarding() {
           <div style={{ ...mono, fontSize: 12, letterSpacing: '.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 18 }}>
             plataforma de desenvolvimento de missões
           </div>
-          <h1 style={{ ...slab, fontSize: 96, fontWeight: 700, lineHeight: .95, color: CREAM, margin: '0 0 22px', letterSpacing: '-0.01em' }}>
+          <h1 style={{ ...slab, fontSize: 66, fontWeight: 700, lineHeight: .98, color: CREAM, margin: '0 0 20px', letterSpacing: '-0.01em' }}>
             FORGE
           </h1>
           <p style={{ fontSize: 21, lineHeight: 1.5, color: CREAM, margin: '0 0 10px', maxWidth: 520 }}>

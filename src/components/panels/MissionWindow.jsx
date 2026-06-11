@@ -4,7 +4,7 @@ import { FRAMEWORK_LIST, COMING_SOON_FRAMEWORKS, OBJECTIVES, getFramework, resol
 import { track } from '../../lib/analytics.js'
 import {
   mono, slab, CREAM, GOLD, NAVY_FIELD, primaryBtn, h2, sub, inputStyle,
-  PatchEmblem, MISSION_KINDS, StepDots, Card,
+  MISSION_KINDS, StepDots, Card,
 } from '../onboarding/posterKit.jsx'
 import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
 
@@ -142,13 +142,9 @@ export default function MissionWindow() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 320px))', gap: 16, justifyContent: 'center' }}>
         {MISSION_KINDS.map(k => (
           <Card key={k.id} width="100%" selected={kind === k.id} onClick={() => chooseKind(k.id)}>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <PatchEmblem kind={k.id} />
-              <div>
-                <div style={{ ...slab, fontSize: 21, fontWeight: 700, marginBottom: 4 }}>{k.label}</div>
-                <div style={{ fontSize: 14, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>{k.desc}</div>
-              </div>
-            </div>
+            <div style={{ ...mono, fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 7 }}>{k.tag}</div>
+            <div style={{ ...slab, fontSize: 22, fontWeight: 700, marginBottom: 5 }}>{k.label}</div>
+            <div style={{ fontSize: 14.5, lineHeight: 1.5, color: 'var(--poster-fg-dim)' }}>{k.desc}</div>
           </Card>
         ))}
       </div>

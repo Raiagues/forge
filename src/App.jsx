@@ -65,8 +65,11 @@ export default function App() {
   // by dev/user-testing). A deep link implies the user knows the app,
   // so the first-visit onboarding overlay is bypassed.
   useEffect(() => {
-    const wanted = new URLSearchParams(window.location.search).get('section')
+    const params = new URLSearchParams(window.location.search)
+    const wanted = params.get('section')
     if (wanted) useForge.setState({ activeSection: wanted, onboarding: null })
+    const theme = params.get('theme')          // ?theme=dark|light (dev/testing)
+    if (theme === 'dark' || theme === 'light') useForge.getState().setTheme(theme)
   }, [])
 
   return (

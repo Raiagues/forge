@@ -125,19 +125,18 @@ function MissionContextCard() {
   if (!defined) {
     return (
       <div style={{
-        marginBottom: 16, padding: '12px 12px', borderRadius: 8,
+        marginBottom: 16, padding: '11px 12px', borderRadius: 'var(--r-md)',
         border: '1px dashed var(--ink4)', background: 'var(--paper)',
+        display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 3 }}>Missão não definida</div>
-        <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: 9 }}>
-          Dá para explorar o hardware livremente, mas as recomendações,
-          a validação de requisitos e o firmware gerado dependem da missão.
-        </div>
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--ink3)', lineHeight: 1.35 }}>
+          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Sem missão.</span> Explore livre — validação e firmware pedem uma.
+        </span>
         <button onClick={() => setSection('mission')} style={{
-          padding: '6px 14px', borderRadius: 5, border: 'none', cursor: 'pointer',
+          flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer',
           background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13,
           fontFamily: "'Space Grotesk', sans-serif",
-        }}>Definir a missão →</button>
+        }}>Definir →</button>
       </div>
     )
   }
@@ -219,6 +218,16 @@ function MissionContextCard() {
 const CAT_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
 const CAT_ORDER = ['mcu', 'sensor', 'comm', 'storage', 'power']
 
+// thin-line CAD glyphs per category — the "drawing" that replaces text
+// (1.5px stroke, currentColor; no fills, no emoji). 24×24 viewBox.
+const CAT_GLYPH = {
+  mcu: <g><rect x="6" y="6" width="12" height="12" rx="1" /><rect x="9.5" y="9.5" width="5" height="5" /><path d="M9 6V3M15 6V3M9 21v-3M15 21v-3M6 9H3M6 15H3M21 9h-3M21 15h-3" /></g>,
+  sensor: <g><circle cx="12" cy="12" r="2.2" /><path d="M12 9.8V4M16 12h5M12 14.2V20M3 12h5" /><circle cx="12" cy="12" r="6.5" strokeDasharray="2 2.4" /></g>,
+  comm: <g><path d="M12 13v8" /><path d="M8.5 21h7" /><path d="M8 9a5 5 0 0 1 8 0" /><path d="M5.5 6.5a8.5 8.5 0 0 1 13 0" /><circle cx="12" cy="11" r="1.4" /></g>,
+  storage: <g><path d="M7 4h7l4 4v12H7z" /><path d="M14 4v4h4" /><path d="M10 12h5M10 15h5" /></g>,
+  power: <g><rect x="4" y="9" width="14" height="8" rx="1" /><path d="M18 11.5h2v3h-2" /><path d="M8.5 11v4M11 11v4" /></g>,
+}
+
 function HardwareStage() {
   const { entities, missionPlan, toggleHardware, selectEntity } = useForge()
   const groups = {}
@@ -227,41 +236,49 @@ function HardwareStage() {
   return (
     <>
       {CAT_ORDER.filter(c => groups[c]).map(cat => (
-        <div key={cat} style={{ marginBottom: 10 }}>
-          <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{CAT_LABELS[cat]}</div>
-          {groups[cat]
-            .sort((a, b) => (a.comingSoon ? 1 : 0) - (b.comingSoon ? 1 : 0))
-            .map(d => {
-              const placed = !!entities[d.id]
-              const eff = effectiveProps(d, missionPlan.overrides[d.id])
-              return (
-                <button key={d.id}
-                  onClick={(e) => toggleHardware(d.id, e.currentTarget)}
-                  onDoubleClick={() => placed && selectEntity(d.id)}
-                  title={placed ? 'Clique para remover · duplo clique para inspecionar' : 'Clique para adicionar à placa'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-                    padding: '6px 9px', borderRadius: 5, marginBottom: 4, cursor: 'pointer',
-                    border: `1px solid ${placed ? 'var(--ok2)' : 'var(--rule)'}`,
-                    background: placed ? 'rgba(58,144,96,.07)' : 'var(--paper)',
-                    transition: 'all .15s',
-                  }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500, color: 'var(--ink)' }}>{d.friendly}</span>
-                    <span style={{ display: 'block', ...mono, fontSize: 11, color: 'var(--ink4)' }}>
-                      {d.label}{d.protocol && d.protocol !== 'MCU' ? ` · ${d.protocol}` : ''}
+        <div key={cat} style={{ marginBottom: 12 }}>
+          <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>{CAT_LABELS[cat]}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+            {groups[cat]
+              .sort((a, b) => (a.comingSoon ? 1 : 0) - (b.comingSoon ? 1 : 0))
+              .map(d => {
+                const placed = !!entities[d.id]
+                const eff = effectiveProps(d, missionPlan.overrides[d.id])
+                const soon = !!d.comingSoon
+                return (
+                  <button key={d.id}
+                    onClick={(e) => toggleHardware(d.id, e.currentTarget)}
+                    onDoubleClick={() => placed && selectEntity(d.id)}
+                    title={soon ? d.label : placed ? `${d.label} · remover · duplo clique inspeciona` : `${d.label} · adicionar`}
+                    style={{
+                      position: 'relative', display: 'flex', flexDirection: 'column', gap: 7, textAlign: 'left',
+                      padding: '9px 9px 8px', borderRadius: 'var(--r-md)', cursor: 'pointer',
+                      border: `1px solid ${placed ? 'var(--ok2)' : 'var(--rule)'}`,
+                      background: placed ? 'rgba(58,144,96,.07)' : 'var(--paper)',
+                      opacity: soon ? 0.55 : 1, transition: 'all .15s',
+                    }}>
+                    {/* CAD glyph block + placed check */}
+                    <span style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ color: placed ? 'var(--ok2)' : 'var(--ink3)' }}>{CAT_GLYPH[cat]}</svg>
+                      <span style={{
+                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                        border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
+                        background: placed ? 'var(--ok2)' : 'transparent',
+                        color: 'var(--btn-fg)', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>{placed ? '✓' : ''}</span>
                     </span>
-                  </span>
-                  <span style={{ ...mono, fontSize: 12, color: 'var(--ink3)', flexShrink: 0 }}>R${eff.price}</span>
-                  <span style={{
-                    width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                    border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
-                    background: placed ? 'var(--ok2)' : 'transparent',
-                    color: 'var(--btn-fg)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>{placed ? '✓' : ''}</span>
-                </button>
-              )
-            })}
+                    {/* minimal text: short name + part nº / price in mono */}
+                    <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.25 }}>{d.friendly}</span>
+                    <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>
+                      <span>{d.label}</span>
+                      <span>{soon ? 'em breve' : `R$${eff.price}`}</span>
+                    </span>
+                  </button>
+                )
+              })}
+          </div>
         </div>
       ))}
     </>
