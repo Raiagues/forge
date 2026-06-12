@@ -24,10 +24,6 @@ const SERVER = 'http://localhost:3001'
 const EDITOR_BG = '#1E283C'
 const CONSOLE_BG = '#1A2333'
 const PANEL_INK = 'rgba(231,237,247,.86)'
-const SOFT_GRID = {
-  backgroundImage: 'linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)',
-  backgroundSize: '22px 22px',
-}
 
 // ── Firmware: the version proven on the real board, evolved only to drive
 //    the onboard LED (GPIO2). The Wire.begin + delay(100) settle and the
@@ -254,8 +250,6 @@ export default function SerialTest() {
   // the platform can honestly distinguish hardware from simulation.
   const setHwLink = useForge(s => s.setHwLink)
   const setSection = useForge(s => s.setSection)
-  const liveWiring = useForge(s => s.live?.wiring)
-  const entityIds = useForge(s => Object.keys(s.entities).join(','))
   const wires = useForge(s => s.wires)
   const fwFiles = useForge(s => s.fwFiles)
   const fwEdits = useForge(s => s.fwEdits)
@@ -519,6 +513,12 @@ export default function SerialTest() {
       failed: validateFailed,
       failures: findings.length ? findings : (validateFailed ? [{ what: 'Sensor não respondeu', fix: 'Verifique alimentação e conexão física' }] : []),
       summary: reading ? `Sensores validados · ${reading}` : 'Sensores validados' },
+    // final step IS the handoff: once the board is up, fly the mission.
+    { id: 'operate', n: 5, title: 'Operar na estação terrestre',
+      hint: 'Bring-up concluído. Assuma a estação terrestre para acompanhar a missão.',
+      btn: 'Ir para a estação →',
+      action: () => { track('handoff_to_telemetry', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('telemetry') },
+      busy: false, done: false, summary: 'Operando na estação terrestre' },
   ]
 
   // overall bring-up status shown at the top of the diagnostics panel
@@ -532,51 +532,8 @@ export default function SerialTest() {
           ? { label: 'Pronto para flash', color: 'var(--warn2)' }
           : { label: 'Aguardando conexão', color: 'var(--ink4)' }
 
-  // ── mission handoff: programming done → ground station ────────────
-  // User testing: after programming the board there was no next step.
-  // When the firmware is actually on the board (real flash) — or, in
-  // simulation, when the whole mission is wired and the generated
-  // firmware exists — the screen presents the handoff: the board flies,
-  // you move to ground station mode (Telemetry).
-  const ids = entityIds ? entityIds.split(',') : []
-  const allWired = ids.length > 1 && ids.every(id => liveWiring?.[id]?.wired)
-  const flashDone = stages.upload === ST_DONE
-  const readyForOps = flashDone || (missionMode && allWired && !connected)
-
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
-      {/* mission handoff banner */}
-      {readyForOps && (
-        <div style={{
-          flexShrink: 0, marginBottom: 12, borderRadius: 8, overflow: 'hidden',
-          background: 'var(--poster-bg)',
-          border: '1px solid var(--poster-line)', display: 'flex', alignItems: 'center', gap: 16,
-          padding: '14px 18px',
-        }}>
-          <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true" style={{ color: 'var(--poster-fg)' }}>
-            <circle cx="24" cy="24" r="21" fill="none" style={{ stroke: 'var(--poster-gold)' }} strokeWidth="1.6" strokeDasharray="3 4" />
-            <rect x="19" y="19" width="10" height="10" fill="currentColor" />
-            <rect x="8" y="21.5" width="9" height="5" style={{ fill: 'var(--poster-gold)' }} />
-            <rect x="31" y="21.5" width="9" height="5" style={{ fill: 'var(--poster-gold)' }} />
-          </svg>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.18em',
-              textTransform: 'uppercase', color: 'var(--poster-gold)', marginBottom: 2,
-            }}>{flashDone ? 'firmware a bordo' : 'missão pronta · simulação'}</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--poster-fg)' }}>
-              {flashDone
-                ? 'Placa programada. A partir daqui, a missão é sua: assuma a estação terrestre.'
-                : 'Projeto fiado e firmware gerado. Assuma a estação terrestre para operar a missão simulada.'}
-            </div>
-          </div>
-          <button onClick={() => { track('handoff_to_telemetry', { target: flashDone ? 'real' : 'sim' }); setSection('telemetry') }} style={{
-            flexShrink: 0, padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14.5, fontWeight: 700,
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}>Assumir a estação terrestre →</button>
-        </div>
-      )}
 
       {/* header / toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexShrink: 0 }}>
@@ -585,14 +542,17 @@ export default function SerialTest() {
           <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)', letterSpacing: '.04em' }}>ESP32-WROOM-32D · editar → gravar → validar</span>
         </div>
         <div style={{ flex: 1 }} />
+        {/* status only — detect/connect live in the guided pipeline steps */}
         <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Space Mono', monospace", fontSize: 13, color: 'var(--ink3)' }}>
           <span className={connected ? 'pulse' : ''} style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? 'var(--ok2)' : 'var(--ink4)', boxShadow: connected ? '0 0 6px var(--ok2)' : 'none' }} />
           {connected ? 'ESP32 · ttyUSB0 · 115200' : 'desconectado'}
         </span>
-        <button onClick={detect} disabled={detecting || flashing} style={ghostBtn}>{detecting ? 'detectando…' : 'detectar'}</button>
-        {connected
-          ? <button onClick={disconnect} style={{ ...ghostBtn, borderColor: 'rgba(150,48,32,.4)', color: 'var(--err2)' }}>Desconectar</button>
-          : <button onClick={connect} style={primaryBtn}>Conectar</button>}
+        {connected && (
+          <button onClick={disconnect} style={{
+            fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
+            background: 'none', border: 'none', cursor: 'pointer', color: 'var(--err2)', padding: '2px 4px',
+          }}>desconectar</button>
+        )}
       </div>
 
       {/* main */}
@@ -624,7 +584,6 @@ export default function SerialTest() {
                       display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', cursor: 'pointer',
                       padding: '6px 9px', borderRadius: 5,
                       border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`,
-                      borderLeft: `3px solid ${active ? 'var(--acc)' : 'var(--paper4)'}`,
                       background: active ? 'rgba(43,94,167,.06)' : 'var(--paper)',
                       fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5,
                       color: active ? 'var(--ink)' : 'var(--ink2)', fontWeight: active ? 500 : 400,
@@ -747,7 +706,7 @@ function GuidedSteps({ steps, expanded, onToggle }) {
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{s.title}</div>
             <div style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.failed ? 8 : 0 }}>{s.hint}</div>
             {s.failed && (s.failures || []).map((f, fi) => (
-              <div key={fi} style={{ ...mono9, lineHeight: 1.55, marginBottom: 7, paddingLeft: 8, borderLeft: '2px solid var(--err2)' }}>
+              <div key={fi} style={{ ...mono9, lineHeight: 1.55, marginBottom: 7, padding: '5px 8px', borderRadius: 'var(--r-sm)', background: 'rgba(184,75,44,.06)' }}>
                 <div style={{ color: 'var(--err2)' }}>{f.what}</div>
                 <div style={{ color: 'var(--ink3)' }}>→ {f.fix}</div>
               </div>
@@ -907,11 +866,14 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
           const st = CARD_ST[c.st] || CARD_ST.aguardando
           return (
             <div key={c.id} style={{
-              border: '1px solid var(--rule)', borderLeft: `3px solid ${st.color}`,
-              borderRadius: 5, background: st.bg, padding: '7px 9px', marginBottom: 7,
+              border: '1px solid var(--rule)',
+              borderRadius: 'var(--r-md)', background: st.bg, padding: '7px 9px', marginBottom: 7,
             }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: st.color }} />
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
+                </span>
                 <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color, flexShrink: 0 }}>{c.st}</span>
               </div>
               <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 2 }}>I2C esperado: {c.addr}</div>
@@ -950,7 +912,7 @@ const consoleBase = { background: CONSOLE_BG, fontFamily: "'Space Mono', monospa
 function Console({ children, endRef, empty }) {
   const has = Array.isArray(children) ? children.length > 0 : !!children
   return (
-    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '9px 12px', ...consoleBase, ...SOFT_GRID }}>
+    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '9px 12px', ...consoleBase }}>
       {!has && <div style={{ color: 'rgba(231,237,247,.28)' }}># {empty}</div>}
       {children}
       <div ref={endRef} />
@@ -983,11 +945,6 @@ function Spinner({ label }) {
 }
 
 // ── buttons (platform language) ──────────────────────────────────────
-const ghostBtn = {
-  padding: '5px 12px', borderRadius: 5, fontSize: 13, cursor: 'pointer',
-  fontFamily: "'Space Mono', monospace", letterSpacing: '.05em', textTransform: 'uppercase',
-  border: '1px solid var(--rule)', background: 'var(--paper2)', color: 'var(--ink3)',
-}
 const primaryBtn = {
   padding: '6px 16px', borderRadius: 5, border: 'none', cursor: 'pointer',
   background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14, fontFamily: "'Space Grotesk', sans-serif",
