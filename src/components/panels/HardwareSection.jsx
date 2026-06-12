@@ -495,7 +495,21 @@ export default function HardwareSection() {
   // confirms/advances it — never just because a field was filled. The open
   // stage is the first one not yet confirmed (or any stage opened manually).
   const [manual, setManual] = useState({})
-  const [confirmed, setConfirmed] = useState({})
+  // collapse stages already complete on mount (e.g. arriving from the mission
+  // flow with everything defined) so the OPEN stage is the first incomplete
+  // one — Hardware — instead of re-asking to confirm from the top.
+  const [confirmed, setConfirmed] = useState(() => {
+    const s = useForge.getState()
+    const mp = s.missionPlan
+    const ents = Object.keys(s.entities).length
+    const c = {}
+    if (mp.kind) c.kind = true
+    if (mp.frameworkId) c.framework = true
+    if (mp.objectiveId) c.objective = true
+    if ((mp.name || '').trim().length >= 2) c.identity = true
+    if (ents >= 2) c.hw = true
+    return c
+  })
   const activeId = stages.find(s => !confirmed[s.id])?.id ?? null
   const isOpen = (id) => manual[id] ?? (id === activeId)
   const toggle = (id) => {
@@ -510,8 +524,12 @@ export default function HardwareSection() {
     setManual(m => { const next = { ...m }; delete next[id]; return next })
   }
 
-  // Draft restore banner — read once; never auto-restores.
+  // Draft restore banner — read once; never auto-restores. Only offered on a
+  // fresh start (no mission in progress): a saved draft is relevant after a
+  // restart, NOT right after the user just created a mission.
   const [draft, setDraft] = useState(() => {
+    const s = useForge.getState()
+    if (s.missionPlan.frameworkId || Object.keys(s.entities).length > 0) return null
     try { return JSON.parse(localStorage.getItem('forge_mission_draft')) } catch { return null }
   })
   const restoreDraft = () => {
