@@ -15,8 +15,23 @@ const ICONS = {
   moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>,
 }
 
+// build-sequence completion per section, derived from store state
+function sectionProgress({ missionPlan: mp, entities, live, telemetry }) {
+  const ents = Object.keys(entities).length
+  const wiredAll = ents > 0 && Object.keys(entities).every(id => live?.wiring?.[id]?.wired)
+  const missionDone = !!mp.frameworkId && !!mp.objectiveId && (mp.name?.trim().length >= 2)
+  const missionPartial = !!mp.frameworkId || !!mp.objectiveId
+  return {
+    mission:    missionDone ? 'done' : missionPartial ? 'partial' : 'todo',
+    hardware:   ents >= 2 ? 'done' : ents >= 1 ? 'partial' : 'todo',
+    serialtest: wiredAll ? 'done' : ents >= 1 ? 'partial' : 'todo',
+    debug:      ents >= 1 ? 'partial' : 'todo',
+    telemetry:  telemetry.length > 0 ? 'done' : ents >= 2 ? 'partial' : 'todo',
+  }
+}
+
 export default function IconSidebar() {
-  const { activeSection, setSection, entities, live, showPopover, theme, toggleTheme } = useForge()
+  const { activeSection, setSection, entities, live, missionPlan, telemetry, showPopover, theme, toggleTheme } = useForge()
 
   // issue indicator: live validation first, entity status as fallback
   const list = Object.values(entities)
@@ -25,6 +40,8 @@ export default function IconSidebar() {
   const hasWarn = (v?.summary.warnings > 0 && list.length > 0) || list.some(e => e.status === STATUS.WARN)
   const issueLevel = hasErr ? 'err' : hasWarn ? 'warn' : null
   const ISSUE_SECTIONS = { architecture: issueLevel, debug: issueLevel }
+
+  const prog = sectionProgress({ missionPlan, entities, live, telemetry })
 
   // user-testing mode (VITE_USER_TEST=1 ./start.sh): hide developer-facing
   // sections from the rail so testers see only the product workflow
@@ -51,55 +68,62 @@ export default function IconSidebar() {
   return (
     <aside style={{
       width: 48, flexShrink: 0,
-      background: 'var(--navy)',
-      borderRight: '1px solid rgba(255,255,255,.04)',
+      background: 'var(--rail-bg)',
+      borderRight: '1px solid var(--rule2)',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', padding: '10px 0', gap: 2, zIndex: 20,
+      alignItems: 'center', padding: '10px 0', zIndex: 20,
     }}>
       {/* logo */}
       <div style={{
         fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700,
-        color: 'rgba(255,255,255,.85)', letterSpacing: '.1em',
-        padding: '6px 0 12px', borderBottom: '1px solid var(--navyb)',
-        width: '100%', textAlign: 'center', marginBottom: 6,
+        color: 'var(--rail-fg)', letterSpacing: '.1em',
+        padding: '6px 0 12px', borderBottom: '1px solid var(--rail-line)',
+        width: '100%', textAlign: 'center', marginBottom: 8,
       }}>FG</div>
 
-      {visibleSections.map(sec => {
-        const active = activeSection === sec.id
-        const issue  = ISSUE_SECTIONS[sec.id]
-        return (
-          <button
-            key={sec.id}
-            title={sec.label}
-            onClick={(e) => clickSection(sec.id, e.currentTarget)}
-            style={{
-              width: 36, height: 36, borderRadius: 6, border: 'none',
-              background: active ? 'var(--navyb2)' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', position: 'relative', transition: 'background .15s',
-            }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--navyb)' }}
-            onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-          >
-            <span style={{
-              display: 'block', width: 20, height: 20,
-              // active: full-opacity accent · inactive: 70% white (never faint)
-              color: active ? '#8FC0F0' : 'rgba(255,255,255,.70)',
-              transition: 'color .15s',
-            }}>
-              {ICONS[sec.icon]}
-            </span>
-            {issue && (
+      {/* build-sequence pipeline: connected nodes, each carrying its stage's
+          progress (done / partial / to-do). Click navigates; gated stages
+          answer with an anchored popover. */}
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9, width: '100%' }}>
+        <div style={{ position: 'absolute', top: 15, bottom: 15, width: 2, left: '50%', transform: 'translateX(-50%)', background: 'var(--rail-line)', zIndex: 0 }} />
+        {visibleSections.map(sec => {
+          const active = activeSection === sec.id
+          const p = prog[sec.id] || 'todo'
+          const issue = ISSUE_SECTIONS[sec.id]
+          const done = p === 'done', partial = p === 'partial'
+          return (
+            <button
+              key={sec.id}
+              title={`${sec.label}${done ? ' · concluído' : partial ? ' · em andamento' : ''}`}
+              onClick={(e) => clickSection(sec.id, e.currentTarget)}
+              style={{
+                position: 'relative', zIndex: 1, width: 30, height: 30, borderRadius: '50%',
+                border: done ? 'none' : `1.5px solid ${partial ? 'var(--rail-active-fg)' : 'var(--rail-line)'}`,
+                background: done ? 'var(--rail-active-fg)' : 'var(--rail-bg)',
+                boxShadow: active ? '0 0 0 2px var(--rail-active-bg)' : 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all .15s',
+              }}
+            >
               <span style={{
-                position: 'absolute', top: 4, right: 4,
-                width: 6, height: 6, borderRadius: '50%',
-                background: issue === 'err' ? 'var(--err2)' : 'var(--warn2)',
-                border: '1.5px solid var(--navy)',
-              }} />
-            )}
-          </button>
-        )
-      })}
+                display: 'block', width: 17, height: 17,
+                color: done ? 'var(--rail-bg)' : partial ? 'var(--rail-active-fg)' : active ? 'var(--rail-fg)' : 'var(--rail-fg-dim)',
+                transition: 'color .15s',
+              }}>
+                {ICONS[sec.icon]}
+              </span>
+              {issue && (
+                <span style={{
+                  position: 'absolute', top: -1, right: -1,
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: issue === 'err' ? 'var(--err2)' : 'var(--warn2)',
+                  border: '1.5px solid var(--rail-bg)',
+                }} />
+              )}
+            </button>
+          )
+        })}
+      </div>
 
       <div style={{ flex: 1 }} />
 
@@ -124,12 +148,12 @@ export default function IconSidebar() {
         onClick={() => { track('analytics_open'); setSection('analytics') }}
         style={{
           width: 36, height: 36, borderRadius: 6, border: 'none',
-          background: activeSection === 'analytics' ? 'var(--navyb2)' : 'transparent',
+          background: activeSection === 'analytics' ? 'var(--rail-active-bg)' : 'transparent',
           display: 'flex', alignItems: 'center',
           justifyContent: 'center', cursor: 'pointer',
-          color: activeSection === 'analytics' ? '#8FC0F0' : 'rgba(255,255,255,.70)',
+          color: activeSection === 'analytics' ? 'var(--rail-active-fg)' : 'var(--rail-fg)',
         }}
-        onMouseEnter={e => { if (activeSection !== 'analytics') e.currentTarget.style.background = 'var(--navyb)' }}
+        onMouseEnter={e => { if (activeSection !== 'analytics') e.currentTarget.style.background = 'var(--rail-hover)' }}
         onMouseLeave={e => { if (activeSection !== 'analytics') e.currentTarget.style.background = 'transparent' }}
       >
         <span style={{ display: 'block', width: 20, height: 20 }}>{ICONS.settings}</span>

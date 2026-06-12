@@ -583,9 +583,11 @@ const useForge = create((set, get) => {
       ids.forEach(id => { entities[id] = makeEntity(id, pos[id], 0) })
       const wires = Array.isArray(draft.wires) ? draft.wires : []
       track('mission_draft_restore', {})
+      // restore in place — keep the user on whatever section they're on
+      // (restoring from the Hardware page should stay in Hardware)
       set(recomputeLive({
         missionPlan: { ...plan, components: ids },
-        entities, wires, selectedId: null, drawerOpen: false, activeSection: 'mission',
+        entities, wires, selectedId: null, drawerOpen: false,
       }))
     },
 
