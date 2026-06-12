@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import {
-  getFramework, OBJECTIVE_META_FIELDS, resolveObjective,
+  getFramework, resolveObjective, FRAMEWORK_LIST, COMING_SOON_FRAMEWORKS, OBJECTIVES,
   SOURCE_LABEL, effectiveProps,
 } from '../../mission/index.js'
+import { MISSION_KINDS } from '../onboarding/posterKit.jsx'
 import { track } from '../../lib/analytics.js'
 import HardwareViews, { ViewToggle } from '../canvas/HardwareViews'
 import CatGlyph from '../ui/catGlyphs'
@@ -109,108 +110,89 @@ function Stage({ n, title, done, open, onToggle, summary, last, children, onConf
   )
 }
 
-// ── mission context (defined in the Mission window, never re-asked) ─
-// Read-only summary of WHAT/WHY + an "editar missão" link back to the
-// Mission window. The only editable things here are refinements that
-// exist nowhere else: the objective metadata (feeds validation and the
-// generated firmware) and the competition requirements list (read-only
-// reference).
-function MissionContextCard() {
-  const { missionPlan, setSection, setObjectiveMetaField } = useForge()
-  const [showReqs, setShowReqs] = useState(false)
-  const [showMeta, setShowMeta] = useState(false)
-  const fw = getFramework(missionPlan.frameworkId)
-  const resolved = resolveObjective(missionPlan)
-  const defined = !!missionPlan.frameworkId && !!missionPlan.objectiveId
+// ── inline mission-definition editors (the pipeline edits in-page) ──
+// The mission is DEFINED here, on the Hardware page, through the same
+// pipeline as the hardware stages — no trip back to the Mission window.
+// Each editor writes straight to the store; the stage's `done` recomputes.
+const selRow = (sel) => ({
+  display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
+  padding: '8px 10px', borderRadius: 'var(--r-md)', marginBottom: 5,
+  border: `1px solid ${sel ? 'var(--acc)' : 'var(--rule)'}`,
+  background: sel ? 'rgba(158,74,44,.07)' : 'var(--paper)',
+  fontFamily: "'Space Grotesk', sans-serif",
+})
 
-  if (!defined) {
-    return (
-      <div style={{
-        marginBottom: 16, padding: '11px 12px', borderRadius: 'var(--r-md)',
-        border: '1px dashed var(--ink4)', background: 'var(--paper)',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{ flex: 1, fontSize: 13, color: 'var(--ink3)', lineHeight: 1.35 }}>
-          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>Sem missão.</span> Explore livre — validação e firmware pedem uma.
-        </span>
-        <button onClick={() => setSection('mission')} style={{
-          flexShrink: 0, padding: '6px 12px', borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer',
-          background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13,
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}>Definir →</button>
-      </div>
-    )
-  }
-
+function KindEditor() {
+  const { missionPlan, setMissionKind, selectFramework } = useForge()
+  const kind = missionPlan.kind || null
+  const choose = (k) => { if (k !== 'competition') { selectFramework('custom'); setMissionKind(k) } else setMissionKind(k) }
   return (
-    <div style={{
-      marginBottom: 16, padding: '11px 12px', borderRadius: 8,
-      border: '1px solid var(--rule)', background: 'var(--paper)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ ...mono, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', flex: 1 }}>
-          contexto da missão
-        </span>
-        <button onClick={() => setSection('mission')} style={{
-          ...mono, fontSize: 11, letterSpacing: '.04em', color: 'var(--acc)', cursor: 'pointer',
-          border: 'none', background: 'none', padding: 0, textDecoration: 'underline', textUnderlineOffset: 2,
-        }}>editar missão →</button>
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3 }}>
-        {missionPlan.name?.trim() || 'Missão sem nome'}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.55, marginTop: 2 }}>
-        {fw?.name}{resolved ? ` · ${resolved.label}` : ''}
-        {missionPlan.budgetBRL ? ` · orçamento R$ ${missionPlan.budgetBRL}` : ' · sem orçamento'}
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      {MISSION_KINDS.map(k => {
+        const sel = kind === k.id
+        return (
+          <button key={k.id} onClick={() => choose(k.id)} style={{ ...selRow(sel), marginBottom: 0, padding: '9px 10px' }}>
+            <span style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: sel ? 'var(--acc)' : 'var(--ink4)' }}>{k.tag}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
-      {fw?.requirements?.length > 0 && (
-        <>
-          <button onClick={() => setShowReqs(v => !v)} style={{
-            ...mono, fontSize: 12, letterSpacing: '.06em', color: 'var(--ink3)', cursor: 'pointer',
-            border: 'none', background: 'none', padding: '6px 0 2px',
-          }}>{showReqs ? '▾' : '▸'} {fw.requirements.length} requisitos da competição</button>
-          {showReqs && fw.requirements.map(r => (
-            <div key={r.id} style={{ display: 'flex', gap: 7, padding: '5px 2px', borderBottom: '1px solid var(--rule2)' }}>
-              <span style={{ ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: SEV_COLOR[r.severity], width: 42, flexShrink: 0, paddingTop: 2 }}>
-                {r.severity === 'error' ? 'obrig.' : r.severity === 'warn' ? 'forte' : 'info'}
-              </span>
-              <span style={{ fontSize: 13.5, color: 'var(--ink2)', lineHeight: 1.4 }}>{r.title}</span>
-            </div>
-          ))}
-        </>
-      )}
+function FrameworkEditor() {
+  const { missionPlan, selectFramework, setMissionKind, comingSoon } = useForge()
+  const comps = FRAMEWORK_LIST.filter(f => f.kind === 'competition')
+  return (
+    <div>
+      {comps.map(f => {
+        const sel = missionPlan.frameworkId === f.id
+        return (
+          <button key={f.id} onClick={() => { selectFramework(f.id); setMissionKind('competition') }} style={selRow(sel)}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{f.name}</span>
+            <span style={{ display: 'block', ...mono, fontSize: 10.5, color: 'var(--ink4)', marginTop: 1 }}>{f.full}</span>
+          </button>
+        )
+      })}
+      {COMING_SOON_FRAMEWORKS.map(f => (
+        <button key={f.id} onClick={(e) => comingSoon(f.name, e.currentTarget, `framework_${f.id}`)} style={{ ...selRow(false), opacity: 0.6 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{f.name}</span>
+          <span style={{ display: 'block', ...mono, fontSize: 10.5, color: 'var(--ink4)', marginTop: 1 }}>em breve</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
-      {resolved && (
-        <>
-          <button onClick={() => setShowMeta(v => !v)} style={{
-            ...mono, fontSize: 12, letterSpacing: '.06em', color: 'var(--acc)', cursor: 'pointer',
-            border: 'none', background: 'none', padding: '4px 0 2px',
-          }}>{showMeta ? '▾' : '▸'} metadados do objetivo</button>
-          {showMeta && (
-            <div style={{ border: '1px solid var(--rule)', borderRadius: 5, background: 'var(--paper2)', padding: '8px 10px', marginTop: 3 }}>
-              {OBJECTIVE_META_FIELDS.map(fld => (
-                <div key={fld.key} style={{ marginBottom: 6 }}>
-                  <div style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 2 }}>{fld.label}</div>
-                  <input
-                    value={resolved.meta[fld.key] || ''}
-                    onChange={e => setObjectiveMetaField(fld.key, e.target.value)}
-                    placeholder="—"
-                    style={{
-                      width: '100%', padding: '4px 7px', borderRadius: 4, outline: 'none',
-                      border: '1px solid var(--rule)', background: 'var(--paper)',
-                      fontSize: 13.5, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif",
-                    }}
-                  />
-                </div>
-              ))}
-              <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.5 }}>
-                Refinamentos do objetivo — alimentam a validação, as recomendações e o firmware gerado.
-              </div>
-            </div>
-          )}
-        </>
-      )}
+function ObjectiveEditor() {
+  const { missionPlan, selectObjective } = useForge()
+  return (
+    <div>
+      {OBJECTIVES.map(o => {
+        const sel = missionPlan.objectiveId === o.id
+        return (
+          <button key={o.id} onClick={() => selectObjective(o.id)} style={selRow(sel)}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{o.label}</span>
+            <span style={{ display: 'block', fontSize: 12, color: 'var(--ink4)', lineHeight: 1.4, marginTop: 2 }}>{o.desc}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function IdentityEditor() {
+  const { missionPlan, setPlanName, setBudget } = useForge()
+  const field = { width: '100%', padding: '7px 10px', borderRadius: 'var(--r-md)', outline: 'none', border: '1px solid var(--rule)', background: 'var(--paper)', fontSize: 14, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }
+  const label = { ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', display: 'block', marginBottom: 4 }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <label style={label}>nome da missão
+        <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={{ ...field, marginTop: 4 }} />
+      </label>
+      <label style={label}>orçamento (R$ · opcional)
+        <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="ex.: 300" style={{ ...field, marginTop: 4 }} />
+      </label>
     </div>
   )
 }
@@ -374,7 +356,7 @@ function ProgressFooter() {
 
 // ── canvas area (always live, 2D/3D) ──────────────────────────────
 function BuilderCanvas() {
-  const { entities, missionPlan, live, setSection, hwLink } = useForge()
+  const { entities, missionPlan, live, hwLink } = useForge()
   const empty = Object.keys(entities).length === 0
   const eco = live?.eco || { massG: 0, priceBRL: 0, currentmA: 0 }
   const v = live?.validation
@@ -404,13 +386,6 @@ function BuilderCanvas() {
         }}>{hwLink.connected ? 'hardware real' : 'simulação'}</span>
         <div style={{ flex: 1 }} />
         <ViewToggle />
-        {missionPlan.frameworkId && (
-          <button onClick={() => setSection('mission')} style={{
-            padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
-            border: '1px solid var(--rule)', background: 'var(--paper)',
-            ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink3)',
-          }}>Editar missão</button>
-        )}
       </div>
 
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
@@ -425,7 +400,7 @@ function BuilderCanvas() {
           }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink3)', marginBottom: 4 }}>Placa vazia</div>
             <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>
-              {missionPlan.frameworkId ? 'adicione componentes no painel ao lado' : 'adicione componentes — a missão pode ser definida em Mission'}
+              adicione componentes no painel ao lado
             </div>
           </div>
         )}
@@ -462,16 +437,42 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function HardwareSection() {
-  const { entities, live, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
+  const { entities, live, missionPlan, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
   const sensors = Object.keys(entities).filter(id => id !== 'esp32')
   const wiredAll = Object.keys(entities).length > 0 &&
     Object.keys(entities).every(id => live?.wiring?.[id]?.wired)
 
-  // Only HARDWARE decisions live here — the mission context (type,
-  // framework, objective, name, budget) comes from the Mission window
-  // and renders as the read-only MissionContextCard above the stages.
+  // ONE pipeline, edited in place: the mission is DEFINED here (type →
+  // competition → objective → identity) and BUILT here (hardware → wiring)
+  // — no trip back to the Mission window. Each stage writes to the store.
+  const kind = missionPlan.kind || null
+  const isCompetition = kind === 'competition'
+  const fw = getFramework(missionPlan.frameworkId)
+  const resolvedObj = resolveObjective(missionPlan)
   const stages = [
+    {
+      id: 'kind', title: 'Tipo de missão', done: !!kind,
+      summary: kind ? (MISSION_KINDS.find(k => k.id === kind)?.tag || kind) : null,
+      el: <KindEditor />, enabled: true,
+    },
+    {
+      id: 'framework', title: 'Competição', done: !!missionPlan.frameworkId,
+      summary: fw ? fw.name : null,
+      el: <FrameworkEditor />, enabled: isCompetition,
+    },
+    {
+      id: 'objective', title: 'Objetivo', done: !!missionPlan.objectiveId,
+      summary: resolvedObj ? resolvedObj.label : null,
+      el: <ObjectiveEditor />, enabled: !!kind,
+    },
+    {
+      id: 'identity', title: 'Identidade', done: missionPlan.name?.trim().length >= 2,
+      summary: missionPlan.name?.trim()
+        ? `${missionPlan.name.trim()}${missionPlan.budgetBRL ? ` · R$ ${missionPlan.budgetBRL}` : ''}`
+        : null,
+      el: <IdentityEditor />, enabled: !!kind,
+    },
     {
       id: 'hw', title: 'Hardware', done: Object.keys(entities).length >= 2,
       summary: Object.keys(entities).length
@@ -552,7 +553,6 @@ export default function HardwareSection() {
               </div>
             </div>
           )}
-          <MissionContextCard />
           {stages.map((s, i) => (
             <Stage key={s.id} n={i + 1} title={s.title} done={s.done}
               open={isOpen(s.id)} onToggle={() => toggle(s.id)}
