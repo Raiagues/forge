@@ -6,6 +6,7 @@ import {
 } from '../../mission/index.js'
 import { track } from '../../lib/analytics.js'
 import HardwareViews, { ViewToggle } from '../canvas/HardwareViews'
+import CatGlyph from '../ui/catGlyphs'
 
 // ──────────────────────────────────────────────────────────────────
 // Hardware window — HOW the mission is built.
@@ -218,16 +219,6 @@ function MissionContextCard() {
 const CAT_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
 const CAT_ORDER = ['mcu', 'sensor', 'comm', 'storage', 'power']
 
-// thin-line CAD glyphs per category — the "drawing" that replaces text
-// (1.5px stroke, currentColor; no fills, no emoji). 24×24 viewBox.
-const CAT_GLYPH = {
-  mcu: <g><rect x="6" y="6" width="12" height="12" rx="1" /><rect x="9.5" y="9.5" width="5" height="5" /><path d="M9 6V3M15 6V3M9 21v-3M15 21v-3M6 9H3M6 15H3M21 9h-3M21 15h-3" /></g>,
-  sensor: <g><circle cx="12" cy="12" r="2.2" /><path d="M12 9.8V4M16 12h5M12 14.2V20M3 12h5" /><circle cx="12" cy="12" r="6.5" strokeDasharray="2 2.4" /></g>,
-  comm: <g><path d="M12 13v8" /><path d="M8.5 21h7" /><path d="M8 9a5 5 0 0 1 8 0" /><path d="M5.5 6.5a8.5 8.5 0 0 1 13 0" /><circle cx="12" cy="11" r="1.4" /></g>,
-  storage: <g><path d="M7 4h7l4 4v12H7z" /><path d="M14 4v4h4" /><path d="M10 12h5M10 15h5" /></g>,
-  power: <g><rect x="4" y="9" width="14" height="8" rx="1" /><path d="M18 11.5h2v3h-2" /><path d="M8.5 11v4M11 11v4" /></g>,
-}
-
 function HardwareStage() {
   const { entities, missionPlan, toggleHardware, selectEntity } = useForge()
   const groups = {}
@@ -238,7 +229,7 @@ function HardwareStage() {
       {CAT_ORDER.filter(c => groups[c]).map(cat => (
         <div key={cat} style={{ marginBottom: 12 }}>
           <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>{CAT_LABELS[cat]}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {groups[cat]
               .sort((a, b) => (a.comingSoon ? 1 : 0) - (b.comingSoon ? 1 : 0))
               .map(d => {
@@ -251,30 +242,20 @@ function HardwareStage() {
                     onDoubleClick={() => placed && selectEntity(d.id)}
                     title={soon ? d.label : placed ? `${d.label} · remover · duplo clique inspeciona` : `${d.label} · adicionar`}
                     style={{
-                      position: 'relative', display: 'flex', flexDirection: 'column', gap: 7, textAlign: 'left',
-                      padding: '9px 9px 8px', borderRadius: 'var(--r-md)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', width: '100%',
+                      padding: '8px 10px', borderRadius: 'var(--r-md)', cursor: 'pointer',
                       border: `1px solid ${placed ? 'var(--ok2)' : 'var(--rule)'}`,
                       background: placed ? 'rgba(58,144,96,.07)' : 'var(--paper)',
                       opacity: soon ? 0.55 : 1, transition: 'all .15s',
                     }}>
-                    {/* CAD glyph block + placed check */}
-                    <span style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                        style={{ color: placed ? 'var(--ok2)' : 'var(--ink3)' }}>{CAT_GLYPH[cat]}</svg>
-                      <span style={{
-                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                        border: `1px solid ${placed ? 'var(--ok2)' : 'var(--ink4)'}`,
-                        background: placed ? 'var(--ok2)' : 'transparent',
-                        color: 'var(--btn-fg)', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>{placed ? '✓' : ''}</span>
+                    {/* CAD glyph — colour carries the placed state (no checkbox) */}
+                    <CatGlyph cat={cat} size={22} color={placed ? 'var(--ok2)' : 'var(--ink3)'} />
+                    {/* name beside the icon, part nº in mono underneath */}
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.2 }}>{d.friendly}</span>
+                      <span style={{ display: 'block', ...mono, fontSize: 10.5, color: 'var(--ink4)', marginTop: 1 }}>{d.label}</span>
                     </span>
-                    {/* minimal text: short name + part nº / price in mono */}
-                    <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.25 }}>{d.friendly}</span>
-                    <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>
-                      <span>{d.label}</span>
-                      <span>{soon ? 'em breve' : `R$${eff.price}`}</span>
-                    </span>
+                    <span style={{ ...mono, fontSize: 11, color: placed ? 'var(--ok2)' : 'var(--ink4)', flexShrink: 0 }}>{soon ? 'em breve' : `R$${eff.price}`}</span>
                   </button>
                 )
               })}
@@ -337,15 +318,13 @@ function ValidationNotices() {
       </div>
       {shown.map((iss, i) => (
         <div key={i} style={{
-          borderLeft: `2px solid ${SEV_COLOR[iss.severity]}`,
+          border: '1px solid var(--rule)',
           background: iss.severity === 'error' ? 'rgba(184,75,44,.06)' : 'rgba(200,131,26,.06)',
-          borderRadius: 3, padding: '6px 9px', marginBottom: 6,
+          borderRadius: 'var(--r-md)', padding: '7px 10px', marginBottom: 6,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-            <span style={{
-              ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
-              color: 'var(--btn-fg)', background: SEV_COLOR[iss.severity], borderRadius: 2, padding: '1px 4px', flexShrink: 0,
-            }}>{SOURCE_LABEL[iss.source] || iss.source}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: SEV_COLOR[iss.severity] }} />
+            <span style={{ ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', flexShrink: 0 }}>{SOURCE_LABEL[iss.source] || iss.source}</span>
             <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{iss.title}</span>
           </div>
           <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.45 }}>{iss.detail}</div>

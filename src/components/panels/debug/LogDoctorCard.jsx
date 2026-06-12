@@ -26,11 +26,12 @@ BMP280 NOT FOUND`
 function Finding({ f, rating, onRate, onFix }) {
   return (
     <div style={{
-      borderLeft: `2px solid ${SEV_COLOR[f.severity]}`,
+      border: '1px solid var(--rule)',
       background: f.severity === 'error' ? 'rgba(184,75,44,.05)' : f.severity === 'warn' ? 'rgba(200,131,26,.05)' : 'var(--paper)',
-      borderRadius: 3, padding: '9px 11px', marginBottom: 8,
+      borderRadius: 'var(--r-md)', padding: '9px 11px', marginBottom: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: SEV_COLOR[f.severity] }} />
         <span style={{
           ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
           color: 'var(--btn-fg)', background: CONF_COLOR[f.confidence], borderRadius: 2, padding: '1px 5px',

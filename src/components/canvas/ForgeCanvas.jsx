@@ -70,8 +70,7 @@ function IssueBadge({ issues, size }) {
     <Html position={[0, size[1] + 0.55, 0]} center distanceFactor={9} zIndexRange={[20, 0]}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 5,
-        background: 'var(--paper2)', border: `1px solid ${color}`,
-        borderLeft: `3px solid ${color}`, borderRadius: 4,
+        background: 'var(--paper2)', border: `1px solid ${color}`, borderRadius: 4,
         padding: '3px 7px', pointerEvents: 'none', whiteSpace: 'nowrap',
         fontFamily: "'Space Mono', monospace", fontSize: 12,
         boxShadow: '0 2px 8px rgba(26,24,20,.12)',

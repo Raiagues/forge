@@ -54,11 +54,12 @@ export default function ArchitecturePanel() {
                   return (
                     <button key={m.id} onClick={() => toggle(m.id)} style={{
                       display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
-                      border: '1px solid var(--rule)', borderLeft: `3px solid ${layer.color}`,
-                      background: 'var(--paper)', borderRadius: 5, padding: '8px 10px', marginBottom: 6,
+                      border: '1px solid var(--rule)',
+                      background: 'var(--paper)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6,
                       transition: 'all .14s',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: layer.color }} />
                         <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{m.label}</span>
                         <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginLeft: 'auto' }}>{m.file}</span>
                       </div>

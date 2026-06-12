@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import useForge from './store/useForge'
 import IconSidebar from './components/sidebar/IconSidebar'
 import Topbar      from './components/panels/Topbar'
-import Statusbar   from './components/panels/Statusbar'
 import Drawer      from './components/panels/Drawer'
 import MissionWindow from './components/panels/MissionWindow'
 import HardwareSection from './components/panels/HardwareSection'
@@ -84,7 +83,6 @@ export default function App() {
             <Drawer />
             <Toast />
           </div>
-          <Statusbar />
         </div>
       </div>
       <Onboarding />

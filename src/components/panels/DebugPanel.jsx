@@ -3,6 +3,7 @@ import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import { DEBUG_GROUPS, DEBUG_TOOLS, toolsForGroup, runDebugTool } from '../../debug/index.js'
 import EmptyState from './EmptyState'
 import LogDoctorCard from './debug/LogDoctorCard'
+import CatGlyph from '../ui/catGlyphs'
 
 // interactive tools declare `ui` in the registry; the panel maps it to a
 // dedicated card component here (registry stays pure, panel stays thin)
@@ -67,6 +68,10 @@ export default function DebugPanel() {
         </div>
       </div>
 
+      {/* sensor status at a glance — icon + name + address + status dot.
+          Green = ok with data · gray = not connected · red = error. */}
+      <SensorStatusGrid entities={entities} live={live} />
+
       {/* debugging assistant — interactive tools get a full-width card */}
       {interactiveTools.map((tool) => {
         const Ui = INTERACTIVE_UI[tool.ui]
@@ -113,6 +118,45 @@ export default function DebugPanel() {
         <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 8 }}>
           novas ferramentas registram em <span style={{ color: 'var(--ink3)' }}>src/debug/registry.js</span> (registerDebugTool) e aparecem aqui sozinhas
         </div>
+      </div>
+    </div>
+  )
+}
+
+// at-a-glance hardware status — one visual block per placed component
+// (icon + name + address + status dot). No side borders, no all-gray walls.
+const STATUS_LABEL = { ok: 'ok', warn: 'aviso', err: 'erro', idle: 'sem dados', scanning: 'lendo' }
+function SensorStatusGrid({ entities, live }) {
+  const list = Object.values(entities)
+  if (!list.length) return null
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>Estado do hardware</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 8 }}>
+        {list.map((e) => {
+          const d = e.def
+          const tone = TONE[e.status] || TONE.idle
+          const word = STATUS_LABEL[e.status] || e.status
+          const addr = live?.addrs?.[e.id] || d.address
+          return (
+            <div key={e.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px',
+              border: '1px solid var(--rule)', borderRadius: 'var(--r-md)', background: 'var(--paper)',
+            }}>
+              <CatGlyph cat={d.category} size={24} color={tone} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.2 }}>{d.friendly}</span>
+                <span style={{ display: 'block', ...mono, fontSize: 10.5, color: 'var(--ink4)', marginTop: 1 }}>
+                  {d.label}{addr ? ` · ${addr}` : ''}
+                </span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: tone }} />
+                <span style={{ ...mono, fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: tone }}>{word}</span>
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

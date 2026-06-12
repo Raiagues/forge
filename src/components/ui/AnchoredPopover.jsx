@@ -49,8 +49,7 @@ export default function AnchoredPopover() {
   return (
     <div ref={ref} role="status" style={{
       position: 'fixed', left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: WIDTH, zIndex: 200,
-      background: 'var(--paper)', border: '1px solid var(--ink2)',
-      borderLeft: '3px solid var(--warn2)', borderRadius: 6,
+      background: 'var(--paper)', border: '1px solid var(--ink2)', borderRadius: 'var(--r-md)',
       boxShadow: '0 6px 22px rgba(26,24,20,.25)', padding: '10px 12px',
       animation: 'popover-in .14s ease-out',
     }}>

@@ -1,10 +1,7 @@
-import useForge, { STATUS } from '../../store/useForge'
+import useForge from '../../store/useForge'
 
 export default function Topbar() {
-  const { activeSection, entities } = useForge()
-
-  const errCount  = Object.values(entities).filter(e => e.status === STATUS.ERR).length
-  const warnCount = Object.values(entities).filter(e => e.status === STATUS.WARN).length
+  const activeSection = useForge(s => s.activeSection)
 
   const sectionLabels = {
     mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
@@ -24,17 +21,6 @@ export default function Topbar() {
       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Sistema</span>
       <span style={{ color: 'var(--ink4)', fontSize: 13.5 }}>›</span>
       <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{sectionLabels[activeSection] || activeSection}</span>
-
-      <div style={{ flex: 1 }} />
-
-      {/* status pills */}
-      {errCount > 0 && (
-        <span className="badge badge-err">{errCount} erro{errCount > 1 ? 's' : ''}</span>
-      )}
-      {warnCount > 0 && (
-        <span className="badge badge-warn">{warnCount} aviso{warnCount > 1 ? 's' : ''}</span>
-      )}
-
     </div>
   )
 }

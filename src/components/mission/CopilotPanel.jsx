@@ -12,8 +12,9 @@ const KIND = {
 function Finding({ f, onApply }) {
   const k = KIND[f.kind] || KIND.info
   return (
-    <div style={{ borderLeft: `2px solid ${k.color}`, background: k.bg, borderRadius: 3, padding: '9px 11px', marginBottom: 8 }}>
+    <div style={{ border: '1px solid var(--rule)', background: k.bg, borderRadius: 'var(--r-md)', padding: '9px 11px', marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: k.color }} />
         <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: k.color }}>{k.tag}</span>
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{f.title}</span>
       </div>
