@@ -3,12 +3,14 @@ import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
-  SOFTWARE_MODULES,
+  SOFTWARE_MODULES, computeBudgets, getObsatFormat,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
 import { runLogDoctor } from '../debug/logDoctor.js'
+import { matchSeed, fallbackBlocks, blocksToText, tutorQuestionForWiringIssue } from '../lib/assistant.js'
+import { isWebGPUAvailable, initWebLLM, streamWebLLM } from '../lib/webllm.js'
 
 // ──────────────────────────────────────────────────────────────────
 // FORGE store — single source of truth for the digital twin.
@@ -37,36 +39,36 @@ const BUS_PINS = {
 export const COMPONENT_DEFS = {
   esp32: {
     id: 'esp32', label: 'ESP32-WROOM-32D', friendly: 'Computador de bordo',
-    category: 'mcu', protocol: 'MCU', voltage: '3.3V', mass: 8, current: 240, price: 45,
+    category: 'mcu', protocol: 'MCU', voltage: '3.3V', mass: 8, current: 240, price: 45, volumeCm3: 13,
     color: '#2B3F7A', supported: true,
     caps: ['mcu', 'wifi', 'bluetooth', 'i2c', 'spi', 'uart', 'adc'],
   },
   bmp280: {
     id: 'bmp280', label: 'BMP280', friendly: 'Sensor de temperatura + pressão',
-    category: 'sensor', protocol: 'I2C', address: '0x76', voltage: '3.3V', mass: 2, current: 3, price: 15,
+    category: 'sensor', protocol: 'I2C', address: '0x76', voltage: '3.3V', mass: 2, current: 3, price: 15, volumeCm3: 1,
     color: '#1E3A28', supported: true,
     measures: ['temperature', 'pressure'],
     caps: ['i2c', 'temperature', 'pressure', 'altitude'],
   },
   mpu6050: {
     id: 'mpu6050', label: 'MPU6050', friendly: 'Giroscópio + acelerômetro',
-    category: 'sensor', protocol: 'I2C', address: '0x68', voltage: '3.3V', mass: 3, current: 3.9, price: 12,
+    category: 'sensor', protocol: 'I2C', address: '0x68', voltage: '3.3V', mass: 3, current: 3.9, price: 12, volumeCm3: 1.2,
     color: '#2A2014', supported: true,
     measures: ['accelerometer', 'gyroscope'],
     caps: ['i2c', 'imu', 'accel', 'gyro'],
   },
   // ── coming soon — visible but not placeable yet ──────────────────
-  ccs811:      { id: 'ccs811',      label: 'CCS811',       friendly: 'Sensor de CO₂ e qualidade do ar', category: 'sensor',  protocol: 'I2C',  address: '0x5A', voltage: '3.3V', mass: 2,  current: 30,  price: 20, color: '#1A2A1A', comingSoon: true, caps: ['i2c', 'co2', 'tvoc', 'air-quality'] },
+  ccs811:      { id: 'ccs811',      label: 'CCS811',       friendly: 'Sensor de CO₂ e qualidade do ar', category: 'sensor',  protocol: 'I2C',  address: '0x5A', voltage: '3.3V', mass: 2,  current: 30,  price: 20, volumeCm3: 1.5, color: '#1A2A1A', comingSoon: true, caps: ['i2c', 'co2', 'tvoc', 'air-quality'] },
   gps_neo6m: {
     id: 'gps_neo6m', label: 'NEO-6M', friendly: 'Posição GPS',
-    category: 'sensor', protocol: 'UART', voltage: '3.3V', mass: 5, current: 50, price: 25,
+    category: 'sensor', protocol: 'UART', voltage: '3.3V', mass: 5, current: 50, price: 25, volumeCm3: 9,
     color: '#2A1414', comingSoon: true,
     measures: ['position', 'altitude'],
     caps: ['uart', 'gnss', 'position', 'altitude'],
   },
-  lora_sx1276: { id: 'lora_sx1276', label: 'SX1276',       friendly: 'Rádio LoRa de longo alcance',     category: 'comm',    protocol: 'SPI',  voltage: '3.3V', mass: 4,  current: 120, price: 35, color: '#2A1E3A', comingSoon: true, caps: ['spi', 'lora', 'rf', 'long-range'] },
-  sd_card:     { id: 'sd_card',     label: 'MicroSD',      friendly: 'Cartão de memória',               category: 'storage', protocol: 'SPI',  voltage: '3.3V', mass: 1,  current: 100, price: 8,  color: '#1E2814', comingSoon: true, caps: ['spi', 'storage', 'logging'] },
-  lipo_2000:   { id: 'lipo_2000',   label: 'LiPo 2000mAh', friendly: 'Bateria',                         category: 'power',   protocol: null,   voltage: '3.7V', mass: 40, capacity: 2000, price: 30, color: '#2A1E0A', comingSoon: true, caps: ['power', 'battery'] },
+  lora_sx1276: { id: 'lora_sx1276', label: 'SX1276',       friendly: 'Rádio LoRa de longo alcance',     category: 'comm',    protocol: 'SPI',  voltage: '3.3V', mass: 4,  current: 120, price: 35, volumeCm3: 4, color: '#2A1E3A', comingSoon: true, caps: ['spi', 'lora', 'rf', 'long-range'] },
+  sd_card:     { id: 'sd_card',     label: 'MicroSD',      friendly: 'Cartão de memória',               category: 'storage', protocol: 'SPI',  voltage: '3.3V', mass: 1,  current: 100, price: 8,  volumeCm3: 2, color: '#1E2814', comingSoon: true, caps: ['spi', 'storage', 'logging'] },
+  lipo_2000:   { id: 'lipo_2000',   label: 'LiPo 2000mAh', friendly: 'Bateria',                         category: 'power',   protocol: null,   voltage: '3.7V', mass: 40, capacity: 2000, price: 30, volumeCm3: 26, color: '#2A1E0A', comingSoon: true, caps: ['power', 'battery'] },
 }
 
 export const SUPPORTED_IDS = Object.values(COMPONENT_DEFS).filter(d => d.supported).map(d => d.id)
@@ -96,7 +98,7 @@ export const SECTIONS = [
   { id: 'mission',      label: 'Mission',      icon: 'target'   },
   { id: 'hardware',     label: 'Hardware',     icon: 'cpu'      },
   { id: 'serialtest',   label: 'Firmware',     icon: 'code'     },
-  { id: 'debug',        label: 'Debug',        icon: 'bug'      },
+  { id: 'hwtest',       label: 'Testing',      icon: 'lab'      },
   { id: 'telemetry',    label: 'Telemetry',    icon: 'activity' },
 ]
 
@@ -243,6 +245,7 @@ export function applyTheme(theme) {
 const EMPTY_PLAN = {
   frameworkId: null,
   name: '',
+  format: null,             // satellite form factor: 'cubesat' | 'cansat' | 'pocketqube' (sets mass/volume/power budgets)
   objectives: [],
   objectiveId: null,        // single primary scientific objective
   objectiveMeta: {},        // user edits over the objective's metadata
@@ -255,6 +258,7 @@ const EMPTY_PLAN = {
 }
 
 let noticeSeq = 0
+let assistantSeq = 0           // message id counter for the AI tutor chat
 let sectionEnterAt = Date.now() // for section_dwell analytics
 
 const useForge = create((set, get) => {
@@ -274,14 +278,22 @@ const useForge = create((set, get) => {
     // bus-level conflicts (e.g. duplicate I²C address) from the suggester
     const pinIssues = pins.issues.filter(i => !i.title.startsWith('Sensores sem'))
     const wiring = wiringStatusAll(componentIds, s.wires)
+    // satellite format → the real mass/volume/power budget (default CubeSat).
+    const formatId = s.missionPlan.format || framework?.defaultFormat || 'cubesat'
+    const fmt = getObsatFormat(formatId)
     const validation = validateLive({
       defs: COMPONENT_DEFS, framework, objective,
       componentIds, overrides: s.missionPlan.overrides,
       budgetBRL: s.missionPlan.budgetBRL,
       pinIssues: [...pinIssues, ...wiringIssues],
       softwareIds: s.missionPlan.software, modules: SOFTWARE_MODULES,
+      massMaxG: fmt.massMaxG,
     })
     const eco = economics({ defs: COMPONENT_DEFS, componentIds, overrides: s.missionPlan.overrides })
+    const budgets = computeBudgets({
+      defs: COMPONENT_DEFS, componentIds, overrides: s.missionPlan.overrides,
+      formatId, budgetBRL: s.missionPlan.budgetBRL,
+    })
 
     // honest entity status: wired (simulated OK) vs not connected (idle)
     const entities = {}
@@ -323,7 +335,7 @@ const useForge = create((set, get) => {
       fwEdits,
       ...(regenerated ? { notice: { id: ++noticeSeq, message: 'Arquivo regenerado — suas edições foram substituídas' } } : {}),
       live: {
-        validation, pins: pins.assignments, eco, wiring,
+        validation, pins: pins.assignments, eco, wiring, budgets,
         i2c: i2cPinsFromWires(s.wires),
         uart: uartPinsFromWires(s.wires),
         addrs,
@@ -355,6 +367,10 @@ const useForge = create((set, get) => {
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
+    // PCB board + fabrication target (drives the board outline + live DRC).
+    // ruleId selects the fab design-rule set (NUMAE default, see fabRules).
+    board: { widthMm: 100, heightMm: 80, traceWidthMm: 0.3, ruleId: 'numae' },
+    dismissedTips: [],        // ids of contextual build-tips the user closed
     // 3D interaction mode. Researched against KiCad/EasyEDA (modal
     // tools) and Figma (direct manipulation): the default 'edit' mode
     // is direct manipulation — drag a chip to move it, drag the
@@ -368,7 +384,7 @@ const useForge = create((set, get) => {
     missionPlan: { ...EMPTY_PLAN },
     workflowStep: 'framework',
     validation: null,          // last on-demand validation (copilot/legacy)
-    live: { validation: null, pins: {}, eco: { massG: 0, priceBRL: 0, currentmA: 0 } },
+    live: { validation: null, pins: {}, eco: { massG: 0, priceBRL: 0, currentmA: 0 }, budgets: null },
     copilot: { open: false, running: false, result: null, mode: null },
 
     // ── firmware workspace ───────────────────────────────────────────
@@ -381,6 +397,25 @@ const useForge = create((set, get) => {
 
     // ── Log Doctor (AI debugging assistant) ─────────────────────────
     logDoctor: { running: false, result: null, input: '', source: null, ratings: {} },
+
+    // ── AI tutor chat (persistent corner assistant) ────────────────
+    // A minimizable hardware-engineering tutor present on every screen.
+    // `open` = panel expanded; `unread` badges new answers that arrived
+    // while minimized. Answers are blocks (paragraphs + inline diagram
+    // keys) from the seeded library; "Learn more" buttons anywhere call
+    // askAssistant() so the chat answers without the user typing.
+    assistant: { open: false, running: false, unread: 0, messages: [] },
+    // free, key-less in-browser LLM (WebLLM/WebGPU). Opt-in + lazy: the
+    // model only downloads after enableLocalAI(). `ready` gates streaming.
+    ai: { enabled: false, ready: false, loading: false, progress: 0, status: '', supported: isWebGPUAvailable() },
+
+    // ── Hardware test bench (AIT campaign) ──────────────────────────
+    // Post-firmware subsystem validation. Results persist for the
+    // session so the user can refer back while troubleshooting. Each
+    // stage carries a status (idle|running|passed|failed|warn|skipped),
+    // its last result and when it ran; `selected` drives multi-select
+    // integration tests on the block diagram.
+    hwtest: { stages: {}, selected: [], running: null },
 
     // ── navigation / selection ──────────────────────────────────────
     setSection: (id) => {
@@ -442,13 +477,18 @@ const useForge = create((set, get) => {
     // a small popover ANCHORED to the clicked element (never a corner
     // toast, never a modal — the feedback must appear where the user is
     // looking, the pattern Linear/Vercel use for unavailable features).
-    // anchorEl is the clicked DOM element; message = one-sentence WHY,
-    // hint = optional WHEN / what is planned.
-    showPopover: ({ anchorEl, message, hint }) => {
+    // anchorEl is the clicked DOM element (OR pass an explicit `anchor`
+    // rect {x,y,w,h} when there is none, e.g. a 3D pin); message =
+    // one-sentence WHY, hint = optional detail. `learnMore` (a question
+    // string) turns the popover into a teaching prompt: it shows a "Saiba
+    // mais" button that funnels the question into the AI tutor. `kind`
+    // labels the header ('coming' | 'erro' | 'aviso').
+    showPopover: ({ anchorEl, anchor, message, hint, learnMore, kind = 'coming' }) => {
       const r = anchorEl?.getBoundingClientRect?.()
-      if (!r) { set({ notice: { id: ++noticeSeq, message } }); return }
+      const rect = r ? { x: r.x, y: r.y, w: r.width, h: r.height } : anchor
+      if (!rect) { set({ notice: { id: ++noticeSeq, message } }); return }
       set({
-        popover: { id: ++noticeSeq, anchor: { x: r.x, y: r.y, w: r.width, h: r.height }, message, hint },
+        popover: { id: ++noticeSeq, anchor: rect, message, hint, learnMore, kind },
         notice: null,
       })
     },
@@ -482,10 +522,28 @@ const useForge = create((set, get) => {
     setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },
     setCanvasMode: (m) => { track('canvas_mode', { target: m }); set({ canvasMode: m }) },
 
+    // ── PCB board + fabrication target (DRC inputs) ──────────────────
+    setBoardDim: (field, value) => {
+      const v = value === '' || value == null ? '' : Math.max(1, Number(value) || 0)
+      track('board_dim', { target: field })
+      set(s => ({ board: { ...s.board, [field]: v === '' ? s.board[field] : v } }))
+    },
+    setFabRule: (id) => { track('fab_rule', { target: id }); set(s => ({ board: { ...s.board, ruleId: id } })) },
+    dismissTip: (id) => { track('tip_dismiss', { target: id }); set(s => ({ dismissedTips: [...s.dismissedTips, id] })) },
+    // batch-apply a { id: [x,y,z] } layout (used by DRC auto-optimize)
+    applyPositions: (map) => set(s => {
+      const entities = { ...s.entities }
+      for (const id of Object.keys(map)) if (entities[id]) entities[id] = { ...entities[id], position: map[id] }
+      return { entities }
+    }),
+
     // ── manual wiring (2D schematic) ─────────────────────────────────
     // Wires persist even when electrically wrong — the error must be
-    // SEEN (red wire + explanation), not silently rejected.
-    addWire: (from, to) => {
+    // SEEN (red wire + explanation), not silently rejected. When an
+    // `anchor` rect is given (the destination pin's screen position), an
+    // invalid/risky connection also raises a teaching popover right there
+    // with a "Saiba mais" button into the AI tutor.
+    addWire: (from, to, anchor) => {
       if (!from || !to || sameEnd(from, to)) return
       const s = get()
       const dup = s.wires.some(w =>
@@ -504,6 +562,17 @@ const useForge = create((set, get) => {
         m: `wire ${from.comp}.${from.pin} → ${to.comp}.${to.pin}${newIssue ? ` · ${newIssue.title}` : ' OK'}`,
         cls: newIssue?.severity === 'error' ? 'err' : newIssue ? 'warn' : 'ok',
       })
+      // contextual validation feedback: explain the rule where the user is
+      // looking, with a one-click path to the deeper tutor explanation
+      if (newIssue && anchor) {
+        get().showPopover({
+          anchor,
+          kind: newIssue.severity === 'error' ? 'erro' : 'aviso',
+          message: newIssue.title,
+          hint: newIssue.detail,
+          learnMore: tutorQuestionForWiringIssue(newIssue),
+        })
+      }
     },
     removeWire: (idx) => {
       const wires = get().wires.filter((_, i) => i !== idx)
@@ -634,6 +703,24 @@ const useForge = create((set, get) => {
     updateRotation: (id, rot) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], rotation: rot } } }) : s),
     updateStatus:   (id, status) => set(s => s.entities[id] ? ({ entities: { ...s.entities, [id]: { ...s.entities[id], status } } }) : s),
 
+    // ── component editing (floating toolbar) ─────────────────────────
+    // rotate in 90° steps around Y; pins + traces follow (see pinWorldXZ)
+    rotateEntity: (id, dir = 1) => set(s => {
+      const e = s.entities[id]; if (!e) return s
+      const r = e.rotation || [0, 0, 0]
+      track('component_rotate', { target: id, dir: dir > 0 ? 'cw' : 'ccw' })
+      return { entities: { ...s.entities, [id]: { ...e, rotation: [r[0], (r[1] || 0) + dir * Math.PI / 2, r[2]] } } }
+    }),
+    // assign to the top or bottom copper layer (a flag on the entity)
+    flipEntityLayer: (id) => set(s => {
+      const e = s.entities[id]; if (!e) return s
+      const layer = e.layer === 'bottom' ? 'top' : 'bottom'
+      track('component_flip', { target: layer })
+      return { entities: { ...s.entities, [id]: { ...e, layer } } }
+    }),
+    // a wire's optional bend waypoint (board-plane point) — trace editing
+    setWireVia: (idx, via) => set(s => ({ wires: s.wires.map((w, i) => i === idx ? { ...w, via } : w) })),
+
     // ── I2C scan simulation — honest: unwired sensors do NOT ACK ────
     runScan: () => {
       const { entities } = get()
@@ -750,6 +837,12 @@ const useForge = create((set, get) => {
     })),
 
     setPlanName: (name) => set(s => ({ missionPlan: { ...s.missionPlan, name } })),
+    // satellite form factor → sets the mass/volume/power budget envelope.
+    setFormat: (id) => {
+      const fmt = getObsatFormat(id)
+      track('format', { target: fmt.id })
+      set(s => recomputeLive({ missionPlan: { ...s.missionPlan, format: fmt.id } }))
+    },
     setBudget: (value) => set(s => recomputeLive({
       missionPlan: { ...s.missionPlan, budgetBRL: value === '' || value == null ? null : Math.max(0, Number(value) || 0) },
     })),
@@ -902,6 +995,120 @@ const useForge = create((set, get) => {
       else if (a.type === 'inspect') { set({ activeSection: 'serialtest' }); get().selectEntity(a.compId) }
       else get().notify('verifique manualmente e rode o diagnóstico de novo')
     },
+
+    // ────────────────────────────────────────────────────────────────
+    // AI tutor chat — thin actions over the pure engine in
+    // src/lib/assistant.js. Local (seeded) provider by default; the live
+    // Anthropic provider activates behind the same seam when the backend
+    // route + key exist (key stays server-side, never in the bundle).
+    // ────────────────────────────────────────────────────────────────
+    openAssistant: () => { track('assistant_open'); set(s => ({ assistant: { ...s.assistant, open: true, unread: 0 } })) },
+    closeAssistant: () => set(s => ({ assistant: { ...s.assistant, open: false } })),
+    toggleAssistant: () => set(s => ({ assistant: { ...s.assistant, open: !s.assistant.open, unread: s.assistant.open ? s.assistant.unread : 0 } })),
+    clearAssistant: () => { track('assistant_clear'); set(s => ({ assistant: { ...s.assistant, messages: [] } })) },
+
+    // Turn on the free in-browser model. Lazy: downloads the weights on
+    // first enable (cached afterwards), reporting progress into the store.
+    enableLocalAI: async () => {
+      const ai = get().ai
+      if (ai.loading || ai.ready) return
+      if (!isWebGPUAvailable()) { get().notify('Este navegador não tem WebGPU — use Chrome/Edge recente'); return }
+      track('assistant_local_enable')
+      set(s => ({ ai: { ...s.ai, enabled: true, loading: true, progress: 0, status: 'iniciando…' } }))
+      try {
+        await initWebLLM((r) => set(s => ({ ai: { ...s.ai, progress: r.progress ?? 0, status: r.text || '' } })))
+        set(s => ({ ai: { ...s.ai, loading: false, ready: true, status: 'modelo pronto' } }))
+      } catch (err) {
+        set(s => ({ ai: { ...s.ai, enabled: false, loading: false, ready: false, status: err.message } }))
+        get().notify(`Não foi possível carregar a IA local: ${err.message}`)
+      }
+    },
+    disableLocalAI: () => { track('assistant_local_disable'); set(s => ({ ai: { ...s.ai, enabled: false } })) },
+
+    // Ask the tutor a question. Used by the chat input, the suggestion
+    // chips and every "Saiba mais" button in the platform — the question
+    // is injected and answered without the user typing. Three tiers:
+    //  1) seeded library → instant, with inline diagrams (best for core
+    //     concepts), 2) local LLM (if enabled+ready) → streamed answer for
+    //     open questions, 3) fallback → topic suggestions + enable hint.
+    askAssistant: async (question, { open = true } = {}) => {
+      const q = (question || '').trim()
+      if (!q) return
+      track('assistant_ask', { target: q.slice(0, 80) })
+      set(s => ({ assistant: {
+        ...s.assistant,
+        open: open || s.assistant.open,
+        running: true,
+        messages: [...s.assistant.messages, { id: ++assistantSeq, role: 'user', text: q }],
+      } }))
+      const bump = (st) => (st.assistant.open ? 0 : st.assistant.unread + 1)
+
+      // 1) seeded library — instant
+      const seed = matchSeed(q)
+      if (seed) {
+        track('assistant_answer', { target: seed.id })
+        set(st => ({ assistant: { ...st.assistant, running: false, unread: bump(st),
+          messages: [...st.assistant.messages, { id: ++assistantSeq, role: 'assistant', blocks: seed.answer }] } }))
+        return
+      }
+
+      // 2) local in-browser LLM — streamed
+      const ai = get().ai
+      if (ai.enabled && ai.ready) {
+        const msgId = ++assistantSeq
+        const history = get().assistant.messages.map(m => ({ role: m.role, content: m.text ?? blocksToText(m.blocks) }))
+        set(st => ({ assistant: { ...st.assistant, messages: [...st.assistant.messages, { id: msgId, role: 'assistant', text: '', streaming: true }] } }))
+        try {
+          await streamWebLLM(history, { onToken: (delta) => {
+            set(st => ({ assistant: { ...st.assistant, messages: st.assistant.messages.map(m => m.id === msgId ? { ...m, text: (m.text || '') + delta } : m) } }))
+          } })
+          track('assistant_answer', { target: 'webllm' })
+          set(st => ({ assistant: { ...st.assistant, running: false, unread: bump(st),
+            messages: st.assistant.messages.map(m => m.id === msgId ? { ...m, streaming: false } : m) } }))
+        } catch (err) {
+          set(st => ({ assistant: { ...st.assistant, running: false,
+            messages: st.assistant.messages.map(m => m.id === msgId ? { ...m, streaming: false, text: `Falha no modelo local: ${err.message}` } : m) } }))
+        }
+        return
+      }
+
+      // 3) fallback — offer the topics (and the UI offers to enable the LLM)
+      track('assistant_answer', { target: 'fallback' })
+      set(st => ({ assistant: { ...st.assistant, running: false, unread: bump(st),
+        messages: [...st.assistant.messages, { id: ++assistantSeq, role: 'assistant', blocks: fallbackBlocks() }] } }))
+    },
+
+    // ────────────────────────────────────────────────────────────────
+    // Hardware test bench (AIT) — thin actions over the pure engine in
+    // src/mission/hwtest.js. The panel plays each stage's steps out on a
+    // terminal then commits the verdict here so it survives navigation.
+    // ────────────────────────────────────────────────────────────────
+    // block diagram selection (multi-select for integration tests)
+    selectTestBlock: (id, additive = false) => set(s => {
+      const cur = s.hwtest.selected
+      const has = cur.includes(id)
+      const selected = additive
+        ? (has ? cur.filter(x => x !== id) : [...cur, id])
+        : (has && cur.length === 1 ? [] : [id])
+      track('hwtest_select', { target: id, count: selected.length })
+      return { hwtest: { ...s.hwtest, selected } }
+    }),
+    clearTestSelection: () => set(s => ({ hwtest: { ...s.hwtest, selected: [] } })),
+
+    startHwTestStage: (id) => {
+      track('hwtest_run', { target: id })
+      set(s => ({ hwtest: { ...s.hwtest, running: id, stages: { ...s.hwtest.stages, [id]: { ...s.hwtest.stages[id], status: 'running' } } } }))
+    },
+    finishHwTestStage: (id, result) => {
+      track('hwtest_result', { target: id, status: result.status })
+      set(s => ({ hwtest: { ...s.hwtest, running: null, stages: { ...s.hwtest.stages, [id]: { status: result.status, result, ranAt: new Date().toISOString() } } } }))
+    },
+    // proceed past a failed/parcial gate — explicit, with a UI warning
+    skipHwTestGate: (id) => {
+      track('hwtest_gate_skip', { target: id })
+      set(s => ({ hwtest: { ...s.hwtest, stages: { ...s.hwtest.stages, [id]: { ...s.hwtest.stages[id], status: 'skipped' } } } }))
+    },
+    resetHwTest: () => { track('hwtest_reset'); set({ hwtest: { stages: {}, selected: [], running: null } }) },
 
     // Architecture generation pipeline → live entities (digital twin).
     generateArchitectureFromPlan: () => {

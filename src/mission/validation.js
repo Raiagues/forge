@@ -153,15 +153,19 @@ export function validateLive({
   defs, framework = null, objective = null,
   componentIds = [], overrides = {}, budgetBRL = null,
   pinIssues = [], softwareIds = [], modules = [],
+  massMaxG = null,   // chosen-format mass limit; overrides any mass rule's maxG
 }) {
   const design = defsForIds(defs, componentIds)
   const issues = []
   let rulesCount = 0
 
-  // 1. competition requirements (incl. comm rules tagged source:'comm')
+  // 1. competition requirements (incl. comm rules tagged source:'comm').
+  // A mass rule's limit is made format-aware: the selected satellite format
+  // (CubeSat/CanSat/PocketQube) sets the real mass budget (see budgets.js).
   for (const rule of (framework?.requirements || [])) {
     rulesCount++
-    const res = evalRule(rule, { defs, design, overrides })
+    const effRule = rule.kind === 'mass' && massMaxG != null ? { ...rule, maxG: massMaxG } : rule
+    const res = evalRule(effRule, { defs, design, overrides })
     if (res) issues.push({ ruleId: rule.id, severity: rule.severity || 'warn', source: rule.source || 'competition', ...res })
   }
 

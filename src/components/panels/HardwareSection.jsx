@@ -2,12 +2,15 @@ import { useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import {
   getFramework, resolveObjective, FRAMEWORK_LIST, COMING_SOON_FRAMEWORKS, OBJECTIVES,
-  SOURCE_LABEL, effectiveProps,
+  SOURCE_LABEL, effectiveProps, budgetDelta,
 } from '../../mission/index.js'
 import { MISSION_KINDS } from '../onboarding/posterKit.jsx'
 import { track } from '../../lib/analytics.js'
 import HardwareViews, { ViewToggle } from '../canvas/HardwareViews'
+import BudgetMeters from '../ui/BudgetMeters'
 import CatGlyph from '../ui/catGlyphs'
+import { usePanelWidth } from '../ui/usePanelWidth'
+import { PanelDivider } from '../ui/Resizable'
 
 // ──────────────────────────────────────────────────────────────────
 // Hardware window — HOW the mission is built.
@@ -201,7 +204,7 @@ function IdentityEditor() {
 const CAT_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }
 const CAT_ORDER = ['mcu', 'sensor', 'comm', 'storage', 'power']
 
-function HardwareStage() {
+function HardwareStage({ onHover }) {
   const { entities, missionPlan, toggleHardware, selectEntity } = useForge()
   const groups = {}
   Object.values(COMPONENT_DEFS).forEach(d => { (groups[d.category] ||= []).push(d) })
@@ -222,6 +225,8 @@ function HardwareStage() {
                   <button key={d.id}
                     onClick={(e) => toggleHardware(d.id, e.currentTarget)}
                     onDoubleClick={() => placed && selectEntity(d.id)}
+                    onMouseEnter={() => onHover?.(!placed && !soon ? d.id : null)}
+                    onMouseLeave={() => onHover?.(null)}
                     title={soon ? d.label : placed ? `${d.label} · remover · duplo clique inspeciona` : `${d.label} · adicionar`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', width: '100%',
@@ -438,6 +443,11 @@ function BuilderCanvas() {
 // ── main section ──────────────────────────────────────────────────
 export default function HardwareSection() {
   const { entities, live, missionPlan, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
+  // drag-resizable builder column (was a fixed 292px — reported too narrow)
+  const [cfgW, setCfgW] = usePanelWidth('forge.hwBuilderW', 308, 232, 540)
+  // component the user is considering — drives the budget-meter delta preview
+  const [hoverComp, setHoverComp] = useState(null)
+  const hoverDelta = hoverComp && !entities[hoverComp] ? budgetDelta({ defs: COMPONENT_DEFS, compId: hoverComp, overrides: missionPlan.overrides }) : null
   const eco = live?.eco || { massG: 0, priceBRL: 0 }
   const sensors = Object.keys(entities).filter(id => id !== 'esp32')
   const wiredAll = Object.keys(entities).length > 0 &&
@@ -478,7 +488,7 @@ export default function HardwareSection() {
       summary: Object.keys(entities).length
         ? `${Object.keys(entities).length} módulos · ${eco.massG} g · R$ ${eco.priceBRL}`
         : null,
-      el: <HardwareStage />,
+      el: <HardwareStage onHover={setHoverComp} />,
       enabled: true,
     },
     {
@@ -543,9 +553,9 @@ export default function HardwareSection() {
 
   return (
     <div style={{ position: 'relative', height: '100%', overflow: 'hidden', display: 'flex' }}>
-      {/* config column — collapsible engineering flow */}
+      {/* config column — collapsible engineering flow (drag-resizable) */}
       <div style={{
-        width: 292, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: cfgW, flexShrink: 0, display: 'flex', flexDirection: 'column',
         background: 'var(--paper2)', borderRight: '1px solid var(--rule)',
       }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px' }}>
@@ -587,6 +597,11 @@ export default function HardwareSection() {
             </Stage>
           ))}
         </div>
+        {/* live constraint meters — always visible, react to the format and
+            preview a candidate component's contribution on hover (Part 3) */}
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
+          <BudgetMeters delta={hoverDelta} />
+        </div>
         <ProgressFooter />
         {stages.length > 0 && stages[stages.length - 1].id === 'wire' && stages[stages.length - 1].done && (
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
@@ -598,6 +613,8 @@ export default function HardwareSection() {
           </div>
         )}
       </div>
+
+      <PanelDivider w={cfgW} setW={setCfgW} side="right" />
 
       {/* live hardware view */}
       <BuilderCanvas />
