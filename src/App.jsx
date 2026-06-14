@@ -10,6 +10,7 @@ import HardwareTestPanel from './components/panels/HardwareTestPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import SerialTest from './components/panels/SerialTest'
+import PipelineBar from './components/panels/PipelineBar'
 import SchedulePanel from './components/panels/SchedulePanel'
 import RequirementsChecklist from './components/ui/RequirementsChecklist'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
@@ -84,6 +85,7 @@ export default function App() {
         <IconSidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minWidth: 0 }}>
           <Topbar />
+          <PipelineBar />
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             <SectionContent section={activeSection} />
             <Drawer />
