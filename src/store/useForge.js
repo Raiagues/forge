@@ -242,6 +242,12 @@ export function applyTheme(theme) {
   try { localStorage.setItem(THEME_KEY, theme) } catch { /* ignore */ }
 }
 
+// Persisted sidebar collapse (expandable phase nav ⇄ icon-only rail).
+const SIDEBAR_KEY = 'forge.sidebarCollapsed'
+function loadSidebarCollapsed() {
+  try { return localStorage.getItem(SIDEBAR_KEY) === '1' } catch { return false }
+}
+
 const EMPTY_PLAN = {
   frameworkId: null,
   name: '',
@@ -359,6 +365,7 @@ const useForge = create((set, get) => {
     // via Web Serial (Serial Test tab). Everything else is simulation.
     hwLink: { connected: false, port: '' },
     navWidth: loadNavWidth(),
+    sidebarCollapsed: loadSidebarCollapsed(),   // expandable phase nav ⇄ icon rail
     theme: loadTheme(),       // 'light' (paper) | 'dark' (navy) — see index.css
     seq: 0,
     telemetry: [],            // rolling time-series for the Telemetry charts
@@ -449,6 +456,13 @@ const useForge = create((set, get) => {
       try { localStorage.setItem(NAV_KEY, String(clamped)) } catch { /* ignore */ }
       set({ navWidth: clamped })
     },
+
+    toggleSidebar: () => set(s => {
+      const next = !s.sidebarCollapsed
+      try { localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      track('sidebar_toggle', { target: next ? 'collapsed' : 'expanded' })
+      return { sidebarCollapsed: next }
+    }),
 
     setTheme: (theme) => {
       if (theme !== 'light' && theme !== 'dark') return
