@@ -378,7 +378,9 @@ const useForge = create((set, get) => {
     onboarding: (() => { try { return localStorage.getItem('forge_onboarded') ? null : 'landing' } catch { return 'landing' } })(),
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
-    hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
+    // Default to the 2D schematic (Part 8): layout starts from the schematic,
+    // 3D is opt-in via the large center-top toggle.
+    hardwareView: '2d',       // '2d' schematic | '3d' spatial (same hw graph)
     // Mission→Hardware assembly transition (Part 4): null when idle, else
     // { playing, skippable }. Not skippable on first view; skippable after
     // (persisted via forge_seen_assembly_anim).
