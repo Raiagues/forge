@@ -442,7 +442,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function HardwareSection() {
-  const { entities, live, missionPlan, loadMissionDraft, setSection, markFirstStageConfirmed } = useForge()
+  const { entities, live, missionPlan, loadMissionDraft, markFirstStageConfirmed, openPhaseReview } = useForge()
   // drag-resizable builder column (was a fixed 292px — reported too narrow)
   const [cfgW, setCfgW] = usePanelWidth('forge.hwBuilderW', 308, 232, 540)
   // component the user is considering — drives the budget-meter delta preview
@@ -605,11 +605,11 @@ export default function HardwareSection() {
         <ProgressFooter />
         {stages.length > 0 && stages[stages.length - 1].id === 'wire' && stages[stages.length - 1].done && (
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
-            <button onClick={() => setSection('serialtest')} style={{
+            <button onClick={() => openPhaseReview('hardware')} style={{
               width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 14,
               fontFamily: "'Space Grotesk', sans-serif",
-            }}>Iniciar testes de hardware</button>
+            }}>Revisar e avançar →</button>
           </div>
         )}
       </div>

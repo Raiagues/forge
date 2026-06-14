@@ -15,6 +15,7 @@ import AnchoredPopover from './components/ui/AnchoredPopover'
 import AssistantChat from './components/ui/AssistantChat'
 import Onboarding from './components/onboarding/Onboarding'
 import AssemblyTransition from './components/onboarding/AssemblyTransition'
+import PhaseReview from './components/panels/PhaseReview'
 
 // Section → main-area content. Every section resolves to a real view.
 function SectionContent({ section }) {
@@ -89,6 +90,7 @@ export default function App() {
       </div>
       <Onboarding />
       <AssemblyTransition />
+      <PhaseReview />
       <AnchoredPopover />
       <AssistantChat />
     </>

@@ -3,7 +3,7 @@ import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
-  SOFTWARE_MODULES, computeBudgets, getObsatFormat, runConsultant,
+  SOFTWARE_MODULES, computeBudgets, getObsatFormat, runConsultant, nextPhase,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
@@ -383,6 +383,9 @@ const useForge = create((set, get) => {
     // { playing, skippable }. Not skippable on first view; skippable after
     // (persisted via forge_seen_assembly_anim).
     transition: null,
+    // Phase-transition readiness review (Part 6): null or the phaseId the
+    // user is about to advance FROM.
+    phaseReview: null,
     // PCB board + fabrication target (drives the board outline + live DRC).
     // ruleId selects the fab design-rule set (NUMAE default, see fabRules).
     board: { widthMm: 100, heightMm: 80, traceWidthMm: 0.3, ruleId: 'numae' },
@@ -557,6 +560,18 @@ const useForge = create((set, get) => {
       try { localStorage.setItem('forge_seen_assembly_anim', '1') } catch { /* ignore */ }
       set({ transition: null })
       get().setSection('hardware')
+    },
+
+    // ── phase-transition readiness review (Part 6) ───────────────────
+    openPhaseReview: (phaseId) => { track('phase_review', { target: phaseId }); set({ phaseReview: phaseId }) },
+    closePhaseReview: () => set({ phaseReview: null }),
+    // confirm → advance to the next phase's section
+    confirmPhaseReview: () => {
+      const id = get().phaseReview
+      const next = nextPhase(id)
+      track('phase_review_confirm', { target: id, next: next?.id || '' })
+      set({ phaseReview: null })
+      if (next) get().setSection(next.section)
     },
 
     setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },
