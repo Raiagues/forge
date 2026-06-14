@@ -286,6 +286,54 @@ app.get('/analytics/export', async (_req, res) => {
   }
 })
 
+// ── POST /consult : the live mission consultant (Anthropic) ─────────
+// The key lives ONLY here (server-side, read from ANTHROPIC_API_KEY in a
+// git-ignored .env — see .env.example). The browser never sees it. With
+// no key set, this returns 503 and the frontend falls back to its local
+// heuristic consultant (offline, no cost). Model: claude-opus-4-8.
+//
+// Raw HTTPS to the Messages API (Node 18+ global fetch) keeps the backend
+// dependency-free, consistent with the rest of this server. One short,
+// non-streaming completion per call — small output, fast.
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
+const ANTHROPIC_MODEL = 'claude-opus-4-8'
+
+app.post('/consult', async (req, res) => {
+  if (!ANTHROPIC_API_KEY) {
+    res.status(503).json({ ok: false, error: 'ANTHROPIC_API_KEY not set — using offline consultant' })
+    return
+  }
+  const system = typeof req.body?.system === 'string' ? req.body.system : ''
+  const message = typeof req.body?.message === 'string' ? req.body.message : ''
+  if (!message.trim()) { res.status(400).json({ ok: false, error: 'message required' }); return }
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1024,
+        system,
+        messages: [{ role: 'user', content: message }],
+      }),
+    })
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '')
+      res.status(502).json({ ok: false, error: `anthropic ${r.status}`, detail: detail.slice(0, 500) })
+      return
+    }
+    const data = await r.json()
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
+    res.json({ ok: true, text })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`[forge] flash + serial server on http://localhost:${PORT}`)
 })

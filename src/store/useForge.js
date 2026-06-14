@@ -3,7 +3,7 @@ import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
-  SOFTWARE_MODULES, computeBudgets, getObsatFormat,
+  SOFTWARE_MODULES, computeBudgets, getObsatFormat, runConsultant,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
@@ -249,12 +249,17 @@ const EMPTY_PLAN = {
   objectives: [],
   objectiveId: null,        // single primary scientific objective
   objectiveMeta: {},        // user edits over the objective's metadata
-  budgetBRL: null,          // user-defined budget (R$)
+  budgetBRL: null,          // user-defined budget (R$) — headline total
+  budgetCategories: {},     // optional breakdown: electronics/structure/propulsion/travel/fees
   overrides: {},            // compId → { price, mass, current } user edits
+  // team composition + a free-text "situation" the consultant parses for
+  // tailored warnings (parallel projects, small team, tight budget, …)
+  team: { name: '', institution: '', size: '', situationText: '' },
+  priorities: '',           // free-text constraints / priorities
   environment: { platform: '', altitude: '', tempRange: '', notes: '' },
   components: [],           // planned component ids (mirrors entities)
   software: [],             // chosen software module ids
-  custom: { description: '' },
+  custom: { description: '' },  // free-form mission objective text
 }
 
 let noticeSeq = 0
@@ -386,6 +391,9 @@ const useForge = create((set, get) => {
     validation: null,          // last on-demand validation (copilot/legacy)
     live: { validation: null, pins: {}, eco: { massG: 0, priceBRL: 0, currentmA: 0 }, budgets: null },
     copilot: { open: false, running: false, result: null, mode: null },
+    // mission consultant (Part 2): last result { reply, draft[], warnings[] }.
+    // provider 'local' (heuristics) or 'anthropic' (backend, model claude-opus-4-8).
+    consult: { running: false, result: null, provider: 'local' },
 
     // ── firmware workspace ───────────────────────────────────────────
     activeModuleId: 'main',
@@ -875,6 +883,43 @@ const useForge = create((set, get) => {
     setCustomDescription: (text) => set(s => ({
       missionPlan: { ...s.missionPlan, custom: { ...s.missionPlan.custom, description: text } },
     })),
+
+    // ── consultant flow (Part 2) — team, priorities, AI consultation ──
+    setTeamField: (key, value) => set(s => ({
+      missionPlan: { ...s.missionPlan, team: { ...s.missionPlan.team, [key]: value } },
+    })),
+    setPriorities: (text) => set(s => ({ missionPlan: { ...s.missionPlan, priorities: text } })),
+    setBudgetCategory: (key, value) => set(s => {
+      const cur = { ...s.missionPlan.budgetCategories }
+      if (value === '' || value == null) delete cur[key]
+      else cur[key] = Math.max(0, Number(value) || 0)
+      return { missionPlan: { ...s.missionPlan, budgetCategories: cur } }
+    }),
+
+    // Ask the consultant for contextual feedback + a draft component list.
+    // Provider seam: local heuristics by default, Anthropic via the backend
+    // /consult route when the key is set (auto-falls back to local).
+    askConsultant: async ({ provider = 'anthropic' } = {}) => {
+      track('consult', { target: provider })
+      set(s => ({ consult: { ...s.consult, running: true } }))
+      const { missionPlan } = get()
+      const framework = getFramework(missionPlan.frameworkId)
+      try {
+        const result = await runConsultant(
+          { defs: COMPONENT_DEFS, plan: missionPlan, framework },
+          { provider },
+        )
+        track('consult_result', { target: String(result.draft?.length || 0), provider: result.provider || 'local' })
+        set({ consult: { running: false, result, provider: result.provider || 'local' } })
+      } catch (err) {
+        set({ consult: { running: false, result: { reply: `Consultor indisponível: ${err.message}`, draft: [], warnings: [] }, provider: 'local' } })
+      }
+    },
+    // Add every drafted component the consultant proposed (one click → board).
+    applyConsultDraft: (ids) => {
+      const place = ids || get().consult.result?.draft || []
+      for (const id of place) if (!get().entities[id] && COMPONENT_DEFS[id]?.supported) get().toggleHardware(id)
+    },
 
     togglePlanComponent: (id) => get().toggleHardware(id),
     togglePlanSoftware: (id) => set(s => {
