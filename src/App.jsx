@@ -10,6 +10,8 @@ import HardwareTestPanel from './components/panels/HardwareTestPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import SerialTest from './components/panels/SerialTest'
+import SchedulePanel from './components/panels/SchedulePanel'
+import RequirementsChecklist from './components/ui/RequirementsChecklist'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
 import AnchoredPopover from './components/ui/AnchoredPopover'
 import AssistantChat from './components/ui/AssistantChat'
@@ -26,6 +28,7 @@ function SectionContent({ section }) {
     case 'architecture': return <ArchitecturePanel />
     case 'telemetry':    return <TelemetryPanel />
     case 'serialtest':   return <SerialTest />
+    case 'schedule':     return <SchedulePanel />
     case 'analytics':    return <AnalyticsPanel />
     default:             return <EmptyState section={section} />
   }
@@ -84,6 +87,7 @@ export default function App() {
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             <SectionContent section={activeSection} />
             <Drawer />
+            <RequirementsChecklist />
             <Toast />
           </div>
         </div>
