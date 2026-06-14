@@ -372,6 +372,10 @@ const useForge = create((set, get) => {
     featureInfo: null,        // coming-soon explanation panel { key, ...info }
     firstStageConfirmed: false, // sidebar shows the mission name only after first confirm
     hardwareView: '3d',       // '3d' spatial | '2d' schematic (same hw graph)
+    // Mission→Hardware assembly transition (Part 4): null when idle, else
+    // { playing, skippable }. Not skippable on first view; skippable after
+    // (persisted via forge_seen_assembly_anim).
+    transition: null,
     // PCB board + fabrication target (drives the board outline + live DRC).
     // ruleId selects the fab design-rule set (NUMAE default, see fabRules).
     board: { widthMm: 100, heightMm: 80, traceWidthMm: 0.3, ruleId: 'numae' },
@@ -525,6 +529,20 @@ const useForge = create((set, get) => {
     setHwLink: (link) => {
       track('hw_link', { target: link.connected ? 'connected' : 'disconnected' })
       set({ hwLink: link })
+    },
+
+    // Enter Hardware through the full-screen assembly animation (Part 4).
+    // The satellite the user just defined expands and the camera zooms
+    // through its shell into the interior board view that becomes Hardware.
+    enterHardware: () => {
+      const seen = (() => { try { return !!localStorage.getItem('forge_seen_assembly_anim') } catch { return false } })()
+      track('transition', { target: 'mission_to_hardware', skippable: seen })
+      set({ transition: { playing: true, skippable: seen } })
+    },
+    endTransition: () => {
+      try { localStorage.setItem('forge_seen_assembly_anim', '1') } catch { /* ignore */ }
+      set({ transition: null })
+      get().setSection('hardware')
     },
 
     setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },

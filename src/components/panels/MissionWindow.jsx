@@ -121,8 +121,8 @@ function ConsultantPanel() {
 export default function MissionWindow() {
   const {
     missionPlan, selectFramework, setMissionKind, selectObjective,
-    setPlanName, setBudget, setSection, comingSoon, setFormat,
-    setCustomDescription, setTeamField, setPriorities,
+    setPlanName, setBudget, comingSoon, setFormat,
+    setCustomDescription, setTeamField, setPriorities, enterHardware,
   } = useForge()
   const kind = missionPlan.kind || null
   const isCompetition = kind === 'competition'
@@ -288,7 +288,7 @@ export default function MissionWindow() {
           <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={inputStyle} autoFocus />
         </label>
         <AdvancedOptions />
-        <button onClick={() => { track('onboarding', { action: 'to_hardware' }); setSection('hardware') }}
+        <button onClick={() => { track('onboarding', { action: 'to_hardware' }); enterHardware() }}
           disabled={missionPlan.name.trim().length < 2}
           style={{ ...primaryBtn, marginTop: 10, opacity: missionPlan.name.trim().length < 2 ? .45 : 1 }}>
           Continuar para o hardware →
@@ -312,7 +312,7 @@ export default function MissionWindow() {
         </div>
         <StepDots steps={steps} current={Math.min(step, steps.length - 1)} />
         {complete ? (
-          <button onClick={() => setSection('hardware')} style={{ ...mono, fontSize: 13, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 700 }}>ir para o hardware →</button>
+          <button onClick={() => enterHardware()} style={{ ...mono, fontSize: 13, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 700 }}>ir para o hardware →</button>
         ) : <span style={{ width: 10 }} />}
       </div>
 

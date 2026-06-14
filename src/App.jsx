@@ -6,20 +6,22 @@ import Drawer      from './components/panels/Drawer'
 import MissionWindow from './components/panels/MissionWindow'
 import HardwareSection from './components/panels/HardwareSection'
 import TelemetryPanel from './components/panels/TelemetryPanel'
-import DebugPanel     from './components/panels/DebugPanel'
+import HardwareTestPanel from './components/panels/HardwareTestPanel'
 import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import SerialTest from './components/panels/SerialTest'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
 import AnchoredPopover from './components/ui/AnchoredPopover'
+import AssistantChat from './components/ui/AssistantChat'
 import Onboarding from './components/onboarding/Onboarding'
+import AssemblyTransition from './components/onboarding/AssemblyTransition'
 
 // Section → main-area content. Every section resolves to a real view.
 function SectionContent({ section }) {
   switch (section) {
     case 'mission':      return <MissionWindow />
     case 'hardware':     return <HardwareSection />
-    case 'debug':        return <DebugPanel />
+    case 'hwtest':       return <HardwareTestPanel />
     case 'architecture': return <ArchitecturePanel />
     case 'telemetry':    return <TelemetryPanel />
     case 'serialtest':   return <SerialTest />
@@ -86,7 +88,9 @@ export default function App() {
         </div>
       </div>
       <Onboarding />
+      <AssemblyTransition />
       <AnchoredPopover />
+      <AssistantChat />
     </>
   )
 }
