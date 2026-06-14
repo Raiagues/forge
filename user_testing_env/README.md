@@ -1,8 +1,8 @@
-# FORGE · Ambiente de teste com usuários
+# GuiaSat · Ambiente de teste com usuários
 
 Este diretório contém tudo que o **facilitador** precisa para rodar sessões de
 teste presenciais e coletar dados de comportamento. O app testado é o próprio
-FORGE (sem duplicação de código) rodando em **modo de teste**: ferramentas de
+GuiaSat (sem duplicação de código) rodando em **modo de teste**: ferramentas de
 desenvolvedor ocultas, analytics gravando em disco.
 
 ## Como rodar (1 comando)

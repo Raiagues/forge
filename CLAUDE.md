@@ -1,7 +1,7 @@
-# FORGE — Claude Code Instructions
+# GuiaSat — Claude Code Instructions
 
 ## What this is
-FORGE is a **mission development platform / digital twin** for university
+GuiaSat is a **mission development platform / digital twin** for university
 satellite (CubeSat / high-altitude-balloon) teams. A team picks a mission
 profile and instantly gets a coherent engineering workspace: a 3D PCB populated
 with components, a contextual inspector, live telemetry, a serial monitor,
@@ -109,9 +109,10 @@ Mission templates are *generators* of that state, not just labels.
   crash, reboot loop, GPS: silent UART / baud garbage / low-SNR no-sky /
   power reset loop) cross-referenced with the digital twin for
   high-confidence diagnoses + fix actions. Async provider seam like the
-  copilot (local heuristics now, LLM later). Registered in the debug
-  registry as an interactive tool (`ui: 'logdoctor'` → card mapped in
-  `DebugPanel.jsx`); user decisions tracked as `debug_session`,
+  copilot (local heuristics now, LLM later). Rendered by
+  `LogDoctorCard.jsx` inside the Testing (AIT) panel — the standalone
+  Debug section + its `src/debug/registry.js` tool registry were retired;
+  user decisions tracked as `debug_session`,
   `suggestion_accepted/rejected`, `fix_applied`.
 - **Physical hardware diagnostics**: when Serial Test connects a real
   ESP32, its stream is mirrored into the store serial buffer (with simple
@@ -119,6 +120,19 @@ Mission templates are *generators* of that state, not just labels.
   and the Log Doctor's "Usar serial atual" analyzes REAL output cross-
   referenced with the twin (source reported as "ESP32 real"). There is no
   separate simulated test layer — diagnostics run on the normal surfaces.
+- **AI tutor chat** (`src/lib/assistant.js` + `src/components/ui/AssistantChat.jsx`):
+  a persistent, minimizable hardware-engineering tutor in the corner of
+  every screen (mounted in `App.jsx`; store slice `assistant` +
+  `askAssistant/open/close/clear`). Three answer tiers: (1) the seeded
+  library `SEED_QA` — instant, with inline SVG schematics
+  (`AssistantDiagrams.jsx`, engine returns a diagram KEY so it stays pure);
+  (2) a FREE in-browser LLM via WebLLM/WebGPU (`src/lib/webllm.js`,
+  `@mlc-ai/web-llm`, model `Llama-3.2-1B-Instruct`) — opt-in (`enableLocalAI`),
+  lazy-loaded as its own chunk, streamed, no key/server/cost; (3) a fallback
+  offering the seed topics. A future `anthropic` provider can sit behind the
+  same seam via a BACKEND route holding `ANTHROPIC_API_KEY` server-side
+  (never in the bundle; `.env` is git-ignored, see `.env.example`). Every
+  "Saiba mais" button in the platform will call `askAssistant()`.
 - **GPS NEO-6M is a supported component**: UART pins (TX/RX/VCC/GND) with
   crossing rules in `wiring.js` (TX-em-TX/RX-em-RX errors, remap warnings,
   `uartPinsFromWires` → `Serial2.begin` pins in the generated
@@ -135,7 +149,7 @@ Mission templates are *generators* of that state, not just labels.
 
 ## Hardware views (2D/3D — same hardware graph)
 `HardwareViews.jsx` toggles between the 3D board and the 2D schematic; the
-choice persists in the store and is available in Mission, Hardware and Debug.
+choice persists in the store and is available in Mission and Hardware.
 
 ### 3D (`ForgeCanvas.jsx`)
 - **Interaction modes** (`canvasMode` in the store, toggle next to the 3D/2D
@@ -236,8 +250,9 @@ custom "Analisar"). Findings are structured and carry one-click fix actions —
 prefer this over free-form chat.
 
 ## Section routing (`App.jsx`)
-`mission`→picker · `hardware`/`debug`→3D canvas · `architecture`→SVG block
-diagram · `firmware`→generated sketch · `serial`→monitor · `telemetry`→charts.
+`mission`→picker · `hardware`→3D canvas · `architecture`→SVG block
+diagram · `firmware`→generated sketch · `hwtest`→AIT test bench ·
+`telemetry`→ground station.
 With no mission loaded, workspace sections render `EmptyState` (never blank).
 
 ## Interaction philosophy
@@ -251,7 +266,7 @@ scan, telemetry and serial all reflect live state.
   clicked element, dismissing on outside click/Esc/5s. Texts come from
   `FUTURE_FEATURES`. Corner toasts are only the no-anchor fallback.
 - **Onboarding** (`src/components/onboarding/Onboarding.jsx`): first visit
-  shows a poster landing (what FORGE is + "configuração guiada" vs "pular")
+  shows a poster landing (what GuiaSat is + "configuração guiada" vs "pular")
   then a guided mission intake (kind → competition → objective → identity)
   that writes to the REAL missionPlan at every step; skippable anytime;
   persisted via localStorage `forge_onboarded`.

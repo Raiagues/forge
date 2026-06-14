@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 // ──────────────────────────────────────────────────────────────────
-// posterKit — shared pieces of the FORGE poster surfaces (the landing
+// posterKit — shared pieces of the GuiaSat poster surfaces (the landing
 // overlay, the Mission window and the Telemetry ground station):
 // palette, type, buttons, cards, the step rail, the poster planet and
 // the mission-patch emblems.

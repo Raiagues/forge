@@ -12,9 +12,16 @@ import useForge from '../../store/useForge'
 const mono = { fontFamily: "'Space Mono', monospace" }
 const WIDTH = 264
 
+const HEADER = {
+  coming: { label: 'em desenvolvimento', color: 'var(--warn2)' },
+  erro:   { label: 'ligação inválida',   color: 'var(--err2)' },
+  aviso:  { label: 'atenção na ligação', color: 'var(--warn2)' },
+}
+
 export default function AnchoredPopover() {
   const popover = useForge(s => s.popover)
   const closePopover = useForge(s => s.closePopover)
+  const askAssistant = useForge(s => s.askAssistant)
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
 
@@ -30,7 +37,9 @@ export default function AnchoredPopover() {
 
   useEffect(() => {
     if (!popover) return
-    const timer = setTimeout(closePopover, 5000)
+    // teaching popovers (with a "Saiba mais" action) must not vanish on a
+    // timer before the user can click; coming-soon ones still auto-dismiss
+    const timer = popover.learnMore ? null : setTimeout(closePopover, 5000)
     const onDown = (e) => { if (!ref.current?.contains(e.target)) closePopover() }
     const onKey = (e) => { if (e.key === 'Escape') closePopover() }
     // defer so the opening click itself doesn't dismiss it
@@ -39,7 +48,8 @@ export default function AnchoredPopover() {
       window.addEventListener('keydown', onKey)
     }, 0)
     return () => {
-      clearTimeout(timer); clearTimeout(id)
+      if (timer) clearTimeout(timer)
+      clearTimeout(id)
       window.removeEventListener('pointerdown', onDown)
       window.removeEventListener('keydown', onKey)
     }
@@ -55,11 +65,20 @@ export default function AnchoredPopover() {
     }}>
       <div style={{
         ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase',
-        color: 'var(--warn2)', marginBottom: 4,
-      }}>em desenvolvimento</div>
+        color: (HEADER[popover.kind] || HEADER.coming).color, marginBottom: 4,
+      }}>{(HEADER[popover.kind] || HEADER.coming).label}</div>
       <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.45 }}>{popover.message}</div>
       {popover.hint && (
         <div style={{ ...mono, fontSize: 11, color: 'var(--ink3)', lineHeight: 1.5, marginTop: 5 }}>{popover.hint}</div>
+      )}
+      {popover.learnMore && (
+        <button
+          onClick={() => { askAssistant(popover.learnMore); closePopover() }}
+          style={{
+            marginTop: 9, width: '100%', padding: '6px 10px', borderRadius: 5, cursor: 'pointer',
+            border: 'none', background: 'var(--btn-bg)', color: 'var(--btn-fg)',
+            fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+          }}>Saiba mais →</button>
       )}
     </div>
   )

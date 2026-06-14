@@ -60,7 +60,7 @@ function OrbitViewport({ signal, missionName }) {
         <line x1="0" y1="0" x2="0" y2="14" stroke="#E3A132" strokeWidth="1.8" />
         <line x1="-9" y1="14" x2="9" y2="14" stroke="#E3A132" strokeWidth="1.8" />
         <text x="18" y="12" fontFamily="'Space Mono', monospace" fontSize="11" fill="currentColor" fillOpacity=".75">
-          GS·{(missionName || 'FORGE').slice(0, 10).toUpperCase()}
+          GS·{(missionName || 'GuiaSat').slice(0, 10).toUpperCase()}
         </text>
       </g>
       <line x1="250" y1="338" x2="250" y2="278" stroke="currentColor" strokeOpacity={signal ? '.35' : '.12'} strokeWidth="1" strokeDasharray="2 5" />

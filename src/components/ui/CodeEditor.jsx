@@ -3,7 +3,7 @@ import { useMemo, useRef } from 'react'
 // ──────────────────────────────────────────────────────────────────
 // CodeEditor — a lightweight, dependency-free syntax-highlighted editor
 // for C/C++/Arduino. One shared component used by every code surface in
-// FORGE (Firmware modules + Serial Test sketch) so there is a single
+// GuiaSat (Firmware modules + Serial Test sketch) so there is a single
 // editing experience, not duplicated textareas.
 //
 // Technique: a transparent <textarea> (real editing + caret) layered over

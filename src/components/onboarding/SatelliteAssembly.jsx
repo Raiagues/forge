@@ -10,7 +10,7 @@ import { mono } from './posterKit.jsx'
 // craft, converting abstract choices into accumulated, owned progress;
 // (2) the not-yet-built parts stay visible as ghosted silhouettes, so
 // the player always sees what the next decision unlocks. This component
-// applies both inside FORGE's vintage-technical-illustration language:
+// applies both inside GuiaSat's vintage-technical-illustration language:
 // cream linework on the navy poster field, dashed blueprint ghosts,
 // leader-line part labels in mono, an engineering title block — never
 // photoreal 3D, never a progress bar.

@@ -146,7 +146,7 @@ export const OBSAT = {
       // module is "coming soon", so this stays informational.
       id: 'obsat-power', kind: 'system', category: 'power', severity: 'info', source: 'competition',
       title: 'Fonte de energia com isolamento térmico',
-      detail: 'O voo exige bateria com autonomia para ≥ 2 h, isolada termicamente (Depron/EPE). O módulo de energia chega em breve ao FORGE.',
+      detail: 'O voo exige bateria com autonomia para ≥ 2 h, isolada termicamente (Depron/EPE). O módulo de energia chega em breve ao GuiaSat.',
       suggest: [],
     },
     {
@@ -174,8 +174,8 @@ export const OBSAT = {
 // Coming-soon competitions — rendered disabled in the picker. New
 // competitions are added here as pure data (same shape as OBSAT).
 export const COMING_SOON_FRAMEWORKS = [
-  { id: 'lasc',   kind: 'competition', name: 'LASC',   full: 'Latin American Space Challenge', tagline: 'CanSats e foguetes — em breve no FORGE.', comingSoon: true },
-  { id: 'cansat', kind: 'competition', name: 'CanSat', full: 'CanSat Brasil',                  tagline: 'Satélite-lata em queda livre — em breve no FORGE.', comingSoon: true },
+  { id: 'lasc',   kind: 'competition', name: 'LASC',   full: 'Latin American Space Challenge', tagline: 'CanSats e foguetes — em breve no GuiaSat.', comingSoon: true },
+  { id: 'cansat', kind: 'competition', name: 'CanSat', full: 'CanSat Brasil',                  tagline: 'Satélite-lata em queda livre — em breve no GuiaSat.', comingSoon: true },
 ]
 
 export const CUSTOM = {

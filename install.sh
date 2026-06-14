@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FORGE — install & environment check
+# GuiaSat — install & environment check
 # Installs dependencies and validates that the local toolchain can run Vite 5.
 set -euo pipefail
 
@@ -9,7 +9,7 @@ bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 err()  { printf '  \033[31m✗\033[0m %s\n' "$1"; }
 
-bold "FORGE · install"
+bold "GuiaSat · install"
 
 # ── Node.js ────────────────────────────────────────────────────────
 if ! command -v node >/dev/null 2>&1; then
@@ -19,7 +19,7 @@ fi
 NODE_RAW="$(node -v)"           # e.g. v20.18.0
 NODE_MAJOR="$(echo "$NODE_RAW" | sed 's/v\([0-9]*\).*/\1/')"
 if [ "$NODE_MAJOR" -lt 18 ]; then
-  err "Node $NODE_RAW is too old. FORGE needs Node 18+ (20.x recommended)."
+  err "Node $NODE_RAW is too old. GuiaSat needs Node 18+ (20.x recommended)."
   exit 1
 fi
 ok "Node $NODE_RAW"

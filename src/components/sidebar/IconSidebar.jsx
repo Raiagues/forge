@@ -67,7 +67,7 @@ export default function IconSidebar() {
   if (sidebarCollapsed) {
     return (
       <aside style={railStyle()}>
-        <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: 'var(--rail-fg)', letterSpacing: '.1em', padding: '6px 0 12px', borderBottom: '1px solid var(--rail-line)', width: '100%', textAlign: 'center', marginBottom: 8 }}>FG</div>
+        <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: 'var(--rail-fg)', letterSpacing: '.1em', padding: '6px 0 12px', borderBottom: '1px solid var(--rail-line)', width: '100%', textAlign: 'center', marginBottom: 8 }}>GS</div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: '100%' }}>
           {phases.map(p => {
             const st = status[p.id]
@@ -96,7 +96,7 @@ export default function IconSidebar() {
   return (
     <aside style={{ width: 232, flexShrink: 0, background: 'var(--rail-bg)', borderRight: '1px solid var(--rule2)', display: 'flex', flexDirection: 'column', zIndex: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px 11px', borderBottom: '1px solid var(--rail-line)' }}>
-        <span style={{ ...mono, fontSize: 14, fontWeight: 700, color: 'var(--rail-fg)', letterSpacing: '.14em' }}>FORGE</span>
+        <span style={{ ...mono, fontSize: 14, fontWeight: 700, color: 'var(--rail-fg)', letterSpacing: '.14em' }}>GuiaSat</span>
         <span style={{ flex: 1 }} />
         <button onClick={toggleSidebar} title="Recolher" style={iconBtn()}><span style={{ display: 'block', width: 16, height: 16 }}>{ICONS.collapse}</span></button>
       </div>

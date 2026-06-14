@@ -13,7 +13,7 @@ import { matchSeed, fallbackBlocks, blocksToText, tutorQuestionForWiringIssue } 
 import { isWebGPUAvailable, initWebLLM, streamWebLLM } from '../lib/webllm.js'
 
 // ──────────────────────────────────────────────────────────────────
-// FORGE store — single source of truth for the digital twin.
+// GuiaSat store — single source of truth for the digital twin.
 //
 // Everything the UI shows is derived from this store. The mission
 // builder progressively fills `missionPlan`; hardware toggles create
@@ -372,7 +372,7 @@ const useForge = create((set, get) => {
     serialLog: INITIAL_SERIAL,
     notice: null,             // lightweight contextual toast { id, message }
     popover: null,            // anchored disabled/coming-soon popover { id, anchor, message, hint }
-    // first-visit onboarding: 'landing' (what is FORGE + choose path) →
+    // first-visit onboarding: 'landing' (what is GuiaSat + choose path) →
     // 'flow' (guided mission intake) → null (workspace). Skippable at
     // any point; the chosen context lands in the real missionPlan.
     onboarding: (() => { try { return localStorage.getItem('forge_onboarded') ? null : 'landing' } catch { return 'landing' } })(),

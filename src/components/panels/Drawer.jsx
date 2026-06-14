@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import useForge from '../../store/useForge'
+import { usePanelWidth } from '../ui/usePanelWidth'
+import { EdgeResizer } from '../ui/Resizable'
 
 // ──────────────────────────────────────────────────────────────────
 // Drawer — minimal sensor inspector. Shows only: name, model, I2C
@@ -56,7 +58,7 @@ export default function Drawer() {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [selectedId])
 
-  const W = 300
+  const [W, setW] = usePanelWidth('forge.drawerW', 320, 260, 560)
 
   return (
     <div style={{
@@ -68,6 +70,8 @@ export default function Drawer() {
       zIndex: 30, display: 'flex', flexDirection: 'column',
       boxShadow: drawerOpen ? '-6px 0 20px rgba(26,24,20,.07)' : 'none',
     }}>
+      {/* left-edge resize handle (only reachable while the drawer is open) */}
+      {drawerOpen && <EdgeResizer w={W} setW={setW} side="left" />}
       {entity ? <EntityContent entity={entity} id={selectedId} onClose={closeDrawer} scrollRef={scrollRef} /> : null}
     </div>
   )

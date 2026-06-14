@@ -1,4 +1,4 @@
-/* FORGE design tokens — plain CSS, no Tailwind dependency.
+/* GuiaSat design tokens — plain CSS, no Tailwind dependency.
  *
  * Two complete themes share one token vocabulary. `:root` is the LIGHT
  * theme (default — the paper/aerospace-lab identity); `[data-theme="dark"]`

@@ -23,7 +23,7 @@ import { analyzeText, recommend, environmentalRisks, estimatePower } from './rec
 
 // System prompt for the live consultant (used by the backend when wired).
 // Kept here so the persona lives in one place, next to the local engine.
-export const CONSULTANT_SYSTEM_PROMPT = `Você é o consultor de engenharia de sistemas do FORGE, uma plataforma para equipes universitárias que constroem nanossatélites (CubeSat, CanSat, PocketQube) para a OBSAT (Olimpíada Brasileira de Satélites) e projetos afins.
+export const CONSULTANT_SYSTEM_PROMPT = `Você é o consultor de engenharia de sistemas do GuiaSat, uma plataforma para equipes universitárias que constroem nanossatélites (CubeSat, CanSat, PocketQube) para a OBSAT (Olimpíada Brasileira de Satélites) e projetos afins.
 
 Seu papel: ajudar a equipe a tomar BOAS DECISÕES DE ENGENHARIA — tradeoffs de massa, volume, energia e orçamento — não apenas responder perguntas. Antecipe implicações que a equipe pode não ter considerado.
 

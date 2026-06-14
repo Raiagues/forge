@@ -3,8 +3,23 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import useForge, { STATUS } from '../../store/useForge'
-import { issuesForComponent, SOURCE_LABEL, COMPONENT_PINS } from '../../mission/index.js'
+import { issuesForComponent, SOURCE_LABEL, COMPONENT_PINS, runDRC, getFabRule, UNIT_PER_MM } from '../../mission/index.js'
 import { footprint } from './pinLayout.js'
+
+// footprint size (board units) in the { w, d } shape the DRC expects
+const drcSizeOf = (e) => { const s = footprint(e.id, e.def).size; return { w: s[0], d: s[2] } }
+
+// world XZ of a pin, with the component's Y-rotation applied — so a
+// rotated chip's traces still land on its pins (the chip group rotates in
+// three.js; this mirrors that maths for the trace geometry computed
+// outside the group).
+function pinWorldXZ(entity, pinId) {
+  const p = footprint(entity.id, entity.def).pins[pinId]
+  if (!p) return null
+  const a = entity.rotation?.[1] || 0
+  const cos = Math.cos(a), sin = Math.sin(a)
+  return [entity.position[0] + p.x * cos + p.z * sin, entity.position[2] - p.x * sin + p.z * cos]
+}
 import { track } from '../../lib/analytics.js'
 
 // ── status → color map ────────────────────────────────────────────
@@ -25,36 +40,52 @@ const CATEGORY_COLOR = {
 }
 
 // ── PCB board ─────────────────────────────────────────────────────
-function PCBBoard() {
+// board size in board units, derived from the mm dimensions in the store
+function PCBBoard({ w = 8.5, d = 6.5 }) {
+  const cols = Math.max(2, Math.round(w))
+  const rows = Math.max(2, Math.round(d))
+  const hx = w / 2 - 0.7, hz = d / 2 - 0.7
   return (
     <group>
       {/* main board */}
       <mesh receiveShadow position={[0, -0.12, 0]}>
-        <boxGeometry args={[8.5, 0.12, 6.5]} />
+        <boxGeometry args={[w, 0.12, d]} />
         <meshStandardMaterial color="#1E3A1E" roughness={0.8} metalness={0.1} />
       </mesh>
       {/* board edge highlight */}
       <mesh position={[0, -0.06, 0]}>
-        <boxGeometry args={[8.52, 0.13, 6.52]} />
+        <boxGeometry args={[w + 0.02, 0.13, d + 0.02]} />
         <meshStandardMaterial color="#2A5020" roughness={0.9} metalness={0.0} transparent opacity={0.4} />
       </mesh>
-      {/* silkscreen grid dots */}
-      {Array.from({ length: 7 }, (_, i) =>
-        Array.from({ length: 5 }, (_, j) => (
-          <mesh key={`${i}-${j}`} position={[-3 + i * 1, -0.055, -2 + j * 1]}>
+      {/* silkscreen grid dots — fill to the current board size */}
+      {Array.from({ length: cols }, (_, i) =>
+        Array.from({ length: rows }, (_, j) => (
+          <mesh key={`${i}-${j}`} position={[-(cols - 1) / 2 + i, -0.055, -(rows - 1) / 2 + j]}>
             <cylinderGeometry args={[0.025, 0.025, 0.01, 6]} />
             <meshStandardMaterial color="#2A5020" roughness={1} />
           </mesh>
         ))
       )}
-      {/* mounting holes */}
-      {[[-3.8,-2.8],[3.8,-2.8],[-3.8,2.8],[3.8,2.8]].map(([x,z], i) => (
+      {/* mounting holes at the corners of the actual outline */}
+      {[[-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz]].map(([x, z], i) => (
         <mesh key={i} position={[x, -0.05, z]}>
           <cylinderGeometry args={[0.12, 0.12, 0.16, 12]} />
           <meshStandardMaterial color="#0A1A0A" roughness={1} />
         </mesh>
       ))}
     </group>
+  )
+}
+
+// flat ring marker under a component flagged by the DRC (amber/red)
+function DRCMarker({ position, size, severity }) {
+  const r = Math.max(size[0], size[2]) / 2 + 0.18
+  const color = severity === 'error' ? '#C04030' : '#C8831A'
+  return (
+    <mesh position={[position[0], 0.02, position[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[r, r + 0.09, 28]} />
+      <meshBasicMaterial color={color} transparent opacity={0.85} side={2} />
+    </mesh>
   )
 }
 
@@ -99,7 +130,7 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
       {/* invisible fat hit target — header pins are tiny */}
       <mesh
         visible={false}
-        onClick={(e) => { e.stopPropagation(); onPinClick?.(compId, d.id) }}
+        onClick={(e) => { e.stopPropagation(); onPinClick?.(compId, d.id, e.nativeEvent) }}
         onPointerDown={(e) => { if (onPinClick) e.stopPropagation() }}
         onPointerOver={(e) => { e.stopPropagation(); setHov(true); gl.domElement.style.cursor = 'crosshair' }}
         onPointerOut={() => { setHov(false); gl.domElement.style.cursor = 'auto' }}
@@ -135,8 +166,24 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
   )
 }
 
+// one button in the floating component toolbar (HTML, inside an <Html>)
+function ToolBtn({ children, title, onClick, danger, active }) {
+  return (
+    <button title={title} onClick={(e) => { e.stopPropagation(); onClick() }} style={{
+      width: 26, height: 26, borderRadius: 5, cursor: 'pointer', border: 'none',
+      background: active ? 'var(--btn-bg)' : 'transparent',
+      color: danger ? 'var(--err2)' : active ? 'var(--btn-fg)' : 'var(--ink2)',
+      fontSize: 15, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--paper3)' }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}>
+      {children}
+    </button>
+  )
+}
+
 // ── single component chip ─────────────────────────────────────────
-function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable = true, issues = [], onPinClick, pendingPin, connectedPins }) {
+function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable = true, issues = [], onPinClick, pendingPin, connectedPins, onRotate, onFlip, onDelete }) {
   const meshRef = useRef()
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -145,6 +192,8 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
   const dragOffset = useRef(new THREE.Vector3())
 
   const { def, position, status } = entity
+  const rotY = entity.rotation?.[1] || 0
+  const onBottom = entity.layer === 'bottom'
   const baseColor = CATEGORY_COLOR[def.category] || '#2A2A2A'
   // validation issues override the visual status so problems read inline
   const hasErr  = issues.some(i => i.severity === 'error')
@@ -212,7 +261,8 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
 
   return (
     <group
-      position={position}
+      position={[position[0], onBottom ? -0.42 : 0, position[2]]}
+      rotation={[0, rotY, 0]}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -236,8 +286,26 @@ function ComponentMesh({ id, entity, isSelected, onSelect, onDragEnd, draggable 
           metalness={0.55}
           emissive={isSelected ? '#1A3060' : '#000000'}
           emissiveIntensity={isSelected ? 0.3 : 0}
+          transparent={onBottom}
+          opacity={onBottom ? 0.5 : 1}
         />
       </mesh>
+
+      {/* floating edit toolbar — appears above the selected chip (edit
+          mode only), not buried in a sidebar */}
+      {isSelected && draggable && (
+        <Html position={[0, size[1] + 0.95, 0]} center distanceFactor={8} zIndexRange={[40, 0]}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 2, padding: 3, borderRadius: 7,
+            background: 'var(--paper)', border: '1px solid var(--ink2)', boxShadow: '0 4px 14px rgba(14,30,51,.22)',
+          }} onPointerDown={(e) => e.stopPropagation()}>
+            <ToolBtn title="Girar 90° anti-horário" onClick={() => onRotate(id, -1)}>⟲</ToolBtn>
+            <ToolBtn title="Girar 90° horário" onClick={() => onRotate(id, 1)}>⟳</ToolBtn>
+            <ToolBtn title={onBottom ? 'Mover para a face superior' : 'Mover para a face inferior (verso)'} onClick={() => onFlip(id)} active={onBottom}>⇅</ToolBtn>
+            <ToolBtn title="Remover componente" onClick={() => onDelete(id)} danger>✕</ToolBtn>
+          </div>
+        </Html>
+      )}
 
       {/* status LED */}
       <StatusLED position={[size[0]*0.38, size[1]*0.5+0.06, size[2]*0.38]} color={statusColor} scanning={isScanning} />
@@ -348,19 +416,25 @@ function TraceSegment({ a, b, color, width = 0.038, y = TRACE_Y, opacity = 1 }) 
 
 const TRACE_COPPER = '#C98E3F'
 
-function Trace({ from, to, issue, selected, onClick }) {
+function Trace({ from, to, via, issue, selected, onClick, underspec }) {
+  // underspec traces (chosen width < fab minimum) read amber + thinner
   const color = selected ? '#4A7DD4'
     : issue?.severity === 'error' ? '#C04030'
     : issue ? '#C8831A'
+    : underspec ? '#C8831A'
     : TRACE_COPPER
-  const pts = tracePoints(from, to)
+  const width = underspec && !issue && !selected ? 0.022 : 0.038
+  // a via waypoint routes the trace as two 45° doglegs through the bend
+  const pts = via
+    ? [...tracePoints(from, via), ...tracePoints(via, to).slice(1)]
+    : tracePoints(from, to)
   const segs = pts.slice(1).map((p, i) => [pts[i], p])
   const mid = pts[Math.floor(pts.length / 2)]
   return (
     <group onClick={onClick}>
       {segs.map(([a, b], i) => (
         <group key={i}>
-          <TraceSegment a={a} b={b} color={color} />
+          <TraceSegment a={a} b={b} color={color} width={width} />
           {/* invisible fat hit volume so the thin trace is clickable */}
           <mesh visible={false}
             position={[(a[0] + b[0]) / 2, TRACE_Y, (a[1] + b[1]) / 2]}
@@ -383,17 +457,53 @@ function Trace({ from, to, issue, selected, onClick }) {
   )
 }
 
+// Draggable bend handle for the selected trace — drag it across the board
+// to reroute (sets the wire's `via` waypoint). Mirrors the chip-drag
+// pattern: pointer capture + OrbitControls disabled for the drag.
+function TraceViaHandle({ point, onDrag }) {
+  const { gl, controls } = useThree()
+  const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -TRACE_Y))
+  const [drag, setDrag] = useState(false)
+  return (
+    <mesh
+      position={[point[0], TRACE_Y + 0.05, point[1]]}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        if (e.button !== 0) return
+        e.target.setPointerCapture(e.pointerId)
+        if (controls) controls.enabled = false
+        setDrag(true); gl.domElement.style.cursor = 'grabbing'
+      }}
+      onPointerMove={(e) => {
+        if (!drag) return
+        e.stopPropagation()
+        const hit = new THREE.Vector3()
+        if (e.ray.intersectPlane(plane.current, hit)) {
+          onDrag([Math.round(hit.x / 0.2) * 0.2, Math.round(hit.z / 0.2) * 0.2])
+        }
+      }}
+      onPointerUp={(e) => {
+        if (!drag) return
+        e.stopPropagation(); e.target.releasePointerCapture(e.pointerId)
+        if (controls) controls.enabled = true
+        setDrag(false); gl.domElement.style.cursor = 'auto'
+      }}
+      onPointerOver={(e) => { e.stopPropagation(); gl.domElement.style.cursor = 'grab' }}
+      onPointerOut={() => { if (!drag) gl.domElement.style.cursor = 'auto' }}
+    >
+      <sphereGeometry args={[0.12, 16, 16]} />
+      <meshStandardMaterial color="#4A7DD4" emissive="#2B5EA7" emissiveIntensity={0.5} />
+    </mesh>
+  )
+}
+
 // All traces + honest suggestions. A faint dashed line still hints the
 // suggested route for placed-but-unwired sensors (never solid — only
 // real wires render as copper).
-function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, selectedId }) {
-  const fps = {}
+function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, selectedId, underspec, onSetVia }) {
   const pinXZ = (end) => {
     const e = entities[end.comp]
-    if (!e) return null
-    fps[end.comp] = fps[end.comp] || footprint(end.comp, e.def)
-    const p = fps[end.comp].pins[end.pin]
-    return p ? [e.position[0] + p.x, e.position[2] + p.z] : null
+    return e ? pinWorldXZ(e, end.pin) : null
   }
 
   const mcu = entities['esp32']
@@ -402,9 +512,18 @@ function Traces3D({ entities, wires, wireIssues, selWire, onSelectWire, wiring, 
       {wires.map((w, i) => {
         const a = pinXZ(w.from), b = pinXZ(w.to)
         if (!a || !b) return null
+        const selected = selWire === i
         return (
-          <Trace key={i} from={a} to={b} issue={wireIssues[i]} selected={selWire === i}
-            onClick={(e) => { e.stopPropagation(); onSelectWire(selWire === i ? null : i) }} />
+          <group key={i}>
+            <Trace from={a} to={b} via={w.via} issue={wireIssues[i]} selected={selected} underspec={underspec}
+              onClick={(e) => { e.stopPropagation(); onSelectWire(selected ? null : i) }} />
+            {/* trace editing: drag the bend to reroute the selected trace */}
+            {selected && (
+              <TraceViaHandle
+                point={w.via || [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]}
+                onDrag={(p) => onSetVia(i, p)} />
+            )}
+          </group>
         )
       })}
       {/* suggested (not real) routes for unwired sensors */}
@@ -474,10 +593,19 @@ function IsoCamera() {
 export default function ForgeCanvas() {
   const {
     entities, selectedId, selectEntity, updatePosition, live, canvasMode,
-    wires, addWire, removeWire,
+    wires, addWire, removeWire, board,
+    rotateEntity, flipEntityLayer, removeEntity, setWireVia,
   } = useForge()
   const validation = live?.validation
   const routing = canvasMode === 'route'
+
+  // live DRC against the board outline + active fab rule
+  const drc = useMemo(
+    () => runDRC({ entities, board, rule: getFabRule(board.ruleId), sizeOf: drcSizeOf }),
+    [entities, board],
+  )
+  const boardW = board.widthMm * UNIT_PER_MM
+  const boardD = board.heightMm * UNIT_PER_MM
 
   // ── trace routing (route mode): click pin → click pin = real wire ─
   // Same semantics as the 2D schematic; the wire lands in the shared
@@ -485,7 +613,7 @@ export default function ForgeCanvas() {
   const [pendingPin, setPendingPin] = useState(null)
   const [selWire, setSelWire] = useState(null)
 
-  const onPinClick = useCallback((comp, pin) => {
+  const onPinClick = useCallback((comp, pin, nativeEvent) => {
     setSelWire(null)
     if (!pendingPin) {
       track('pin_select', { target: `${comp}.${pin}` })
@@ -493,7 +621,11 @@ export default function ForgeCanvas() {
     } else if (pendingPin.comp === comp && pendingPin.pin === pin) {
       setPendingPin(null)                       // same pin deselects
     } else {
-      addWire(pendingPin, { comp, pin })
+      // anchor any validation popover at the click position (the pin lives
+      // in WebGL, so use the cursor's screen coords)
+      const cx = nativeEvent?.clientX, cy = nativeEvent?.clientY
+      const anchor = cx != null ? { x: cx - 8, y: cy - 8, w: 16, h: 16 } : null
+      addWire(pendingPin, { comp, pin }, anchor)
       setPendingPin(null)
     }
   }, [addWire, pendingPin])
@@ -503,9 +635,9 @@ export default function ForgeCanvas() {
   // wires re-index after removal — drop stale selection
   useEffect(() => { if (selWire != null && selWire >= wires.length) setSelWire(null) }, [wires.length, selWire])
 
-  // Esc cancels the pending trace / deselects · Delete removes the trace
+  // Esc cancels the pending trace / deselects · Delete removes the selected
+  // trace (works in any mode, so you can edit traces while editing the board)
   useEffect(() => {
-    if (!routing) return
     const onKey = (e) => {
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
@@ -518,7 +650,16 @@ export default function ForgeCanvas() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [routing, selWire, removeWire])
+  }, [selWire, removeWire])
+
+  // right-click aborts an in-progress trace. Bound only while a trace is
+  // pending, so it never steals OrbitControls' right-drag pan otherwise.
+  useEffect(() => {
+    if (!routing || !pendingPin) return
+    const onCtx = (e) => { e.preventDefault(); setPendingPin(null) }
+    window.addEventListener('contextmenu', onCtx)
+    return () => window.removeEventListener('contextmenu', onCtx)
+  }, [routing, pendingPin])
 
   // per-trace validation issue (same wireIndex mapping as the 2D view)
   const wireIssues = useMemo(() => {
@@ -541,8 +682,7 @@ export default function ForgeCanvas() {
     if (!pendingPin) return null
     const e = entities[pendingPin.comp]
     if (!e) return null
-    const p = footprint(pendingPin.comp, e.def).pins[pendingPin.pin]
-    return p ? [e.position[0] + p.x, e.position[2] + p.z] : null
+    return pinWorldXZ(e, pendingPin.pin)
   }, [pendingPin, entities])
 
   return (
@@ -579,13 +719,20 @@ export default function ForgeCanvas() {
         infiniteGrid={false}
       />
 
-      <PCBBoard />
+      <PCBBoard w={boardW} d={boardD} />
       <Traces3D
         entities={entities} wires={wires} wireIssues={wireIssues}
         selWire={selWire} onSelectWire={setSelWire}
         wiring={live?.wiring} selectedId={selectedId}
+        underspec={drc.traceUnderspec} onSetVia={setWireVia}
       />
       {routing && pendingXZ && <RoutePreview from={pendingXZ} />}
+
+      {/* DRC markers: ring under each component flagged out-of-bounds or
+          overlapping (red = error, amber = clearance warning) */}
+      {Object.entries(entities).map(([id, e]) => drc.byComp[id] && (
+        <DRCMarker key={`drc-${id}`} position={e.position} size={footprint(id, e.def).size} severity={drc.byComp[id]} />
+      ))}
 
       {Object.entries(entities).map(([id, entity]) => (
         <ComponentMesh
@@ -600,6 +747,9 @@ export default function ForgeCanvas() {
           pendingPin={pendingPin}
           connectedPins={connectedPins}
           issues={issuesForComponent(validation, id)}
+          onRotate={rotateEntity}
+          onFlip={flipEntityLayer}
+          onDelete={removeEntity}
         />
       ))}
 

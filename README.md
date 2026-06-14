@@ -1,4 +1,4 @@
-# FORGE
+# GuiaSat
 
 > **Serial Test (real ESP32):** run `npm run server` in one terminal and `npm run dev` in another.
 > The flash server runs silently in the background — you only interact with the browser interface.
@@ -7,7 +7,7 @@
 
 🌐 **Live demo (GitHub Pages):** https://raiagues.github.io/forge/
 
-FORGE lets a CubeSat / high-altitude-balloon team pick a mission profile and
+GuiaSat lets a CubeSat / high-altitude-balloon team pick a mission profile and
 immediately get a synchronized digital twin: a 3D PCB populated with real
 components, live telemetry, a serial monitor, auto-generated firmware and a
 system architecture diagram — all driven from a single state store.

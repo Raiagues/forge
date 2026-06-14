@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FORGE — start the flash server + Vite dev server (both backgrounded) and
+# GuiaSat — start the flash server + Vite dev server (both backgrounded) and
 # open the browser. One command, no extra terminals. ./stop.sh stops both.
 set -euo pipefail
 
@@ -37,13 +37,13 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
     healthy=0   # stale node_modules/.vite dep cache
   fi
   if [ "$healthy" -eq 1 ]; then
-    bold "FORGE already running (pid $(cat "$PIDFILE"))."
+    bold "GuiaSat already running (pid $(cat "$PIDFILE"))."
     echo "  $URL"
     echo "  ./stop.sh to stop it."
     open_browser
     exit 0
   fi
-  bold "FORGE process exists but is unhealthy — restarting cleanly…"
+  bold "GuiaSat process exists but is unhealthy — restarting cleanly…"
   ./stop.sh >/dev/null 2>&1 || true
 fi
 
@@ -76,7 +76,7 @@ else
 fi
 
 # ── start the Vite dev server (frontend) ───────────────────────────
-bold "Starting FORGE dev server on port ${PORT}…"
+bold "Starting GuiaSat dev server on port ${PORT}…"
 if command -v setsid >/dev/null 2>&1; then
   setsid npm run dev -- --port "$PORT" >"$LOG" 2>&1 &
 else
@@ -89,7 +89,7 @@ printf 'Waiting for server'
 for _ in $(seq 1 40); do
   if curl -s -o /dev/null "http://localhost:${PORT}/"; then
     printf '\n'
-    bold "FORGE is running:"
+    bold "GuiaSat is running:"
     echo "  ➜  ${URL}"
     echo "  flash server: http://localhost:${SERVER_PORT}/  (POST /flash)"
     open_browser

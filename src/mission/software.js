@@ -37,7 +37,7 @@ export const SOFTWARE_MODULES = [
       const inc = []
       if (ctxHave(ctx, 'bmp280')) inc.push('#include "sensor_bmp280.h"')
       if (ctxHave(ctx, 'mpu6050')) inc.push('#include "sensor_mpu6050.h"')
-      return `// ${ctx.missionName || 'FORGE mission'} — gerado pelo FORGE
+      return `// ${ctx.missionName || 'GuiaSat mission'} — gerado pelo GuiaSat
 // camada: core — não modifique
 
 #include <Wire.h>
@@ -51,7 +51,7 @@ void setup() {
   Wire.begin(${ctxI2c(ctx).sda}, ${ctxI2c(ctx).scl});  // SDA, SCL — pinos da SUA fiação
   health_init();
 ${ctxHave(ctx, 'bmp280') ? '  bmp280_init();\n' : ''}${ctxHave(ctx, 'mpu6050') ? '  mpu6050_init();\n' : ''}  telemetry_init();
-  Serial.println("FORGE node ready");
+  Serial.println("GuiaSat node ready");
 }
 
 void loop() {

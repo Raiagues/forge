@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FORGE — stop the dev server + flash server started by ./start.sh
+# GuiaSat — stop the dev server + flash server started by ./start.sh
 set -uo pipefail
 
 cd "$(dirname "$0")"
@@ -38,13 +38,13 @@ free_port() { # port
   fi
 }
 
-kill_pidfile "$PIDFILE" "FORGE dev server"
+kill_pidfile "$PIDFILE" "GuiaSat dev server"
 kill_pidfile "$SRV_PIDFILE" "flash server"
 free_port "$PORT"
 free_port "$SERVER_PORT"
 
 if [ "$stopped" -eq 0 ]; then
-  bold "Nothing to stop — FORGE was not running."
+  bold "Nothing to stop — GuiaSat was not running."
 else
   echo "  ports ${PORT} and ${SERVER_PORT} are free."
 fi

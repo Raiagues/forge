@@ -195,7 +195,7 @@ function genMain({ defs, sensors, i2c, missionName }) {
   // OLED checkpoints: enabled when a sensor whose bring-up kit carries
   // the SSD1306 companion display is part of the mission hardware.
   const oled = sensors.some((id) => DRIVER_TEMPLATES[id].oledCompanion)
-  const bootName = (missionName || 'FORGE').replace(/["\\]/g, '')
+  const bootName = (missionName || 'GuiaSat').replace(/["\\]/g, '')
 
   const oledIncludes = oled ? `#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -249,7 +249,7 @@ ${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `    ${l}`).join('\
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
     display.setCursor(0, 0);
-    display.println("FORGE");
+    display.println("GuiaSat");
     display.println("${bootName}");
     display.display();
   }
@@ -259,7 +259,7 @@ ${DRIVER_TEMPLATES[id].displayLines('_sched_pkt').map((l) => `    ${l}`).join('\
     .map((id) => `  ${id}_init();${oled ? `\n  oled_status("${defs[id].label}", ${id}_ok);` : ''}`)
     .join('\n')
 
-  return `// ${missionName || 'missão FORGE'} — gerado pelo FORGE a partir do estado da missão
+  return `// ${missionName || 'missão GuiaSat'} — gerado pelo GuiaSat a partir do estado da missão
 // núcleo — regenerado quando o hardware ou a fiação mudam
 
 #include <Wire.h>

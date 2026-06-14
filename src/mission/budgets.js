@@ -11,7 +11,7 @@
 //
 // Limits:
 //  · mass / volume → official OBSat format table (frameworks.js). ✅
-//  · power         → a FORGE design GUIDELINE (no official OBSat number).⚠️
+//  · power         → a GuiaSat design GUIDELINE (no official OBSat number).⚠️
 //  · financial     → the user's own budget (optional).
 //
 // Pure: catalog (`defs`) injected; no store/UI imports.

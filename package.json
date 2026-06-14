@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "FORGE — mission development platform / digital twin for university satellite teams",
+  "description": "GuiaSat — mission development platform / digital twin for university satellite teams",
   "scripts": {
     "dev": "vite",
     "server": "node server/flash.js",
@@ -12,6 +12,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.84",
     "@react-three/drei": "10.7.7",
     "@react-three/fiber": "9.6.1",
     "cors": "2.8.5",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ──────────────────────────────────────────────────────────────────
-// FORGE legibility audit — systematic, not screen-by-screen.
+// GuiaSat legibility audit — systematic, not screen-by-screen.
 //
 //   node scripts/legibility_audit.mjs          → report only
 //   node scripts/legibility_audit.mjs --fix    → raise inline font sizes

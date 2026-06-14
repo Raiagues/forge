@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 
-# FORGE dev server runtime
+# GuiaSat dev server runtime
 .forge-dev.pid
 .forge-dev.log
 
@@ -30,3 +30,8 @@ dist-ssr
 # user-testing analytics output
 analytics/
 .forge-server.pid
+
+# secrets — never commit real keys (the AI tutor key stays server-side)
+.env
+.env.local
+.env.*.local

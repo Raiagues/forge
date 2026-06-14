@@ -14,7 +14,7 @@ import { mono, slab, CREAM, GOLD, PosterArt, primaryBtn, ghostBtn } from './post
 // Synthesis: deep navy field, cream + mission-patch gold/burnt-orange
 // accents, Zilla Slab display over Space Mono annotations, one big
 // poster graphic (planet + orbit + satellite) and generous negative
-// space. The user must know what FORGE is within five seconds.
+// space. The user must know what GuiaSat is within five seconds.
 //
 // The landing offers two genuine paths: the guided route opens the
 // Mission window (where the mission is DEFINED — the same window the
@@ -44,7 +44,7 @@ export default function Onboarding() {
             plataforma de desenvolvimento de missões
           </div>
           <h1 style={{ ...slab, fontSize: 66, fontWeight: 700, lineHeight: .98, color: CREAM, margin: '0 0 20px', letterSpacing: '-0.01em' }}>
-            FORGE
+            GuiaSat
           </h1>
           <p style={{ fontSize: 21, lineHeight: 1.5, color: CREAM, margin: '0 0 10px', maxWidth: 520 }}>
             Monte, valide, programe e opere o satélite da sua equipe — da escolha

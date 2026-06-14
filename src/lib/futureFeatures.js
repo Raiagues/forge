@@ -68,7 +68,7 @@ export const FUTURE_FEATURES = {
     title: 'LASC · Latin American Space Challenge',
     tech: 'competição · foguetes e CanSats',
     what: 'Estrutura de requisitos da LASC: massa, recuperação, telemetria de voo de foguete.',
-    why: 'Cada competição traz regras de validação próprias — o FORGE foi arquitetado para carregá-las como dados.',
+    why: 'Cada competição traz regras de validação próprias — o GuiaSat foi arquitetado para carregá-las como dados.',
     planned: [
       'Requisitos declarativos (mesmo formato do OBSAT)',
       'Perfis de voo de foguete na simulação',

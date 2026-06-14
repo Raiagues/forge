@@ -5,8 +5,8 @@ export default function Topbar() {
 
   const sectionLabels = {
     mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
-    debug: 'Debug', telemetry: 'Telemetry',
-    serialtest: 'Firmware',
+    telemetry: 'Telemetry',
+    serialtest: 'Firmware', hwtest: 'Testing',
     analytics: 'Analytics · dev',
   }
 

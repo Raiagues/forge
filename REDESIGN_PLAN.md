@@ -1,4 +1,4 @@
-# FORGE — Redesign Plan
+# GuiaSat — Redesign Plan
 
 > Written before any implementation. The goal of this redesign is **not** to
 > bolt features onto the current structure. It is to reshape the core
@@ -15,7 +15,7 @@
 ## Part A — Understanding what exists today
 
 ### A.1 The architectural spine
-FORGE is a digital twin for university CubeSat / high-altitude-balloon teams.
+GuiaSat is a digital twin for university CubeSat / high-altitude-balloon teams.
 The whole app obeys one rule, and the redesign must keep it:
 
 > **The Zustand store (`src/store/useForge.js`) is the single source of truth.

@@ -1,4 +1,4 @@
-// FORGE flash + serial server for the Serial Test page.
+// GuiaSat flash + serial server for the Serial Test page.
 //
 // The backend owns the ESP32 serial port (via serial_bridge.py) so the browser
 // never touches Web Serial — no popup, hardcoded port, persistent connection.

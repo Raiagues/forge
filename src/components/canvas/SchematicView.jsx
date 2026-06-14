@@ -73,11 +73,39 @@ function layout(entityIds) {
   return { blocks, pinPos, width: 840, height }
 }
 
-function wirePath(a, b) {
-  const dx = Math.max(46, Math.abs(b.x - a.x) * 0.4)
-  const c1x = a.side === 'right' ? a.x + dx : a.x - dx
-  const c2x = b.side === 'right' ? b.x + dx : b.x - dx
-  return `M${a.x},${a.y} C${c1x},${a.y} ${c2x},${b.y} ${b.x},${b.y}`
+// ── orthogonal routing ─────────────────────────────────────────────
+// Schematic auto-layout choice: a lightweight layered (Sugiyama-style)
+// arrangement — ESP32 is the source layer on the left, sensors the next
+// layer on the right — wired with ORTHOGONAL traces (horizontal/vertical
+// only) routed through a dedicated vertical CHANNEL per wire in the gap
+// between the columns. Per-wire channels keep vertical runs from
+// overlapping each other; horizontal runs leave on each pin's own row, so
+// the result reads like a real schematic instead of a tangle of curves.
+// (Force-directed was rejected: it produces diagonal, non-deterministic
+// layouts unsuited to circuit reading; full Sugiyama is overkill for a
+// two-layer MCU-and-peripherals graph.)
+const ESP_RIGHT_X = 96 + ESP_W   // ESP right edge (pins facing the sensors)
+const SENSOR_X = 540             // sensor left edge
+
+// route a → b through an explicit vertical channel x (cx)
+function orthPath(a, b, cx) {
+  const c = cx ?? (a.x + b.x) / 2
+  return `M ${a.x} ${a.y} L ${c} ${a.y} L ${c} ${b.y} L ${b.x} ${b.y}`
+}
+
+// assign each wire its own channel x in the gap between the columns,
+// ordered by mid-height so adjacent wires nest instead of crossing
+function assignChannels(wires, pinPos) {
+  const lo = ESP_RIGHT_X + 10, hi = SENSOR_X - 10
+  const rows = wires.map((w, i) => {
+    const a = pinPos[`${w.from.comp}.${w.from.pin}`]
+    const b = pinPos[`${w.to.comp}.${w.to.pin}`]
+    return { i, mid: a && b ? (a.y + b.y) / 2 : 0 }
+  }).sort((p, q) => p.mid - q.mid)
+  const step = (hi - lo) / (rows.length + 1)
+  const cx = {}
+  rows.forEach((r, k) => { cx[r.i] = lo + (k + 1) * step })
+  return cx
 }
 
 export default function SchematicView() {
@@ -88,9 +116,11 @@ export default function SchematicView() {
   const entityIds = Object.keys(entities)
   const { blocks, pinPos, width, height } = useMemo(() => layout(entityIds), [entityIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const channels = useMemo(() => assignChannels(wires, pinPos), [wires, pinPos])
   const [pending, setPending] = useState(null)     // selected origin pin { comp, pin }
   const [selWire, setSelWire] = useState(null)     // selected wire index
   const [mouse, setMouse] = useState(null)
+  const [hoverPin, setHoverPin] = useState(null)   // pin under the cursor (connectable affordance)
   const svgRef = useRef()
 
   const validation = live?.validation
@@ -126,7 +156,7 @@ export default function SchematicView() {
     return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }
   }
 
-  const clickPin = (comp, pin) => {
+  const clickPin = (comp, pin, anchorEl) => {
     setSelWire(null)
     if (!pending) {
       track('pin_select', { target: `${comp}.${pin}` })
@@ -134,7 +164,10 @@ export default function SchematicView() {
     } else if (pending.comp === comp && pending.pin === pin) {
       setPending(null); setMouse(null)   // clicking the same pin deselects it
     } else {
-      addWire(pending, { comp, pin })
+      // anchor any validation popover to the destination pin
+      const r = anchorEl?.getBoundingClientRect?.()
+      const anchor = r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null
+      addWire(pending, { comp, pin }, anchor)
       setPending(null); setMouse(null)
     }
   }
@@ -153,7 +186,7 @@ export default function SchematicView() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', flexShrink: 0 }}>
         <span style={{ ...mono, fontSize: 12, color: 'var(--ink3)', letterSpacing: '.06em' }}>
           {pending
-            ? `${pending.comp}.${pending.pin} selecionado → clique no pino de destino · Esc cancela`
+            ? `${pending.comp}.${pending.pin} selecionado → clique no pino de destino · Esc ou botão direito cancela`
             : selWire != null
               ? 'fio selecionado · Delete remove · Esc desmarca'
               : 'clique em um pino para iniciar um fio · clique em um fio para selecioná-lo'}
@@ -179,6 +212,7 @@ export default function SchematicView() {
           style={{ width: '100%', height: '100%', display: 'block' }}
           onMouseMove={(e) => { if (pending) setMouse(toSvg(e)) }}
           onClick={() => { setSelWire(null); if (selectedId) selectEntity(null) }}
+          onContextMenu={(e) => { if (pending) { e.preventDefault(); setPending(null); setMouse(null) } }}
         >
           {/* wires */}
           {wires.map((w, i) => {
@@ -191,16 +225,17 @@ export default function SchematicView() {
               : issue?.severity === 'error' ? WIRE_ERR
               : issue ? WIRE_WARN
               : WIRE_OK
-            const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+            const cx = channels[i]
+            const mx = cx ?? (a.x + b.x) / 2, my = (a.y + b.y) / 2
             const labelW = issue ? Math.min(issue.title.length * 5.4 + 14, 300) : 0
             return (
               <g key={i} style={{ cursor: 'pointer' }}
                 onClick={(e) => { e.stopPropagation(); setPending(null); setSelWire(isSel ? null : i) }}>
-                <path d={wirePath(a, b)} fill="none" stroke={color}
+                <path d={orthPath(a, b, cx)} fill="none" stroke={color}
                   strokeWidth={isSel ? 2.6 : issue?.severity === 'error' ? 2.4 : 1.8}
-                  strokeDasharray={issue ? '6 4' : 'none'} opacity={0.9} />
+                  strokeLinejoin="round" strokeDasharray={issue ? '6 4' : 'none'} opacity={0.9} />
                 {/* invisible fat hit area */}
-                <path d={wirePath(a, b)} fill="none" stroke="transparent" strokeWidth={12} />
+                <path d={orthPath(a, b, cx)} fill="none" stroke="transparent" strokeWidth={12} />
                 {/* the violated rule, written on the wire itself */}
                 {issue && (
                   <g transform={`translate(${mx},${my - 8})`} style={{ pointerEvents: 'none' }}>
@@ -219,7 +254,7 @@ export default function SchematicView() {
           {/* pending preview wire */}
           {pending && mouse && pinPos[`${pending.comp}.${pending.pin}`] && (
             <path
-              d={wirePath(pinPos[`${pending.comp}.${pending.pin}`], { ...mouse, side: 'left' })}
+              d={orthPath(pinPos[`${pending.comp}.${pending.pin}`], { ...mouse, side: 'left' })}
               fill="none" stroke={WIRE_SEL} strokeWidth={1.6} strokeDasharray="4 3" opacity={0.6}
             />
           )}
@@ -255,11 +290,15 @@ export default function SchematicView() {
                   const labelX = pos.side === 'right' ? pos.x - 10 : pos.x + 10
                   // input-only pins: gray, no output dot — visivelmente sem driver de saída
                   const inOnly = !!p.inputOnly
+                  const isHover = hoverPin === `${id}.${p.id}`
                   return (
                     <g key={p.id} style={{ cursor: 'crosshair' }}
-                      onClick={(e) => { e.stopPropagation(); clickPin(id, p.id) }}>
+                      onClick={(e) => { e.stopPropagation(); clickPin(id, p.id, e.currentTarget) }}
+                      onMouseEnter={() => setHoverPin(`${id}.${p.id}`)}
+                      onMouseLeave={() => setHoverPin(h => (h === `${id}.${p.id}` ? null : h))}>
                       {isPending && <circle cx={pos.x} cy={pos.y} r={9} fill="none" stroke={WIRE_SEL} strokeWidth={1.4} opacity={0.7} />}
-                      <circle cx={pos.x} cy={pos.y} r={5.5}
+                      {isHover && !isPending && <circle cx={pos.x} cy={pos.y} r={8.5} fill="none" stroke={WIRE_SEL} strokeWidth={1.2} opacity={0.45} />}
+                      <circle cx={pos.x} cy={pos.y} r={isHover && !isPending ? 6.5 : 5.5}
                         fill={isPending ? WIRE_SEL : inOnly ? 'var(--paper4)' : connected ? (PIN_ROLE_COLOR[p.role] || '#5A6B7A') : 'var(--paper3)'}
                         stroke={isPending ? '#2B5EA7' : inOnly ? 'var(--ink4)' : PIN_ROLE_COLOR[p.role] || 'var(--rule)'}
                         strokeWidth={1.4} strokeDasharray={inOnly ? '2 2' : 'none'} />

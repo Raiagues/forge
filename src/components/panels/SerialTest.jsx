@@ -7,7 +7,7 @@ import { ADDR_STRAPS } from '../../mission/wiring.js'
 import { track } from '../../lib/analytics.js'
 
 // ──────────────────────────────────────────────────────────────────
-// Serial Test — a hardware bring-up console that lives inside the FORGE
+// Serial Test — a hardware bring-up console that lives inside the GuiaSat
 // workstation language (paper cards, soft navy panels, mono labels, the
 // SerialPanel segmented-button idiom). Serial runs through the backend
 // (server/flash.js + serial_bridge.py): hardcoded port, no browser popup,
@@ -513,12 +513,18 @@ export default function SerialTest() {
       failed: validateFailed,
       failures: findings.length ? findings : (validateFailed ? [{ what: 'Sensor não respondeu', fix: 'Verifique alimentação e conexão física' }] : []),
       summary: reading ? `Sensores validados · ${reading}` : 'Sensores validados' },
-    // final step IS the handoff: once the board is up, fly the mission.
-    { id: 'operate', n: 5, title: 'Operar na estação terrestre',
-      hint: 'Bring-up concluído. Assuma a estação terrestre para acompanhar a missão.',
-      btn: 'Ir para a estação →',
-      action: () => { track('handoff_to_telemetry', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('telemetry') },
-      busy: false, done: false, summary: 'Operando na estação terrestre' },
+    // final step IS the handoff: once the board is up, the user picks the
+    // next campaign — validate subsystems (AIT testing) OR fly the mission
+    // (ground station). Two EQUAL forward options, never one primary.
+    { id: 'operate', n: 5, title: 'Próximo passo',
+      hint: 'Bring-up concluído. Valide os subsistemas na bancada de testes ou assuma a estação terrestre.',
+      fork: [
+        { label: 'Bancada de testes →', section: 'hwtest',
+          action: () => { track('handoff_to_testing', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('hwtest') } },
+        { label: 'Estação terrestre →', section: 'telemetry',
+          action: () => { track('handoff_to_telemetry', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('telemetry') } },
+      ],
+      busy: false, done: false, summary: 'Bring-up concluído' },
   ]
 
   // overall bring-up status shown at the top of the diagnostics panel
@@ -663,7 +669,7 @@ export default function SerialTest() {
   )
 }
 
-// ── presentational pieces (FORGE card / row idiom) ───────────────────
+// ── presentational pieces (GuiaSat card / row idiom) ───────────────────
 
 // Guided bring-up flow: one prominent current step with a single action;
 // completed steps collapse to clickable green one-liners (re-expand to
@@ -704,7 +710,18 @@ function GuidedSteps({ steps, expanded, onToggle }) {
               Passo {s.n} de {steps.length}
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>{s.title}</div>
-            <div style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.failed ? 8 : 0 }}>{s.hint}</div>
+            <div style={{ fontSize: 13.5, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: s.btn || s.fork || s.failed ? 8 : 0 }}>{s.hint}</div>
+            {s.fork && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {s.fork.map((opt) => (
+                  <button key={opt.section} onClick={opt.action} style={{
+                    flex: 1, padding: '8px 10px', borderRadius: 5, cursor: 'pointer',
+                    border: '1px solid var(--acc)', background: 'var(--paper)', color: 'var(--ink)',
+                    fontSize: 13.5, fontWeight: 500, fontFamily: "'Space Grotesk', sans-serif",
+                  }}>{opt.label}</button>
+                ))}
+              </div>
+            )}
             {s.failed && (s.failures || []).map((f, fi) => (
               <div key={fi} style={{ ...mono9, lineHeight: 1.55, marginBottom: 7, padding: '5px 8px', borderRadius: 'var(--r-sm)', background: 'rgba(184,75,44,.06)' }}>
                 <div style={{ color: 'var(--err2)' }}>{f.what}</div>

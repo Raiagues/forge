@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORGE serial bridge — owns the ESP32 serial port so the browser never has to.
+# GuiaSat serial bridge — owns the ESP32 serial port so the browser never has to.
 # The Node flash server spawns this; it streams every serial line to stdout and
 # writes anything it receives on stdin to the board. One port, hardcoded by the
 # caller. No abstractions — just bytes in, bytes out.
