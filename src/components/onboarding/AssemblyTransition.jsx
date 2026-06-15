@@ -46,24 +46,28 @@ function SatelliteExterior() {
   )
 }
 
-// Interior: the PCB the camera lands on (becomes the Hardware view).
+// Interior: the camera dives THROUGH the satellite shell into its bays.
+// Kept in the SAME flat technical-illustration language as the mission
+// satellite (cream linework + gold accents) — never a PCB render, so the
+// transition stays continuous with the mission flow aesthetic (Part 2).
 function SatelliteInterior() {
   return (
-    <g>
-      <rect x="20" y="30" width="160" height="140" rx="4" fill="#1E6B49" stroke="#0f3d2a" strokeWidth="2" />
-      {/* silkscreen grid dots */}
-      {Array.from({ length: 40 }, (_, i) => (
-        <circle key={i} cx={30 + (i % 8) * 20} cy={42 + Math.floor(i / 8) * 26} r="1.1" fill="#3fae7d" opacity=".5" />
-      ))}
-      {/* MCU + two sensor chips */}
-      <rect x="78" y="84" width="44" height="34" rx="2" fill="#2B3F7A" stroke="#16223f" strokeWidth="1.5" />
-      <rect x="40" y="120" width="26" height="20" rx="2" fill="#1E3A28" stroke="#0f1d14" strokeWidth="1.2" />
-      <rect x="134" y="120" width="26" height="20" rx="2" fill="#2A2014" stroke="#140f08" strokeWidth="1.2" />
-      {/* copper traces */}
-      <g stroke="#C98A3A" strokeWidth="1.6" fill="none" opacity=".85">
-        <path d="M66 130 L78 110" />
-        <path d="M134 130 L122 110" />
-      </g>
+    <g stroke="currentColor" fill="none">
+      {/* inner shell of the bus */}
+      <rect x="28" y="18" width="144" height="164" strokeWidth="1.8" fill="currentColor" fillOpacity="0.05" />
+      <line x1="100" y1="18" x2="100" y2="182" strokeOpacity=".22" strokeWidth="1" strokeDasharray="3 4" />
+      {/* stacked module bays (OBC · sensores · carga útil) as flat line-art */}
+      {[0, 1, 2].map(i => {
+        const y = 36 + i * 48
+        return (
+          <g key={i}>
+            <rect x="44" y={y} width="112" height="36" strokeWidth="1.4" fill="currentColor" fillOpacity="0.04" />
+            <circle cx="56" cy={y + 18} r="3" style={gold} stroke="none" />
+            <line x1="70" y1={y + 12} x2="148" y2={y + 12} strokeOpacity=".4" strokeWidth="1" />
+            <line x1="70" y1={y + 24} x2="132" y2={y + 24} strokeOpacity=".28" strokeWidth="1" />
+          </g>
+        )
+      })}
     </g>
   )
 }
@@ -101,6 +105,7 @@ export default function AssemblyTransition() {
     transition: 'transform 1.1s cubic-bezier(.5,0,.2,1), opacity .9s ease',
     transform: phase === 'zoom' ? 'scale(1)' : 'scale(.4)',
     opacity: phase === 'zoom' ? 1 : 0,
+    color: CREAM,
   }
 
   return (
