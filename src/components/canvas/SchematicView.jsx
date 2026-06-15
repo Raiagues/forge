@@ -23,6 +23,14 @@ import { track } from '../../lib/analytics.js'
 
 const mono = { fontFamily: "'Space Mono', monospace" }
 
+// friendly net names for the wire edit panel (Part 5)
+const NET_LABEL = {
+  power3v3: 'Energia 3V3', vcc: 'Energia (VCC)', vin: 'Energia (VIN)', en: 'Enable',
+  gnd: 'Terra (GND)', sda: 'I²C · SDA', scl: 'I²C · SCL',
+  uart_tx: 'UART · TX', uart_rx: 'UART · RX',
+  csb: 'SPI', sdo: 'SPI', sck: 'SPI', mosi: 'SPI', miso: 'SPI', cs: 'SPI', gpio: 'GPIO',
+}
+
 // Pin/wire colours are themed via the central canvas palette
 // (src/lib/canvasTheme.js): power=red · ground · SDA=blue · SCL=amber ·
 // TX=green · RX=orange · SPI=violet · GPIO=grey, each with light + dark
@@ -78,8 +86,10 @@ function layout(entityIds) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
-// wire path for a given style between two points
-function wirePath(a, b, style) {
+// wire path for a given style between two points. When a `via` bend is set
+// (user-dragged vertex, Part 5) the wire routes as two segments through it.
+function wirePath(a, b, style, via) {
+  if (via) return `M ${a.x} ${a.y} L ${via.x} ${via.y} L ${b.x} ${b.y}`
   if (style === 'straight') return `M ${a.x} ${a.y} L ${b.x} ${b.y}`
   if (style === 'curved') {
     const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5)
@@ -91,7 +101,7 @@ function wirePath(a, b, style) {
 
 export default function SchematicView() {
   const {
-    entities, wires, addWire, removeWire, clearAllWires, autoWire,
+    entities, wires, addWire, removeWire, clearAllWires, autoWire, setWireVia,
     selectEntity, selectedId, live, theme,
   } = useForge()
   // themed net/wire palette (Part 1) — light + dark legibility
@@ -104,6 +114,7 @@ export default function SchematicView() {
 
   const [pending, setPending] = useState(null)     // selected origin pin { comp, pin }
   const [selWire, setSelWire] = useState(null)     // selected wire index
+  const [editWire, setEditWire] = useState(null)   // wire index with edit panel open
   const [mouse, setMouse] = useState(null)         // pending-wire cursor (content coords)
   const [hoverPin, setHoverPin] = useState(null)
   const [drag, setDrag] = useState({})             // id → { dx, dy } position offset
@@ -160,9 +171,9 @@ export default function SchematicView() {
       const tag = e.target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (e.key === 'Escape') {
-        setPending(null); setMouse(null); setSelWire(null); setCtxMenu(null)
+        setPending(null); setMouse(null); setSelWire(null); setEditWire(null); setCtxMenu(null)
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selWire != null) {
-        e.preventDefault(); removeWire(selWire); setSelWire(null)
+        e.preventDefault(); removeWire(selWire); setSelWire(null); setEditWire(null)
       } else if ((e.key === 'r' || e.key === 'R') && selectedId) {
         rotateSelected()
       }
@@ -171,7 +182,10 @@ export default function SchematicView() {
     return () => window.removeEventListener('keydown', onKey)
   }, [selWire, removeWire, selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (selWire != null && selWire >= wires.length) setSelWire(null) }, [wires.length, selWire])
+  useEffect(() => {
+    if (selWire != null && selWire >= wires.length) setSelWire(null)
+    if (editWire != null && editWire >= wires.length) setEditWire(null)
+  }, [wires.length, selWire, editWire])
 
   // client coords → content coords (undo viewBox fit AND the pan/zoom g)
   const toContent = (clientX, clientY) => {
@@ -211,7 +225,10 @@ export default function SchematicView() {
       const dxC = (e.clientX - a.x0) * sx / view.scale
       const dyC = (e.clientY - a.y0) * sy / view.scale
       if (Math.abs(e.clientX - a.x0) + Math.abs(e.clientY - a.y0) > 3) a.moved = true
-      if (a.kind === 'comp') {
+      if (a.kind === 'wirevia') {
+        const snap = (v) => Math.round(v / 4) * 4   // grid snap (Part 5)
+        setWireVia(a.idx, { x: snap(a.base.x + dxC), y: snap(a.base.y + dyC) })
+      } else if (a.kind === 'comp') {
         setDrag(d => ({ ...d, [a.id]: { dx: a.base.dx + dxC, dy: a.base.dy + dyC } }))
       } else {
         setView(v => ({ ...v, tx: a.tx0 + (e.clientX - a.x0) * sx, ty: a.ty0 + (e.clientY - a.y0) * sy }))
@@ -232,6 +249,13 @@ export default function SchematicView() {
     e.stopPropagation()
     setCtxMenu(null)
     action.current = { kind: 'comp', id, x0: e.clientX, y0: e.clientY, moved: false, base: drag[id] || { dx: 0, dy: 0 } }
+  }
+  // drag a wire's bend vertex (Part 5); `base` is the current via or the
+  // wire midpoint when no bend exists yet
+  const startViaDrag = (idx, base, e) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    action.current = { kind: 'wirevia', idx, x0: e.clientX, y0: e.clientY, moved: false, base }
   }
   const startPan = (e) => {
     if (e.button !== 0) return
@@ -333,15 +357,31 @@ export default function SchematicView() {
                 : issue?.severity === 'error' ? WIRE_ERR
                 : issue ? WIRE_WARN
                 : wireColor(w)
-              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+              const via = w.via
+              const mx = via ? via.x : (a.x + b.x) / 2, my = via ? via.y : (a.y + b.y) / 2
               const labelW = issue ? Math.min(issue.title.length * 5.4 + 14, 300) : 0
               return (
                 <g key={i} style={{ cursor: 'pointer', opacity: faded ? 0.15 : 1, pointerEvents: faded ? 'none' : 'auto' }}
-                  onClick={(e) => { e.stopPropagation(); setPending(null); setSelWire(isSel ? null : i) }}>
-                  <path d={wirePath(a, b, wireStyle)} fill="none" stroke={color}
+                  onClick={(e) => { e.stopPropagation(); setPending(null); setSelWire(isSel ? null : i) }}
+                  onDoubleClick={(e) => { e.stopPropagation(); setSelWire(i); setEditWire(i) }}>
+                  <path d={wirePath(a, b, wireStyle, via)} fill="none" stroke={color}
                     strokeWidth={isSel ? 2.6 : issue?.severity === 'error' ? 2.4 : 2}
                     strokeLinejoin="round" strokeDasharray={issue ? '6 4' : 'none'} opacity={0.92} />
-                  <path d={wirePath(a, b, wireStyle)} fill="none" stroke="transparent" strokeWidth={12} />
+                  <path d={wirePath(a, b, wireStyle, via)} fill="none" stroke="transparent" strokeWidth={12} />
+                  {/* editing handles when selected: fixed pin endpoints + the
+                      draggable bend vertex (Part 5) */}
+                  {isSel && (
+                    <g>
+                      <circle cx={a.x} cy={a.y} r={3.4} fill="var(--paper)" stroke={WIRE_SEL} strokeWidth={1.6} />
+                      <circle cx={b.x} cy={b.y} r={3.4} fill="var(--paper)" stroke={WIRE_SEL} strokeWidth={1.6} />
+                      <circle cx={mx} cy={my} r={5} fill={WIRE_SEL} stroke="var(--paper)" strokeWidth={1.6}
+                        style={{ cursor: 'grab' }}
+                        onMouseDown={(e) => startViaDrag(i, via || { x: mx, y: my }, e)}
+                        onDoubleClick={(e) => { e.stopPropagation(); setWireVia(i, null) }}>
+                        <title>arraste para dobrar o fio · duplo-clique endireita</title>
+                      </circle>
+                    </g>
+                  )}
                   {issue && (
                     <g transform={`translate(${mx},${my - 8})`} style={{ pointerEvents: 'none' }}>
                       <rect x={-labelW / 2} y={-9} width={labelW} height={15} rx={3}
@@ -446,6 +486,35 @@ export default function SchematicView() {
             <button onClick={() => hideComp(ctxMenu.id)} style={ctxItem()}>esconder componente</button>
           </div>
         )}
+
+        {/* wire edit panel — double-click a wire (Part 5): net + pins + edit */}
+        {editWire != null && wires[editWire] && (() => {
+          const w = wires[editWire]
+          const ra = pinRole(w.from), rb = pinRole(w.to)
+          const best = ROLE_PRIORITY.find(r => ra === r || rb === r) || ra || rb || 'gpio'
+          const nameOf = (c) => entities[c]?.def?.friendly || entities[c]?.def?.label || c
+          return (
+            <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 6, minWidth: 240,
+              background: 'var(--paper)', border: '1px solid var(--rule)', borderRadius: 8, boxShadow: '0 6px 18px rgba(14,30,51,.18)', padding: '10px 12px' }}
+              onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ width: 11, height: 11, borderRadius: '50%', background: roleColor(best), flexShrink: 0 }} />
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{NET_LABEL[best] || best}</span>
+                <span style={{ flex: 1 }} />
+                <button onClick={() => setEditWire(null)} title="fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink4)', fontSize: 15, lineHeight: 1 }}>×</button>
+              </div>
+              <div style={{ ...mono, fontSize: 12, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 9 }}>
+                <div>{nameOf(w.from.comp)} · <span style={{ color: 'var(--ink2)' }}>{w.from.pin}</span></div>
+                <div style={{ color: 'var(--ink4)' }}>↕</div>
+                <div>{nameOf(w.to.comp)} · <span style={{ color: 'var(--ink2)' }}>{w.to.pin}</span></div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setWireVia(editWire, null)} disabled={!w.via} style={{ ...toolBtn(), opacity: w.via ? 1 : 0.5 }}>endireitar</button>
+                <button onClick={() => { removeWire(editWire); setEditWire(null); setSelWire(null) }} style={{ ...toolBtn(), color: 'var(--err2)' }}>remover fio</button>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* live wiring feedback — explains every problem textually */}
