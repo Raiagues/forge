@@ -2,6 +2,7 @@ import { useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import {
   getFramework, resolveObjective, SOURCE_LABEL, effectiveProps, budgetDelta, getObsatFormat,
+  OBJECTIVE_CATEGORIES_BY_ID,
 } from '../../mission/index.js'
 import HardwareViews, { BigViewToggle } from '../canvas/HardwareViews'
 import CatGlyph from '../ui/catGlyphs'
@@ -47,6 +48,24 @@ function ScopedMission() {
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }}>{formatLabel}</span>
       </div>
+      {/* mission → hardware bridge (UX audit §7): make explicit WHY this
+          hardware appeared, tying each objective to the parts it implies */}
+      {(missionPlan.objectiveCategories || []).length > 0 && (
+        <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--rule)', background: 'var(--paper)' }}>
+          <div style={{ ...mono, fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>da sua missão</div>
+          {(missionPlan.objectiveCategories || []).map(cid => {
+            const c = OBJECTIVE_CATEGORIES_BY_ID[cid]
+            const part = PAYLOAD_PART[c?.payload]
+            return (
+              <div key={cid} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink3)', lineHeight: 1.7 }}>
+                <span style={{ color: 'var(--ink2)' }}>{c?.label || cid}</span>
+                <span style={{ color: 'var(--ink4)' }}>→</span>
+                <span style={{ ...mono, fontSize: 11, color: part ? 'var(--acc)' : 'var(--ink4)' }}>{part || 'em breve'}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
       <label style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)' }}>orçamento (R$)
         <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="opcional"
           style={{ width: '100%', marginTop: 4, padding: '6px 9px', borderRadius: 'var(--r-md)', border: '1px solid var(--rule)', background: 'var(--paper)', fontSize: 13.5, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }} />
@@ -54,6 +73,8 @@ function ScopedMission() {
     </div>
   )
 }
+// objective payload → the supported part it maps to (mission→hardware bridge)
+const PAYLOAD_PART = { baro: 'BMP280', imu: 'MPU6050' }
 
 // ── component manifest (add/remove · the pre-populated list) ────────
 const CAT_LABELS = { mcu: 'Processamento', sensor: 'Sensores', comm: 'Comunicação', storage: 'Armazenamento', power: 'Energia' }

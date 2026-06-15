@@ -20,6 +20,9 @@ function Check() {
 }
 
 const SCHED_COLOR = { late: 'var(--err2)', ontrack: 'var(--acc)', ahead: 'var(--ok2)', done: 'var(--ok2)', future: 'var(--rule)' }
+// which phase a validation issue belongs to, so errors surface early on
+// the pipeline node instead of only inline on the canvas (UX audit §7)
+const PHASE_OF_SOURCE = { objective: 'mission', budget: 'mission', competition: 'mission', framework: 'mission', wiring: 'hardware', dependency: 'hardware', communication: 'hardware', pins: 'hardware' }
 
 // compact planned-duration bar with a "today" marker (Prompt B Part 5)
 function MiniTimeline({ range, maxEnd, today, color, onClick }) {
@@ -40,6 +43,11 @@ export default function PipelineBar() {
   const plan = resolveSchedule(store.schedule)
   const today = todayOffset(store.schedule?.startDate)
   const maxEnd = Math.max(...PHASES.map(p => plan[p.id][1]), today + 1)
+  const errBy = {}
+  ;(store.live?.validation?.issues || []).forEach(it => {
+    if (it.severity !== 'error') return
+    const ph = PHASE_OF_SOURCE[it.source]; if (ph) errBy[ph] = (errBy[ph] || 0) + 1
+  })
 
   const click = (p, anchorEl) => {
     if (status[p.id].locked) {
@@ -67,11 +75,14 @@ export default function PipelineBar() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
               <button onClick={(e) => click(p, e.currentTarget)} title={p.label}
                 style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '2px 8px', border: 'none', background: 'none', cursor: st.locked ? 'default' : 'pointer' }}>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: fill, border: `1.5px solid ${ring}`, color: st.done || st.current ? '#fff' : st.locked ? 'var(--ink4)' : 'var(--ink3)',
+                <span style={{ position: 'relative', width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: fill, border: `1.5px solid ${errBy[p.id] ? 'var(--err2)' : ring}`, color: st.done || st.current ? '#fff' : st.locked ? 'var(--ink4)' : 'var(--ink3)',
                   ...mono, fontSize: 10, fontWeight: 700,
                   boxShadow: st.current ? '0 0 0 3px rgba(158,74,44,.16)' : 'none' }}>
                   {st.done ? <Check /> : i + 1}
+                  {errBy[p.id] > 0 && (
+                    <span title={`${errBy[p.id]} erro(s) nesta fase`} style={{ position: 'absolute', top: -6, right: -6, minWidth: 13, height: 13, padding: '0 3px', borderRadius: 7, background: 'var(--err2)', color: '#fff', ...mono, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--paper3)' }}>{errBy[p.id]}</span>
+                  )}
                 </span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: st.current ? 700 : 500, color: txt, whiteSpace: 'nowrap' }}>{p.label}</span>
                 {st.needsUpdate && <span title="atualização necessária" style={{ ...mono, fontSize: 11, color: 'var(--warn2)' }}>⟳</span>}
