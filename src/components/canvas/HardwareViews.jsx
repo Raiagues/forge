@@ -4,6 +4,7 @@ import ForgeCanvas from './ForgeCanvas'
 import SchematicView from './SchematicView'
 import BreadboardView from './BreadboardView'
 import { runDRC, optimizeLayout, getFabRule, FAB_RULES, computeTips } from '../../mission/index.js'
+import { routeTraces, routeMetrics } from '../../mission/autorouter.js'
 import { footprint } from './pinLayout.js'
 import { track } from '../../lib/analytics.js'
 
@@ -94,7 +95,7 @@ export function BigViewToggle() {
 // design-rule check, with one-click auto-optimize. Collapsible so it
 // stays out of the way; the dot mirrors the worst DRC severity.
 function BoardPanel() {
-  const { entities, wires, board, setBoardDim, setFabRule, applyPositions } = useForge()
+  const { entities, wires, board, setBoardDim, setFabRule, applyPositions, setWireVia, notify } = useForge()
   const [open, setOpen] = useState(false)
   const rule = getFabRule(board.ruleId)
   const drc = useMemo(
@@ -103,10 +104,32 @@ function BoardPanel() {
   )
   const dot = drc.errors ? 'var(--err2)' : drc.warnings ? 'var(--warn2)' : 'var(--ok2)'
   const hasParts = Object.keys(entities).length > 0
+  const hasWires = wires.length > 0
 
   const optimize = () => {
     track('drc_optimize', { target: String(drc.violations.length) })
     applyPositions(optimizeLayout({ entities, wires, board, sizeOf: drcSizeOf }))
+  }
+
+  // world XZ of a pin (mirrors ForgeCanvas.pinWorldXZ) for the router
+  const pinXZ = (end) => {
+    const e = entities[end.comp]; if (!e) return null
+    const p = footprint(e.id, e.def).pins[end.pin]; if (!p) return null
+    const a = e.rotation?.[1] || 0, cos = Math.cos(a), sin = Math.sin(a)
+    return [e.position[0] + p.x * cos + p.z * sin, e.position[2] - p.x * sin + p.z * cos]
+  }
+  // autorouter pass: pick each trace's bend to minimize crossings+length,
+  // then apply the result as each wire's `via` (Prompt A Part 5).
+  const autoRoute = () => {
+    const idxs = [], endpoints = []
+    wires.forEach((w, i) => { const a = pinXZ(w.from), b = pinXZ(w.to); if (a && b) { idxs.push(i); endpoints.push({ a, b }) } })
+    if (!endpoints.length) return
+    const naive = routeMetrics(endpoints.map(e => ({ route: [e.a, e.b] })))
+    const res = routeTraces(endpoints)
+    res.forEach((r, k) => setWireVia(idxs[k], r.via))
+    const after = routeMetrics(res)
+    track('autoroute', { target: `${naive.crossings}->${after.crossings}` })
+    notify(`auto-roteado · ${after.crossings} cruzamento(s) · ${res.length} trilha(s)`)
   }
 
   const numField = (label, field, step = 1) => (
@@ -173,10 +196,19 @@ function BoardPanel() {
           </div>
 
           {hasParts && (
-            <button onClick={optimize} style={{
-              width: '100%', padding: '7px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
-              background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
-            }}>otimizar layout</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button onClick={optimize} style={{
+                width: '100%', padding: '7px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                background: 'var(--btn-bg)', color: 'var(--btn-fg)', fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+              }}>otimizar layout</button>
+              <button onClick={autoRoute} disabled={!hasWires}
+                title={hasWires ? 'reroteia as trilhas minimizando cruzamentos e comprimento' : 'faça a fiação primeiro'}
+                style={{
+                  width: '100%', padding: '7px 10px', borderRadius: 5, cursor: hasWires ? 'pointer' : 'not-allowed',
+                  border: '1px solid var(--btn-bg)', background: 'transparent',
+                  color: hasWires ? 'var(--ink)' : 'var(--ink4)', fontSize: 13, fontFamily: "'Space Grotesk', sans-serif",
+                }}>auto-rotear trilhas</button>
+            </div>
           )}
         </div>
       )}
