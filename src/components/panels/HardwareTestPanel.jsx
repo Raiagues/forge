@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import EmptyState from './EmptyState'
+import DigitalTwin from './DigitalTwin'
 import LogDoctorCard from './debug/LogDoctorCard'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
@@ -61,6 +62,7 @@ export default function HardwareTestPanel() {
 
   const [term, setTerm] = useState([])         // current/last terminal play-out
   const [activeStage, setActiveStage] = useState('comm')
+  const [showTwin, setShowTwin] = useState(false)   // digital-twin view of a selected sensor
   const [pipeW, setPipeW] = usePanelWidth('forge.hwtestPipeW', 248, 200, 380)
   const [ctxW, setCtxW] = usePanelWidth('forge.hwtestCtxW', 300, 240, 460)
   const timers = useRef([])
@@ -81,6 +83,8 @@ export default function HardwareTestPanel() {
   const selected = hwtest.selected
   const running = hwtest.running
   const real = hwLink.connected
+  // a supported sensor selected on the diagram can open its digital twin
+  const twinSensor = selected.find(id => id === 'mpu6050' || id === 'bmp280')
 
   // gate lock: stage n is locked until the previous stage cleared
   const isLocked = (id) => {
@@ -243,11 +247,26 @@ export default function HardwareTestPanel() {
         {/* ── diagram + terminal ────────────────────────────────────── */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'auto', background: 'var(--paper)' }}>
-            <BlockDiagram
-              blocks={subsystems} selected={selected} running={running}
-              blockStatus={blockStatus} nodeStatus={nodeStatus}
-              onPick={(id, e) => selectTestBlock(id, e.shiftKey || e.metaKey || e.ctrlKey)}
-            />
+            {/* toggle: a selected sensor can open its live digital twin */}
+            {twinSensor && (
+              <button onClick={() => setShowTwin(v => !v)} style={{
+                position: 'absolute', top: 10, right: 10, zIndex: 5,
+                padding: '5px 11px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${showTwin ? 'var(--rule)' : 'var(--acc)'}`,
+                background: showTwin ? 'var(--paper2)' : 'var(--btn-bg)',
+                color: showTwin ? 'var(--ink3)' : 'var(--btn-fg)',
+                ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
+              }}>{showTwin ? 'ver diagrama' : 'gêmeo digital →'}</button>
+            )}
+            {showTwin && twinSensor ? (
+              <DigitalTwin sensorId={twinSensor} />
+            ) : (
+              <BlockDiagram
+                blocks={subsystems} selected={selected} running={running}
+                blockStatus={blockStatus} nodeStatus={nodeStatus}
+                onPick={(id, e) => selectTestBlock(id, e.shiftKey || e.metaKey || e.ctrlKey)}
+              />
+            )}
           </div>
           {/* terminal */}
           <div style={{ height: 184, flexShrink: 0, display: 'flex', flexDirection: 'column', background: CONSOLE_BG, borderTop: '1px solid var(--rule)' }}>

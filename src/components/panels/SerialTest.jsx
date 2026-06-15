@@ -231,8 +231,77 @@ void loop() {
 }
 `
 
+// MPU6050 orientation stream — feeds the digital twin. Scans I2C (so the
+// diagnostic lights up) then streams accel + gyro every ~50ms in a format
+// the platform parses ("[MPU6050] ax=.. ay=.. az=.. gx=.. gy=.. gz=..").
+const MPU_SKETCH = `#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+#define LED_PIN 2
+#define SDA_PIN 21
+#define SCL_PIN 22
+
+Adafruit_MPU6050 mpu;
+bool haveMpu = false;
+
+void scanI2C() {
+  Serial.println("Scanning I2C...");
+  int found = 0;
+  for (uint8_t a = 8; a < 120; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("Found device at 0x");
+      if (a < 16) Serial.print("0");
+      Serial.println(a, HEX);
+      found++;
+    }
+  }
+  Serial.print("Devices found: ");
+  Serial.println(found);
+}
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("=== ESP32 START ===");
+  Wire.begin(SDA_PIN, SCL_PIN);
+  delay(100);
+  scanI2C();
+  if (mpu.begin(0x68) || mpu.begin(0x69)) {
+    haveMpu = true;
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+    Serial.println("MPU6050 OK");
+  } else {
+    Serial.println("MPU6050 NOT FOUND");
+  }
+  Serial.println("Setup complete");
+}
+
+void loop() {
+  if (!haveMpu) { Serial.println("MPU6050 missing"); delay(1500); return; }
+  sensors_event_t a, g, t;
+  mpu.getEvent(&a, &g, &t);
+  // accel in g (÷9.81), gyro in deg/s (×57.3)
+  Serial.print("[MPU6050] ax="); Serial.print(a.acceleration.x / 9.81, 3);
+  Serial.print(" ay="); Serial.print(a.acceleration.y / 9.81, 3);
+  Serial.print(" az="); Serial.print(a.acceleration.z / 9.81, 3);
+  Serial.print(" gx="); Serial.print(g.gyro.x * 57.3, 1);
+  Serial.print(" gy="); Serial.print(g.gyro.y * 57.3, 1);
+  Serial.print(" gz="); Serial.println(g.gyro.z * 57.3, 1);
+  digitalWrite(LED_PIN, HIGH); delay(5); digitalWrite(LED_PIN, LOW);
+
+  static unsigned long lastScan = 0;
+  if (millis() - lastScan > 2500) { lastScan = millis(); scanI2C(); }
+  delay(50);
+}
+`
+
 const PRESETS = [
   { id: 'bmp', label: 'BMP280 + OLED', code: BMP_SKETCH, sensors: ['bmp280'] },
+  { id: 'mpu', label: 'MPU6050 (gêmeo digital)', code: MPU_SKETCH, sensors: ['mpu6050'] },
   { id: 'echo', label: 'Echo', code: ECHO_SKETCH, sensors: [] },
 ]
 

@@ -1349,11 +1349,19 @@ const useForge = create((set, get) => {
       // readings — preset and generated-firmware formats
       m = line.match(/Temp:\s*([\d.-]+)\s*C\s*Pressure:\s*([\d.-]+)/i) || line.match(/\[BMP280\] T=([\d.-]+) P=([\d.-]+)/)
       if (m) { set(s => ({ fw: { ...s.fw, reading: `${m[1]} °C · ${m[2]} hPa`, hw: { ...s.fw.hw, lastReadAt: Date.now() } } })); fwSetStage('telem', 'done'); fwNote('Telemetria fluindo') }
-      // MPU6050 streamed orientation/accel (drives the digital twin)
-      m = line.match(/\[?MPU6050\]?\s*(?:ax|accel)[=:]\s*([\d.-]+)[, ]+(?:ay)[=:]?\s*([\d.-]+)[, ]+(?:az)[=:]?\s*([\d.-]+)(?:[, ]+(?:gx)[=:]?\s*([\d.-]+)[, ]+(?:gy)[=:]?\s*([\d.-]+)[, ]+(?:gz)[=:]?\s*([\d.-]+))?/i)
-      if (m) {
-        set(s => ({ fw: { ...s.fw, hw: { ...s.fw.hw, lastReadAt: Date.now(),
-          imu: { ax: +m[1], ay: +m[2], az: +m[3], gx: m[4] != null ? +m[4] : null, gy: m[5] != null ? +m[5] : null, gz: m[6] != null ? +m[6] : null, at: Date.now() } } } }))
+      // MPU6050 streamed orientation/motion → drives the digital twin.
+      // Accept whatever the device emits (Part: "support both"): a fused
+      // quaternion, Euler angles, or raw accel/gyro — in priority order.
+      let imu = null
+      const mq = line.match(/q(?:uat)?\s*[:=]?\s*(-?[\d.]+)[ ,]+(-?[\d.]+)[ ,]+(-?[\d.]+)[ ,]+(-?[\d.]+)/i)
+        || line.match(/qw[=:]\s*(-?[\d.]+)[ ,]+qx[=:]\s*(-?[\d.]+)[ ,]+qy[=:]\s*(-?[\d.]+)[ ,]+qz[=:]\s*(-?[\d.]+)/i)
+      if (mq) imu = { quat: { w: +mq[1], x: +mq[2], y: +mq[3], z: +mq[4] } }
+      const me = line.match(/roll[=:]\s*(-?[\d.]+)[ ,]+pitch[=:]\s*(-?[\d.]+)[ ,]+yaw[=:]\s*(-?[\d.]+)/i)
+      if (me) imu = { ...(imu || {}), euler: { roll: +me[1], pitch: +me[2], yaw: +me[3] } }
+      const ma = line.match(/(?:ax|accel)[=:]?\s*(-?[\d.]+)[ ,]+(?:ay)[=:]?\s*(-?[\d.]+)[ ,]+(?:az)[=:]?\s*(-?[\d.]+)(?:[ ,]+(?:gx)[=:]?\s*(-?[\d.]+)[ ,]+(?:gy)[=:]?\s*(-?[\d.]+)[ ,]+(?:gz)[=:]?\s*(-?[\d.]+))?/i)
+      if (ma && /\bMPU6050\b|\bax\b|accel|\bgx\b/i.test(line)) imu = { ...(imu || {}), ax: +ma[1], ay: +ma[2], az: +ma[3], gx: ma[4] != null ? +ma[4] : null, gy: ma[5] != null ? +ma[5] : null, gz: ma[6] != null ? +ma[6] : null }
+      if (imu) {
+        set(s => ({ fw: { ...s.fw, hw: { ...s.fw.hw, lastReadAt: Date.now(), imu: { ...imu, at: Date.now() } } } }))
         get().fwSetStage('telem', 'done')
       }
     },
