@@ -57,6 +57,7 @@ export default function HardwareTestPanel() {
   const finishHwTestStage = useForge(s => s.finishHwTestStage)
   const skipHwTestGate = useForge(s => s.skipHwTestGate)
   const resetHwTest = useForge(s => s.resetHwTest)
+  const openPhaseReview = useForge(s => s.openPhaseReview)
 
   const [term, setTerm] = useState([])         // current/last terminal play-out
   const [activeStage, setActiveStage] = useState('comm')
@@ -151,6 +152,7 @@ export default function HardwareTestPanel() {
   }
 
   const ranCount = TEST_STAGES.filter(s => cleared(stages[s.id]?.status)).length
+  const testsCleared = ranCount >= TEST_STAGES.length
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--paper)' }}>
@@ -172,6 +174,11 @@ export default function HardwareTestPanel() {
         <button onClick={() => onExport('txt')} style={ghostBtn}>relatório .txt</button>
         <button onClick={() => onExport('json')} style={ghostBtn}>.json</button>
         <button onClick={() => { resetHwTest(); setTerm([]); setActiveStage('comm') }} style={ghostBtn}>reiniciar</button>
+        <button onClick={() => openPhaseReview('testing')} disabled={!testsCleared}
+          title={testsCleared ? 'revisão de prontidão antes da telemetria' : 'conclua as etapas de teste primeiro'}
+          style={{ ...ghostBtn, border: 'none', background: testsCleared ? 'var(--btn-bg)' : 'var(--paper4)', color: testsCleared ? 'var(--btn-fg)' : 'var(--ink4)', cursor: testsCleared ? 'pointer' : 'not-allowed' }}>
+          revisar e avançar →
+        </button>
       </div>
 
       {/* main: pipeline · diagram+terminal · context */}

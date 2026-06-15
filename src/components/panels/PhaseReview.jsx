@@ -102,9 +102,11 @@ export default function PhaseReview() {
             ...slab, fontSize: 15, fontWeight: 700, color: 'var(--poster-bg-solid)',
             background: review.nominal ? GOLD : 'var(--warn2)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer',
           }}>
-            {review.nominal
-              ? `Confirmar e avançar para ${review.nextPhase?.label || 'a próxima fase'} →`
-              : 'Avançar mesmo assim →'}
+            {!review.nextPhase
+              ? 'Concluir →'
+              : review.nominal
+                ? `Confirmar e avançar para ${review.nextPhase.label} →`
+                : 'Avançar mesmo assim →'}
           </button>
         </div>
       </div>

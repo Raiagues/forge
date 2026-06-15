@@ -24,10 +24,12 @@ export function buildPhaseReview(phaseId, { defs, missionPlan = {}, entities = {
   // what was decided / built in this phase
   const decisions = []
   if (phaseId === 'mission') {
-    if (fw) decisions.push(['Competição', fw.name])
-    decisions.push(['Formato', fmt.label])
-    if (obj) decisions.push(['Objetivo', obj.label])
     if (missionPlan.name?.trim()) decisions.push(['Missão', missionPlan.name.trim()])
+    if (missionPlan.team?.name?.trim()) decisions.push(['Equipe', missionPlan.team.name.trim()])
+    if (fw) decisions.push(['Competição', fw.name])
+    decisions.push(['Formato', missionPlan.format === 'cubesat' ? `CubeSat ${missionPlan.cubeU || '1U'}` : fmt.label])
+    const catLabels = (missionPlan.objectiveCategories || []).length
+    decisions.push(['Objetivos', catLabels ? `${catLabels} categoria${catLabels > 1 ? 's' : ''}` : obj?.label || 'nenhum'])
   } else if (phaseId === 'hardware') {
     decisions.push(['Componentes', ids.map(id => defs[id]?.friendly || id).join(', ') || 'nenhum'])
     const wired = ids.filter(id => live?.wiring?.[id]?.wired).length
@@ -37,6 +39,8 @@ export function buildPhaseReview(phaseId, { defs, missionPlan = {}, entities = {
   } else if (phaseId === 'testing') {
     const stages = Object.values(hwtest?.stages || {})
     decisions.push(['Testes', `${stages.filter(s => s.status === 'passed').length}/${stages.length || 0} aprovados`])
+  } else if (phaseId === 'telemetry') {
+    decisions.push(['Estação base', 'recebendo telemetria'])
   }
 
   // unresolved issues (validation errors/warnings + budget overflow)

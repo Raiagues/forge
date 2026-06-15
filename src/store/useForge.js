@@ -584,7 +584,11 @@ const useForge = create((set, get) => {
       const next = nextPhase(id)
       track('phase_review_confirm', { target: id, next: next?.id || '' })
       set({ phaseReview: null })
-      if (next) get().setSection(next.section)
+      // Mission → Hardware advances THROUGH the assembly animation (the
+      // satellite the team just defined opens into the board); other phases
+      // navigate straight to the next section.
+      if (id === 'mission') get().enterHardware()
+      else if (next) get().setSection(next.section)
     },
 
     setHardwareView: (v) => { track('hw_view', { target: v }); set({ hardwareView: v }) },

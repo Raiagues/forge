@@ -250,6 +250,7 @@ export default function SerialTest() {
   // the platform can honestly distinguish hardware from simulation.
   const setHwLink = useForge(s => s.setHwLink)
   const setSection = useForge(s => s.setSection)
+  const openPhaseReview = useForge(s => s.openPhaseReview)
   const wires = useForge(s => s.wires)
   const fwFiles = useForge(s => s.fwFiles)
   const fwEdits = useForge(s => s.fwEdits)
@@ -520,7 +521,7 @@ export default function SerialTest() {
       hint: 'Bring-up concluído. Valide os subsistemas na bancada de testes ou assuma a estação terrestre.',
       fork: [
         { label: 'Bancada de testes →', section: 'hwtest',
-          action: () => { track('handoff_to_testing', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('hwtest') } },
+          action: () => { track('handoff_to_testing', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); openPhaseReview('firmware') } },
         { label: 'Estação terrestre →', section: 'telemetry',
           action: () => { track('handoff_to_telemetry', { target: stages.upload === ST_DONE ? 'real' : 'sim' }); setSection('telemetry') } },
       ],

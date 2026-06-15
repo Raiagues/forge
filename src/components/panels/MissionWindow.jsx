@@ -98,7 +98,7 @@ export default function MissionWindow() {
   const {
     missionPlan, setPlanName, setBudget, setCubeU, setFabRule,
     toggleObjectiveCategory, setTeamField, addTeamMember, setTeamMember, removeTeamMember,
-    setPriorityRanking, enterHardware, missionStep, setMissionStep, sidebarCollapsed,
+    setPriorityRanking, openPhaseReview, missionStep, setMissionStep, sidebarCollapsed,
   } = useForge()
   const board = useForge(s => s.board)
   const [asmW, setAsmW] = usePanelWidth('forge.missionAsmW', 300, 220, 460)
@@ -319,7 +319,7 @@ export default function MissionWindow() {
             only appears when the sidebar is collapsed (Part 2) */}
         {sidebarCollapsed && <StepDots steps={steps} current={stepIdx} onStep={goByIndex} />}
         {complete ? (
-          <button onClick={() => enterHardware()} style={{ ...mono, fontSize: 13, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 700 }}>ir para o hardware →</button>
+          <button onClick={() => openPhaseReview('mission')} style={{ ...mono, fontSize: 13, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 700 }}>revisar e avançar →</button>
         ) : <span style={{ width: 10 }} />}
       </div>
 
