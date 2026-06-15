@@ -84,10 +84,15 @@ export default function AssemblyTransition() {
 
   if (!transition?.playing) return null
 
+  // The satellite enters from the RIGHT — where the SatelliteAssembly panel
+  // lived in the mission flow — then slides to centre, grows to fill the
+  // viewport and the camera dives through the shell (Part 3).
   const exteriorStyle = {
     position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'transform 1.2s cubic-bezier(.5,0,.2,1), opacity .8s ease',
-    transform: phase === 'enter' ? 'scale(.28)' : phase === 'grow' ? 'scale(1)' : 'scale(6)',
+    transform: phase === 'enter' ? 'translateX(32vw) scale(.3)'
+      : phase === 'grow' ? 'translateX(0) scale(1)'
+      : 'translateX(0) scale(6)',
     opacity: phase === 'zoom' ? 0 : 1,
     color: CREAM,
   }
