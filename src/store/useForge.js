@@ -460,6 +460,11 @@ const useForge = create((set, get) => {
     // start (day 0 = today). Dependency-constrained on edit. `deadlineDay`
     // is the competition deadline marker; actual completion comes from
     // phaseState[].confirmedAt. Persisted so the timeline survives nav.
+    // Real-world challenge board (Prompt Part 2): backend-loaded approved
+    // challenges; empty → the board falls back to bundled SEED_CHALLENGES.
+    challenges: [],
+    setChallenges: (list) => set({ challenges: Array.isArray(list) ? list : [] }),
+
     schedule: { startDate: null, phases: {}, deadlineDay: 60 },
     setScheduleStart: (iso) => set(s => (s.schedule.startDate ? {} : { schedule: { ...s.schedule, startDate: iso } })),
     setPhaseDates: (id, startDay, endDay) => set(s => ({

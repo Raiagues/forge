@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import useForge from '../../store/useForge'
-import { BRAINSTORM_ZONES, ZONE_BY_ID, suggestForZone } from '../../mission/brainstorm.js'
+import { BRAINSTORM_ZONES, ZONE_BY_ID, suggestForZone, VW, VH, ZONE_RECT, CARD_W, CARD_H } from '../../mission/brainstorm.js'
 import { mono, GOLD } from '../onboarding/posterKit.jsx'
 
 // ──────────────────────────────────────────────────────────────────
@@ -13,17 +13,8 @@ import { mono, GOLD } from '../onboarding/posterKit.jsx'
 // cards + colour-coded zones — technical, not a sticky-note app.
 // ──────────────────────────────────────────────────────────────────
 
-// virtual canvas space; zones are laid out inside it
-const VW = 1600, VH = 1020
-const ZONE_RECT = {
-  objectives: { x: 40, y: 40, w: 480, h: 430 },
-  constraints: { x: 560, y: 40, w: 480, h: 430 },
-  failures: { x: 1080, y: 40, w: 480, h: 430 },
-  questions: { x: 40, y: 510, w: 740, h: 470 },
-  ideas: { x: 820, y: 510, w: 740, h: 470 },
-}
-const CARD_W = 196, CARD_H = 78
-
+// virtual canvas space + zone layout now live in mission/brainstorm.js
+// (shared with the challenge board seeding)
 const zoneAt = (x, y) => BRAINSTORM_ZONES.find(z => {
   const r = ZONE_RECT[z.id]
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h

@@ -17,6 +17,18 @@
 // a server-side LLM behind the existing assistant seam.
 // ──────────────────────────────────────────────────────────────────
 
+// canvas layout (shared by the brainstorm canvas + the challenge-board
+// seeding so seeded cards land inside the right zone)
+export const VW = 1600, VH = 1020
+export const ZONE_RECT = {
+  objectives: { x: 40, y: 40, w: 480, h: 430 },
+  constraints: { x: 560, y: 40, w: 480, h: 430 },
+  failures: { x: 1080, y: 40, w: 480, h: 430 },
+  questions: { x: 40, y: 510, w: 740, h: 470 },
+  ideas: { x: 820, y: 510, w: 740, h: 470 },
+}
+export const CARD_W = 196, CARD_H = 78
+
 export const BRAINSTORM_ZONES = [
   { id: 'objectives', label: 'Objetivos & perguntas científicas', hint: 'O que a missão quer descobrir ou provar.', color: '#2B6CB0' },
   { id: 'constraints', label: 'Restrições técnicas & riscos', hint: 'Limites de massa, energia, orçamento, prazo.', color: '#A8691A' },
