@@ -3,6 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import useForge, { STATUS } from '../../store/useForge'
+import { pcbColors, wireStateColors } from '../../lib/canvasTheme.js'
 import { issuesForComponent, SOURCE_LABEL, COMPONENT_PINS, runDRC, getFabRule, UNIT_PER_MM } from '../../mission/index.js'
 import { footprint } from './pinLayout.js'
 
@@ -42,6 +43,7 @@ const CATEGORY_COLOR = {
 // ── PCB board ─────────────────────────────────────────────────────
 // board size in board units, derived from the mm dimensions in the store
 function PCBBoard({ w = 8.5, d = 6.5 }) {
+  const C = pcbColors(useForge(s => s.theme))
   const cols = Math.max(2, Math.round(w))
   const rows = Math.max(2, Math.round(d))
   const hx = w / 2 - 0.7, hz = d / 2 - 0.7
@@ -50,19 +52,19 @@ function PCBBoard({ w = 8.5, d = 6.5 }) {
       {/* main board */}
       <mesh receiveShadow position={[0, -0.12, 0]}>
         <boxGeometry args={[w, 0.12, d]} />
-        <meshStandardMaterial color="#1E3A1E" roughness={0.8} metalness={0.1} />
+        <meshStandardMaterial color={C.board} roughness={0.8} metalness={0.1} />
       </mesh>
       {/* board edge highlight */}
       <mesh position={[0, -0.06, 0]}>
         <boxGeometry args={[w + 0.02, 0.13, d + 0.02]} />
-        <meshStandardMaterial color="#2A5020" roughness={0.9} metalness={0.0} transparent opacity={0.4} />
+        <meshStandardMaterial color={C.boardEdge} roughness={0.9} metalness={0.0} transparent opacity={0.4} />
       </mesh>
       {/* silkscreen grid dots — fill to the current board size */}
       {Array.from({ length: cols }, (_, i) =>
         Array.from({ length: rows }, (_, j) => (
           <mesh key={`${i}-${j}`} position={[-(cols - 1) / 2 + i, -0.055, -(rows - 1) / 2 + j]}>
             <cylinderGeometry args={[0.025, 0.025, 0.01, 6]} />
-            <meshStandardMaterial color="#2A5020" roughness={1} />
+            <meshStandardMaterial color={C.silk} roughness={1} />
           </mesh>
         ))
       )}
@@ -124,6 +126,7 @@ function IssueBadge({ issues, size }) {
 function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
   const [hov, setHov] = useState(false)
   const { gl } = useThree()
+  const C = pcbColors(useForge(s => s.theme))
   const d = pin
   return (
     <group position={[pos.x, pos.y, pos.z]}>
@@ -149,7 +152,7 @@ function PinMesh({ compId, pin, pos, onPinClick, isPending, isConnected }) {
       {/* solder pad on the board surface — copper when a trace lands here */}
       <mesh position={[0, -0.034, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.028, 0.055, 16]} />
-        <meshStandardMaterial color={isConnected ? '#C98E3F' : '#8A8378'} roughness={0.4} metalness={0.7} />
+        <meshStandardMaterial color={isConnected ? C.pad : '#8A8378'} roughness={0.4} metalness={0.7} />
       </mesh>
       {(hov || isPending) && (
         <Html position={[0, 0.26, 0]} center distanceFactor={7} zIndexRange={[30, 0]}>
@@ -414,15 +417,15 @@ function TraceSegment({ a, b, color, width = 0.038, y = TRACE_Y, opacity = 1 }) 
   )
 }
 
-const TRACE_COPPER = '#C98E3F'
-
 function Trace({ from, to, via, issue, selected, onClick, underspec }) {
+  const theme = useForge(s => s.theme)
+  const C = pcbColors(theme), WS = wireStateColors(theme)
   // underspec traces (chosen width < fab minimum) read amber + thinner
-  const color = selected ? '#4A7DD4'
-    : issue?.severity === 'error' ? '#C04030'
-    : issue ? '#C8831A'
-    : underspec ? '#C8831A'
-    : TRACE_COPPER
+  const color = selected ? WS.sel
+    : issue?.severity === 'error' ? WS.err
+    : issue ? WS.warn
+    : underspec ? WS.warn
+    : C.copper
   const width = underspec && !issue && !selected ? 0.022 : 0.038
   // a via waypoint routes the trace as two 45° doglegs through the bend
   const pts = via
@@ -447,9 +450,9 @@ function Trace({ from, to, via, issue, selected, onClick, underspec }) {
         <Html position={[mid[0], TRACE_Y + 0.14, mid[1]]} center distanceFactor={9} zIndexRange={[15, 0]}>
           <div style={{
             fontFamily: "'Space Mono', monospace", fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none',
-            color: issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4',
+            color: issue ? (issue.severity === 'error' ? WS.err : WS.warn) : WS.sel,
             background: 'var(--paper2)', borderRadius: 3, padding: '1px 6px',
-            border: `1px ${issue ? 'dashed' : 'solid'} ${issue ? (issue.severity === 'error' ? '#C04030' : '#C8831A') : '#4A7DD4'}`,
+            border: `1px ${issue ? 'dashed' : 'solid'} ${issue ? (issue.severity === 'error' ? WS.err : WS.warn) : WS.sel}`,
           }}>{issue ? issue.title : 'trilha selecionada · Delete remove'}</div>
         </Html>
       )}
@@ -593,10 +596,11 @@ function IsoCamera() {
 export default function ForgeCanvas() {
   const {
     entities, selectedId, selectEntity, updatePosition, live, canvasMode,
-    wires, addWire, removeWire, board,
+    wires, addWire, removeWire, board, theme,
     rotateEntity, flipEntityLayer, removeEntity, setWireVia,
   } = useForge()
   const validation = live?.validation
+  const C = pcbColors(theme)          // themed PCB palette (Part 1)
   const routing = canvasMode === 'route'
 
   // live DRC against the board outline + active fab rule
@@ -710,10 +714,10 @@ export default function ForgeCanvas() {
         args={[12, 12]}
         cellSize={0.4}
         cellThickness={0.4}
-        cellColor="#2A5020"
+        cellColor={C.grid}
         sectionSize={2}
         sectionThickness={0.8}
-        sectionColor="#3A6A30"
+        sectionColor={C.gridSection}
         fadeDistance={18}
         fadeStrength={1}
         infiniteGrid={false}

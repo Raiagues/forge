@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useForge from '../../store/useForge'
+import { roleColor as roleColorThemed, wireStateColors, NET_PRIORITY } from '../../lib/canvasTheme.js'
 import { COMPONENT_PINS, SOURCE_LABEL } from '../../mission/index.js'
 import { track } from '../../lib/analytics.js'
 
@@ -22,25 +23,10 @@ import { track } from '../../lib/analytics.js'
 
 const mono = { fontFamily: "'Space Mono', monospace" }
 
-const WIRE_ERR = '#C04030'
-const WIRE_WARN = '#C8831A'
-const WIRE_SEL = '#4A7DD4'
-
-// pin/wire palette by FUNCTION (Part 5). Pins and the wires leaving them
-// share these colours so the schematic reads at a glance:
-//   power=vermelho · terra=preto · SDA=azul · SCL=amarelo ·
-//   TX=verde · RX=laranja · SPI=roxo · GPIO=cinza
-const ROLE_COLOR = {
-  power3v3: '#C0392B', vcc: '#C0392B', vin: '#C0392B', en: '#C0392B',
-  gnd: '#222222',
-  sda: '#2B5EA7', scl: '#C9A227',
-  uart_tx: '#2E8B57', uart_rx: '#D2691E',
-  csb: '#7D3C98', sdo: '#7D3C98', sck: '#7D3C98', mosi: '#7D3C98', miso: '#7D3C98', cs: '#7D3C98',
-  gpio: '#8A8378',
-}
-const roleColor = (role) => ROLE_COLOR[role] || '#8A8378'
-// specificity order so a wire takes the colour of its most meaningful end
-const ROLE_PRIORITY = ['gnd', 'power3v3', 'vcc', 'vin', 'sda', 'scl', 'uart_tx', 'uart_rx', 'csb', 'sdo', 'sck', 'mosi', 'miso', 'en', 'gpio']
+// Pin/wire colours are themed via the central canvas palette
+// (src/lib/canvasTheme.js): power=red · ground · SDA=blue · SCL=amber ·
+// TX=green · RX=orange · SPI=violet · GPIO=grey, each with light + dark
+// values so the schematic reads on either background (Part 1).
 
 const WIRE_STYLES = [
   { id: 'orthogonal', label: 'ortogonal' },
@@ -106,8 +92,13 @@ function wirePath(a, b, style) {
 export default function SchematicView() {
   const {
     entities, wires, addWire, removeWire, clearAllWires, autoWire,
-    selectEntity, selectedId, live,
+    selectEntity, selectedId, live, theme,
   } = useForge()
+  // themed net/wire palette (Part 1) — light + dark legibility
+  const roleColor = (role) => roleColorThemed(role, theme)
+  const ROLE_PRIORITY = NET_PRIORITY
+  const W = wireStateColors(theme)
+  const WIRE_ERR = W.err, WIRE_WARN = W.warn, WIRE_SEL = W.sel
   const entityIds = Object.keys(entities)
   const { blocks, pinPos, width, height } = useMemo(() => layout(entityIds), [entityIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -437,10 +428,10 @@ export default function SchematicView() {
 
             {/* legend */}
             <g transform={`translate(16,${height - 16})`} fontFamily="'Space Mono', monospace" fontSize={11} fill="var(--ink4)">
-              <line x1={0} y1={-3} x2={18} y2={-3} stroke={ROLE_COLOR.power3v3} strokeWidth={2} /><text x={22} y={0}>energia</text>
-              <line x1={78} y1={-3} x2={96} y2={-3} stroke={ROLE_COLOR.gnd} strokeWidth={2} /><text x={100} y={0}>terra</text>
-              <line x1={146} y1={-3} x2={164} y2={-3} stroke={ROLE_COLOR.sda} strokeWidth={2} /><text x={168} y={0}>SDA</text>
-              <line x1={210} y1={-3} x2={228} y2={-3} stroke={ROLE_COLOR.scl} strokeWidth={2} /><text x={232} y={0}>SCL</text>
+              <line x1={0} y1={-3} x2={18} y2={-3} stroke={roleColor('power3v3')} strokeWidth={2} /><text x={22} y={0}>energia</text>
+              <line x1={78} y1={-3} x2={96} y2={-3} stroke={roleColor('gnd')} strokeWidth={2} /><text x={100} y={0}>terra</text>
+              <line x1={146} y1={-3} x2={164} y2={-3} stroke={roleColor('sda')} strokeWidth={2} /><text x={168} y={0}>SDA</text>
+              <line x1={210} y1={-3} x2={228} y2={-3} stroke={roleColor('scl')} strokeWidth={2} /><text x={232} y={0}>SCL</text>
               <line x1={274} y1={-3} x2={292} y2={-3} stroke={WIRE_ERR} strokeWidth={2} strokeDasharray="5 3" /><text x={296} y={0}>erro</text>
             </g>
           </g>
