@@ -242,7 +242,7 @@ export default function HardwareTestPanel() {
 
         {/* ── diagram + terminal ────────────────────────────────────── */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'auto', background: 'var(--paper)', backgroundImage: 'linear-gradient(var(--rule2) 1px, transparent 1px), linear-gradient(90deg, var(--rule2) 1px, transparent 1px)', backgroundSize: '26px 26px' }}>
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'auto', background: 'var(--paper)' }}>
             <BlockDiagram
               blocks={subsystems} selected={selected} running={running}
               blockStatus={blockStatus} nodeStatus={nodeStatus}

@@ -138,15 +138,6 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--paper4); border-radius: 2px; }
 
-/* paper grid */
-.paper-grid {
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  background-image:
-    linear-gradient(var(--rule2) 1px, transparent 1px),
-    linear-gradient(90deg, var(--rule2) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
 /* mono text */
 .mono { font-family: 'Space Mono', monospace; }
 

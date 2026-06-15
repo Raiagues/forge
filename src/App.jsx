@@ -80,7 +80,6 @@ export default function App() {
 
   return (
     <>
-      <div className="paper-grid" />
       <div style={{ display: 'flex', height: '100vh', position: 'relative', zIndex: 1 }}>
         <IconSidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', minWidth: 0 }}>

@@ -94,8 +94,6 @@ export default function CodeEditor({
   return (
     <div style={{
       position: 'relative', overflow: 'hidden', background,
-      backgroundImage: 'linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)',
-      backgroundSize: '22px 22px',
       ...style,
     }}>
       <pre ref={preRef} aria-hidden="true" style={{
