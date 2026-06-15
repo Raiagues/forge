@@ -1,6 +1,7 @@
 import useForge from '../../store/useForge'
 import { OBSAT, getFramework, derivePhases } from '../../mission/index.js'
 import { mono, slab, CREAM, GOLD, NAVY_FIELD } from '../onboarding/posterKit.jsx'
+import GanttChart from './GanttChart'
 
 // ──────────────────────────────────────────────────────────────────
 // SchedulePanel — the OBSAT competition timeline (Part 7).
@@ -33,6 +34,12 @@ export default function SchedulePanel() {
         <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', marginBottom: 26, lineHeight: 1.5 }}>
           {fw.asOf || 'dados da competição'} · <a href={fw.sourceUrl} target="_blank" rel="noreferrer" style={{ color: GOLD }}>fonte</a>
         </div>
+
+        {/* interactive project Gantt (Prompt B Part 3) */}
+        <GanttChart />
+
+        {/* competition reference timeline */}
+        <div style={{ ...slab, fontSize: 20, fontWeight: 700, color: CREAM, marginBottom: 14 }}>Marcos da competição</div>
 
         {/* visual timeline */}
         <div style={{ position: 'relative', paddingLeft: 28 }}>

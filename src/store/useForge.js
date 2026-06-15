@@ -455,6 +455,19 @@ const useForge = create((set, get) => {
     // integration tests on the block diagram.
     hwtest: { stages: {}, selected: [], running: null, log: [] },
 
+    // ── project schedule / Gantt (Prompt B Part 3/5) ────────────────
+    // Planned day-offsets [start,end] per pipeline phase from the project
+    // start (day 0 = today). Dependency-constrained on edit. `deadlineDay`
+    // is the competition deadline marker; actual completion comes from
+    // phaseState[].confirmedAt. Persisted so the timeline survives nav.
+    schedule: { startDate: null, phases: {}, deadlineDay: 60 },
+    setScheduleStart: (iso) => set(s => (s.schedule.startDate ? {} : { schedule: { ...s.schedule, startDate: iso } })),
+    setPhaseDates: (id, startDay, endDay) => set(s => ({
+      schedule: { ...s.schedule, phases: { ...s.schedule.phases, [id]: [Math.max(0, Math.round(startDay)), Math.max(Math.round(startDay) + 1, Math.round(endDay))] } },
+    })),
+    setScheduleDeadline: (day) => set(s => ({ schedule: { ...s.schedule, deadlineDay: Math.max(1, Math.round(day)) } })),
+    resetSchedule: () => set(s => ({ schedule: { ...s.schedule, phases: {} } })),
+
     // ── explicit phase completion (Prompt B Part 2) ─────────────────
     // phaseId → { confirmed, confirmedAt, sig }. A phase is "done" only
     // after the user confirms it in the review screen with all criteria
