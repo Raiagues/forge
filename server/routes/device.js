@@ -1,26 +1,22 @@
-// GuiaSat flash + serial server for the Serial Test page.
+// ──────────────────────────────────────────────────────────────────
+// Device router — ESP32 flash/serial + user-testing analytics + the
+// mission consultant. These are the original server/flash.js routes,
+// folded into the unified server (IMPLEMENTATION_PLAN §3: "one process,
+// one DB"). The endpoints are unchanged so the existing frontend
+// (serialLink.js, analytics.js, consultant.js) keeps working:
 //
-// The backend owns the ESP32 serial port (via serial_bridge.py) so the browser
-// never touches Web Serial — no popup, hardcoded port, persistent connection.
+//   POST /flash        { code } or { files }  → compile + upload (streamed)
+//   GET  /serial                              → SSE stream of serial lines
+//   POST /serial/send  { line }               → write a line to the board
+//   GET  /detect                              → esptool chip handshake
+//   POST /analytics/events                    → append session JSONL
+//   GET  /analytics/sessions | /export        → recorded sessions
+//   POST /consult                             → Anthropic mission consultant
 //
-//   POST /flash        { code } or { files: { name → content } }
-//                                → compile + upload, streaming logs as text.
-//                                  `files` writes the whole generated set
-//                                  (main.ino + headers) into the sketch dir
-//                                  so #include references resolve.
-//   GET  /serial                 → SSE stream of live serial lines.
-//   POST /serial/send  { line }  → write a line to the board.
-//   GET  /detect                 → real esptool chip handshake (is it an ESP32?).
-//
-//   POST /analytics/events       → append events to analytics/sessions/<sid>.jsonl
-//   GET  /analytics/sessions     → list recorded session files
-//   GET  /analytics/export       → merged JSON of every session (for analysis)
-//
-// Flashing transparently stops the bridge (frees the port) and restarts it
-// afterwards, so serial monitoring resumes on its own. One port, no abstractions.
-
-import express from 'express'
-import cors from 'cors'
+// The backend owns the port (serial_bridge.py) so the browser never
+// touches Web Serial. Flashing stops/restarts the bridge to free the port.
+// ──────────────────────────────────────────────────────────────────
+import { Router } from 'express'
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, mkdir, appendFile, readdir, readFile } from 'node:fs/promises'
 import { existsSync, readdirSync } from 'node:fs'
@@ -28,16 +24,13 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PORT = Number(process.env.PORT) || 3001
 const FQBN = 'esp32:esp32:esp32'
 const SKETCH = 'forge_sketch'
 const BAUD = 115200
 const HERE = dirname(fileURLToPath(import.meta.url))
-const BRIDGE = join(HERE, 'serial_bridge.py')
+const BRIDGE = join(HERE, '..', 'serial_bridge.py')
 
-const app = express()
-app.use(cors())
-app.use(express.json({ limit: '1mb' }))
+const router = Router()
 
 // ── binary resolution ──────────────────────────────────────────────
 function resolveBin(name) {
@@ -124,7 +117,7 @@ function stream(res, cmd, args) {
 }
 
 // ── GET /serial : live serial as Server-Sent Events ────────────────
-app.get('/serial', (req, res) => {
+router.get('/serial', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
@@ -139,7 +132,7 @@ app.get('/serial', (req, res) => {
 })
 
 // ── POST /serial/send : write a line to the board ──────────────────
-app.post('/serial/send', (req, res) => {
+router.post('/serial/send', (req, res) => {
   const line = req.body && typeof req.body.line === 'string' ? req.body.line : ''
   if (bridge && bridge.stdin.writable) {
     bridge.stdin.write(line.replace(/\n+$/, '') + '\n')
@@ -150,7 +143,7 @@ app.post('/serial/send', (req, res) => {
 })
 
 // ── GET /detect : real chip handshake over the ROM bootloader ──────
-app.get('/detect', async (req, res) => {
+router.get('/detect', async (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
   const port = findPort()
@@ -164,13 +157,11 @@ app.get('/detect', async (req, res) => {
 })
 
 // ── POST /flash : compile + upload, releasing/reacquiring the port ─
-app.post('/flash', async (req, res) => {
+router.post('/flash', async (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache')
 
   const code = req.body && typeof req.body.code === 'string' ? req.body.code : ''
-  // multi-file sketch: { files: { 'main.ino': ..., 'sensor_x.h': ... } }
-  // names are restricted to plain basenames (no paths) for safety.
   const FILE_SAFE = /^[\w.-]+$/
   const rawFiles = req.body && req.body.files && typeof req.body.files === 'object' ? req.body.files : null
   const files = rawFiles
@@ -204,8 +195,6 @@ app.post('/flash', async (req, res) => {
     const sketchDir = join(dir, SKETCH)
     await mkdir(sketchDir)
     if (files.length) {
-      // arduino-cli requires the entry sketch to be named after the dir;
-      // every .h lands beside it so the #include references resolve.
       for (const [name, content] of files) {
         const target = name.endsWith('.ino') ? `${SKETCH}.ino` : name
         await writeFile(join(sketchDir, target), content, 'utf8')
@@ -238,13 +227,10 @@ app.post('/flash', async (req, res) => {
 })
 
 // ── analytics persistence (user-testing sessions) ───────────────────
-// Events arrive in batches from src/lib/analytics.js and land on disk as
-// one JSONL file per session under analytics/sessions/. No database, no
-// cloud — files you can copy after a testing day.
-const ANALYTICS_DIR = join(HERE, '..', 'analytics', 'sessions')
+const ANALYTICS_DIR = join(HERE, '..', '..', 'analytics', 'sessions')
 const SID_SAFE = /^[\w.-]+$/
 
-app.post('/analytics/events', async (req, res) => {
+router.post('/analytics/events', async (req, res) => {
   const { sessionId, events } = req.body || {}
   if (!sessionId || !SID_SAFE.test(sessionId) || !Array.isArray(events) || !events.length) {
     res.status(400).json({ ok: false, error: 'sessionId + events[] required' }); return
@@ -259,7 +245,7 @@ app.post('/analytics/events', async (req, res) => {
   }
 })
 
-app.get('/analytics/sessions', async (_req, res) => {
+router.get('/analytics/sessions', async (_req, res) => {
   try {
     await mkdir(ANALYTICS_DIR, { recursive: true })
     const files = (await readdir(ANALYTICS_DIR)).filter((f) => f.endsWith('.jsonl'))
@@ -269,7 +255,7 @@ app.get('/analytics/sessions', async (_req, res) => {
   }
 })
 
-app.get('/analytics/export', async (_req, res) => {
+router.get('/analytics/export', async (_req, res) => {
   try {
     await mkdir(ANALYTICS_DIR, { recursive: true })
     const files = (await readdir(ANALYTICS_DIR)).filter((f) => f.endsWith('.jsonl'))
@@ -287,18 +273,13 @@ app.get('/analytics/export', async (_req, res) => {
 })
 
 // ── POST /consult : the live mission consultant (Anthropic) ─────────
-// The key lives ONLY here (server-side, read from ANTHROPIC_API_KEY in a
-// git-ignored .env — see .env.example). The browser never sees it. With
-// no key set, this returns 503 and the frontend falls back to its local
-// heuristic consultant (offline, no cost). Model: claude-opus-4-8.
-//
-// Raw HTTPS to the Messages API (Node 18+ global fetch) keeps the backend
-// dependency-free, consistent with the rest of this server. One short,
-// non-streaming completion per call — small output, fast.
+// The key lives ONLY here (server-side, ANTHROPIC_API_KEY in a git-ignored
+// .env). With no key set this returns 503 and the frontend falls back to
+// its offline heuristic consultant. Model: claude-opus-4-8.
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const ANTHROPIC_MODEL = 'claude-opus-4-8'
 
-app.post('/consult', async (req, res) => {
+router.post('/consult', async (req, res) => {
   if (!ANTHROPIC_API_KEY) {
     res.status(503).json({ ok: false, error: 'ANTHROPIC_API_KEY not set — using offline consultant' })
     return
@@ -334,6 +315,4 @@ app.post('/consult', async (req, res) => {
   }
 })
 
-app.listen(PORT, () => {
-  console.log(`[forge] flash + serial server on http://localhost:${PORT}`)
-})
+export default router

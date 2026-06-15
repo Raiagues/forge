@@ -74,6 +74,12 @@ function scheduleFlush() {
   if (!flushTimer) flushTimer = setTimeout(flushToServer, FLUSH_MS)
 }
 
+// Optional secondary sink — the authenticated session forwards events to
+// the unified backend's /events table (autonomy instrumentation for the
+// manager metrics dashboard). Best-effort; never blocks local tracking.
+let sink = null
+export function setEventSink(fn) { sink = fn }
+
 // flush whatever is left when the tab closes / reloads
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => {
@@ -95,6 +101,7 @@ export function track(eventName, payload = {}) {
   persist()
   pending.push(event)
   scheduleFlush()
+  if (sink) { try { sink(event) } catch { /* ignore */ } }
 }
 
 export function getEvents() { return [...events] }

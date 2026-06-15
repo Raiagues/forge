@@ -31,6 +31,9 @@ dist-ssr
 analytics/
 .forge-server.pid
 
+# backend database (SQLite — created on first run)
+server/data/
+
 # secrets — never commit real keys (the AI tutor key stays server-side)
 .env
 .env.local

@@ -1,4 +1,5 @@
 import useForge from '../../store/useForge'
+import SessionBar from '../ui/SessionBar'
 
 export default function Topbar() {
   const activeSection = useForge(s => s.activeSection)
@@ -7,6 +8,8 @@ export default function Topbar() {
     mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
     telemetry: 'Telemetry',
     serialtest: 'Firmware', hwtest: 'Testing',
+    schedule: 'Cronograma',
+    team: 'Equipe', reports: 'Relatórios', metrics: 'Métricas',
     analytics: 'Analytics · dev',
   }
 
@@ -21,6 +24,8 @@ export default function Topbar() {
       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Sistema</span>
       <span style={{ color: 'var(--ink4)', fontSize: 13.5 }}>›</span>
       <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{sectionLabels[activeSection] || activeSection}</span>
+      <span style={{ flex: 1 }} />
+      <SessionBar />
     </div>
   )
 }

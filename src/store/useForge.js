@@ -1481,6 +1481,134 @@ const useForge = create((set, get) => {
       }))
       return ids
     },
+
+    // ════════════════════════════════════════════════════════════════
+    // Collaboration / auth / multi-project (deferred backend pass —
+    // IMPLEMENTATION_PLAN §4 items 9-14). ADDITIVE: this slice holds the
+    // user/team/project/task/presence/report state and PURE setters only.
+    // All network orchestration (login, load/save project, websocket)
+    // lives in src/lib/session.js + src/lib/collab.js so the store stays
+    // free of import cycles (mirrors the serialLink.js pattern). When no
+    // backend is reachable these stay empty and the app runs single-user.
+    // ════════════════════════════════════════════════════════════════
+    auth: { user: null, role: null, subsystem: null, busy: false, error: null, checked: false },
+    teams: [],
+    activeTeamId: null,
+    projects: [],
+    activeProjectId: null,
+    tasks: [],
+    reports: [],
+    metrics: null,
+    demoMode: false,
+    presence: { online: [], connected: false, error: null, lastSyncBy: null, lastSyncAt: null },
+
+    // derive the caller's role + subsystem on a given team from the profile
+    roleOnTeam: (teamId) => {
+      const t = (get().auth.user?.teams || []).find(x => x.teamId === teamId)
+      return t ? { role: t.role, subsystem: t.subsystem } : { role: null, subsystem: null }
+    },
+
+    setAuthBusy: (busy) => set(s => ({ auth: { ...s.auth, busy, error: busy ? null : s.auth.error } })),
+    setAuthError: (error) => set(s => ({ auth: { ...s.auth, error, busy: false } })),
+
+    // apply a profile after login / restore. Picks an active team if none.
+    applyProfile: (user) => set(s => {
+      const teams = user?.teams || []
+      const activeTeamId = s.activeTeamId && teams.some(t => t.teamId === s.activeTeamId)
+        ? s.activeTeamId
+        : (teams[0]?.teamId ?? null)
+      const active = teams.find(t => t.teamId === activeTeamId)
+      return {
+        auth: { ...s.auth, user, role: active?.role ?? null, subsystem: active?.subsystem ?? null, busy: false, error: null, checked: true },
+        activeTeamId,
+      }
+    }),
+
+    authChecked: () => set(s => ({ auth: { ...s.auth, checked: true } })),
+
+    selectTeam: (teamId) => set(s => {
+      const t = (s.auth.user?.teams || []).find(x => x.teamId === teamId)
+      track('team_select', { team: String(teamId) })
+      return { activeTeamId: teamId, auth: { ...s.auth, role: t?.role ?? null, subsystem: t?.subsystem ?? null }, projects: [], tasks: [], reports: [], activeProjectId: null }
+    }),
+
+    setTeams: (teams) => set(s => {
+      // keep the profile's teams in sync so role gating stays correct
+      const user = s.auth.user ? { ...s.auth.user, teams: teams.map(t => ({ teamId: t.id, name: t.name, institution: t.institution, role: t.role, subsystem: t.subsystem, isOwner: t.isOwner, isDemo: t.isDemo })) } : s.auth.user
+      const active = (user?.teams || []).find(t => t.teamId === s.activeTeamId)
+      return { teams, auth: { ...s.auth, user, role: active?.role ?? s.auth.role, subsystem: active?.subsystem ?? s.auth.subsystem } }
+    }),
+
+    setProjects: (projects) => set({ projects }),
+    setActiveProject: (id, role, subsystem) => set(s => ({ activeProjectId: id, auth: { ...s.auth, role: role ?? s.auth.role, subsystem: subsystem ?? s.auth.subsystem } })),
+
+    setTasks: (tasks) => set({ tasks }),
+    upsertTask: (task) => set(s => {
+      const i = s.tasks.findIndex(t => t.id === task.id)
+      if (i < 0) return { tasks: [...s.tasks, task] }
+      const next = s.tasks.slice(); next[i] = task; return { tasks: next }
+    }),
+    removeTask: (id) => set(s => ({ tasks: s.tasks.filter(t => t.id !== id) })),
+
+    setReports: (reports) => set({ reports }),
+    addReport: (report) => set(s => ({ reports: [report, ...s.reports.filter(r => r.id !== report.id)] })),
+    setMetrics: (metrics) => set({ metrics }),
+    setDemoMode: (demoMode) => { track('demo_mode', { on: demoMode }); set({ demoMode }) },
+
+    // reset everything user-scoped on logout (keeps the design in-memory)
+    logoutLocal: () => set({
+      auth: { user: null, role: null, subsystem: null, busy: false, error: null, checked: true },
+      teams: [], activeTeamId: null, projects: [], activeProjectId: null, tasks: [], reports: [], metrics: null, demoMode: false,
+      presence: { online: [], connected: false, error: null, lastSyncBy: null, lastSyncAt: null },
+    }),
+
+    // ── shared mission state (multi-project hydrate / snapshot) ──────
+    // Produce the JSON blob persisted per-project + broadcast over WS.
+    snapshotShared: () => {
+      const s = get()
+      return { missionPlan: s.missionPlan, entities: s.entities, wires: s.wires, phaseState: s.phaseState, schedule: s.schedule, hwtest: s.hwtest }
+    },
+    // Hydrate the design slices from a stored/broadcast snapshot, then
+    // recompute the live layer so every view follows. Additive: only the
+    // keys present in the snapshot are replaced.
+    hydrateShared: (snap) => {
+      if (!snap || typeof snap !== 'object') return
+      const cur = get()
+      const next = {}
+      if (snap.missionPlan) next.missionPlan = { ...EMPTY_PLAN, ...snap.missionPlan }
+      if (snap.entities) next.entities = snap.entities
+      if (snap.wires) next.wires = snap.wires
+      if (snap.phaseState) next.phaseState = snap.phaseState
+      if (snap.schedule) next.schedule = { ...cur.schedule, ...snap.schedule }
+      if (snap.hwtest) next.hwtest = snap.hwtest
+      set(recomputeLive(next))
+      // mark a sync moment so the debounced auto-sync skips this echo
+      set(s => ({ presence: { ...s.presence, lastSyncAt: Date.now() } }))
+    },
+
+    // ── WebSocket collaboration sinks (called by src/lib/collab.js) ──
+    collabSetStatus: (connected, error = null) => set(s => ({ presence: { ...s.presence, connected, error } })),
+    collabWelcome: (data) => set(s => ({
+      presence: { ...s.presence, online: data?.members || [], connected: true, error: null },
+      auth: data?.identity ? { ...s.auth, role: data.identity.role ?? s.auth.role, subsystem: data.identity.subsystem ?? s.auth.subsystem } : s.auth,
+    })),
+    collabPresence: (members) => set(s => ({ presence: { ...s.presence, online: members } })),
+    collabMissionState: (state, by) => {
+      get().hydrateShared(state)
+      set(s => ({ presence: { ...s.presence, lastSyncBy: by || null, lastSyncAt: Date.now() } }))
+    },
+    collabTask: (data) => {
+      if (!data) return
+      if (data.action === 'delete') get().removeTask(data.taskId)
+      else if (data.task) get().upsertTask(data.task)
+    },
+    collabReport: (report) => { if (report) get().addReport(report) },
+    collabActivity: (data) => set(s => {
+      // annotate the presence entry with the collaborator's current section
+      if (!data?.by?.id) return {}
+      const online = s.presence.online.map(m => m.id === data.by.id ? { ...m, section: data.section ?? m.section } : m)
+      return { presence: { ...s.presence, online } }
+    }),
   }
 })
 
