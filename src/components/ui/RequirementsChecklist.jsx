@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import { getFramework, SOURCE_LABEL } from '../../mission/index.js'
 
@@ -15,6 +15,7 @@ import { getFramework, SOURCE_LABEL } from '../../mission/index.js'
 // ──────────────────────────────────────────────────────────────────
 
 const mono = { fontFamily: "'Space Mono', monospace" }
+const clampPx = (v, max) => Math.max(8, Math.min(max, v))
 
 // status of one requirement from the live validation issues
 function reqStatus(rule, issues) {
@@ -35,6 +36,29 @@ export default function RequirementsChecklist() {
   const { missionPlan, live, toggleHardware, entities, onboarding, transition } = useForge()
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(null)
+  // The panel is DRAGGABLE (Part 5) so it never sits over the advance
+  // button. null → default bottom-left dock; once dragged, {x,y} in px.
+  const [pos, setPos] = useState(null)
+  const dragRef = useRef(null)
+
+  useEffect(() => {
+    const onMove = (e) => {
+      const d = dragRef.current
+      if (!d) return
+      if (Math.abs(e.clientX - d.x0) + Math.abs(e.clientY - d.y0) > 3) d.moved = true
+      const x = clampPx(d.left + (e.clientX - d.x0), window.innerWidth - 56)
+      const y = clampPx(d.top + (e.clientY - d.y0), window.innerHeight - 40)
+      setPos({ x, y })
+    }
+    const onUp = () => {
+      const d = dragRef.current
+      if (d && !d.moved) setOpen(o => !o)   // a click, not a drag → toggle
+      dragRef.current = null
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
 
   const fw = getFramework(missionPlan.frameworkId)
   // only relevant once a competition with requirements is chosen
@@ -46,14 +70,21 @@ export default function RequirementsChecklist() {
   const met = reqs.filter(r => r.state === 'ok').length
   const violated = reqs.filter(r => r.state === 'violated').length
 
+  const startDrag = (e) => {
+    const r = e.currentTarget.parentElement.getBoundingClientRect()
+    dragRef.current = { x0: e.clientX, y0: e.clientY, left: r.left, top: r.top, moved: false }
+  }
+  const dock = pos ? { left: pos.x, top: pos.y } : { left: 14, bottom: 14 }
+
   return (
-    <div style={{ position: 'absolute', bottom: 14, left: 14, zIndex: 85, width: open ? 320 : 'auto' }}>
-      {/* toggle pill */}
-      <button onClick={() => setOpen(o => !o)} style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: open ? '8px 8px 0 0' : 8, cursor: 'pointer',
+    <div style={{ position: 'fixed', ...dock, zIndex: 85, width: open ? 320 : 'auto' }}>
+      {/* toggle pill — also the drag handle */}
+      <button onMouseDown={startDrag} style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: open ? '8px 8px 0 0' : 8, cursor: 'grab',
         border: '1px solid var(--rule)', borderBottom: open ? 'none' : '1px solid var(--rule)',
         background: 'var(--paper)', boxShadow: '0 4px 14px rgba(14,30,51,.12)', width: '100%',
       }}>
+        <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', cursor: 'grab' }}>⠿</span>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: violated ? 'var(--err2)' : met === rules.length ? 'var(--ok2)' : 'var(--warn2)' }} />
         <span style={{ ...mono, fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink3)' }}>Requisitos {fw.name}</span>
         <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)' }}>{met}/{rules.length}</span>
