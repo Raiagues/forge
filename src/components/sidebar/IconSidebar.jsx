@@ -42,7 +42,7 @@ function Lock() {
 
 export default function IconSidebar() {
   const store = useForge()
-  const { activeSection, setSection, setHardwareView, setMissionStep, theme, toggleTheme, sidebarCollapsed, toggleSidebar, showPopover } = store
+  const { activeSection, setSection, setHardwareView, setMissionStep, missionStep, hardwareView, theme, toggleTheme, sidebarCollapsed, toggleSidebar, showPopover } = store
   const { status, hwReady } = derivePhases(store)
   const [expanded, setExpanded] = useState(() => ({ [PHASE_BY_ACTIVE(activeSection)]: true }))
 
@@ -126,12 +126,19 @@ export default function IconSidebar() {
                 <div style={{ overflow: 'hidden' }}>
                   {p.sub.map(sub => {
                     const done = !!st.sub[sub.id]
+                    // current sub-item: same three-state logic at sub level.
+                    // We know which sub is active for the steps the store
+                    // tracks (mission flow step, hardware 2D/3D view).
+                    const cur = st.current && (
+                      (p.id === 'mission' && sub.step === missionStep) ||
+                      (p.id === 'hardware' && sub.view === hardwareView)
+                    )
                     return (
-                      <button key={sub.id} onClick={() => goSub(p, sub)} style={subRow()}>
-                        <span style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: done ? 'var(--ok2)' : 'var(--rail-line)', flexShrink: 0 }}>
-                          {done ? <Check /> : <span style={{ width: 5, height: 5, borderRadius: '50%', border: '1.5px solid currentColor' }} />}
+                      <button key={sub.id} onClick={() => goSub(p, sub)} style={subRow(cur)}>
+                        <span style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: done ? 'var(--ok2)' : cur ? 'var(--rail-active-fg)' : 'var(--rail-line)', flexShrink: 0 }}>
+                          {done ? <Check /> : <span style={{ width: cur ? 6 : 5, height: cur ? 6 : 5, borderRadius: '50%', background: cur ? 'currentColor' : 'transparent', border: '1.5px solid currentColor' }} />}
                         </span>
-                        <span style={{ fontSize: 13, color: 'var(--rail-fg-dim)' }}>{sub.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: cur ? 600 : 400, color: cur ? 'var(--rail-active-fg)' : 'var(--rail-fg-dim)' }}>{sub.label}</span>
                       </button>
                     )
                   })}
@@ -181,7 +188,9 @@ const railStyle = () => ({ width: 48, flexShrink: 0, background: 'var(--rail-bg)
 const railBtn = (st) => ({ position: 'relative', width: 34, height: 34, borderRadius: 7, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   background: st.current ? 'var(--rail-active-bg)' : 'transparent', color: st.current ? 'var(--rail-active-fg)' : st.locked ? 'var(--ink4)' : 'var(--rail-fg)' })
 const dotBadge = (bg) => ({ position: 'absolute', top: -2, right: -2, width: 13, height: 13, borderRadius: '50%', background: bg, color: 'var(--rail-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--rail-bg)' })
-const phaseRow = (st) => ({ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 12px', border: 'none', cursor: 'pointer',
+const phaseRow = (st) => ({ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 12px 8px 9px', border: 'none',
+  borderLeft: st.current ? '3px solid var(--rail-active-fg)' : '3px solid transparent', cursor: 'pointer',
   background: st.current ? 'var(--rail-active-bg)' : 'transparent' })
-const subRow = () => ({ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '5px 12px 5px 34px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' })
+const subRow = (cur) => ({ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '5px 12px 5px 31px', border: 'none',
+  borderLeft: cur ? '3px solid var(--rail-active-fg)' : '3px solid transparent', background: cur ? 'var(--rail-active-bg)' : 'none', cursor: 'pointer', textAlign: 'left' })
 const iconBtn = (active) => ({ width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: active ? 'var(--rail-active-bg)' : 'transparent', color: active ? 'var(--rail-active-fg)' : 'var(--rail-fg)' })
