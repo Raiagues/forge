@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import {
-  getFramework, resolveObjective, SOURCE_LABEL, effectiveProps, budgetDelta, OBSAT_FORMAT_LIST,
+  getFramework, resolveObjective, SOURCE_LABEL, effectiveProps, budgetDelta, getObsatFormat,
 } from '../../mission/index.js'
 import HardwareViews, { BigViewToggle } from '../canvas/HardwareViews'
 import CatGlyph from '../ui/catGlyphs'
@@ -27,10 +27,14 @@ const mono = { fontFamily: "'Space Mono', monospace" }
 const SEV_COLOR = { error: 'var(--err2)', warn: 'var(--warn2)', info: 'var(--ink3)' }
 const sectionTitle = { ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '0 0 8px' }
 
-// ── scoped mission controls (format + budget) ──────────────────────
+// ── scoped mission controls (format read-only + budget) ─────────────
+// The form factor is decided in the Mission flow (Part 2); here it is shown
+// READ-ONLY (Part 4) — editing it means going back to the definition.
 function ScopedMission() {
-  const { missionPlan, setFormat, setBudget, setSection } = useForge()
-  const active = missionPlan.format || 'cubesat'
+  const { missionPlan, setBudget, setSection } = useForge()
+  const formatLabel = (missionPlan.format || 'cubesat') === 'cubesat'
+    ? `CubeSat ${missionPlan.cubeU || '1U'}`
+    : (getObsatFormat(missionPlan.format)?.label || 'CubeSat')
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -38,19 +42,10 @@ function ScopedMission() {
         <span style={{ flex: 1 }} />
         <button onClick={() => setSection('mission')} style={{ ...mono, fontSize: 11, color: 'var(--acc)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>editar definição →</button>
       </div>
-      <div style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 5 }}>formato</div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        {OBSAT_FORMAT_LIST.map(f => {
-          const sel = active === f.id
-          return (
-            <button key={f.id} onClick={() => setFormat(f.id)} title={`${f.label} · ${f.sizeNote} · ≤ ${f.massMaxG} g`}
-              style={{ flex: 1, padding: '5px 2px', borderRadius: 4, cursor: 'pointer',
-                border: `1px solid ${sel ? 'var(--acc)' : 'var(--rule)'}`, background: sel ? 'rgba(158,74,44,.08)' : 'var(--paper)',
-                ...mono, fontSize: 9.5, letterSpacing: '.04em', textTransform: 'uppercase', color: sel ? 'var(--acc)' : 'var(--ink4)' }}>
-              {f.id === 'pocketqube' ? 'Pocket' : f.label.replace(' 1U', '')}
-            </button>
-          )
-        })}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 'var(--r-md)', border: '1px solid var(--rule)', background: 'var(--paper)', marginBottom: 10 }}>
+        <span style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)' }}>formato</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }}>{formatLabel}</span>
       </div>
       <label style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)' }}>orçamento (R$)
         <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="opcional"
@@ -133,16 +128,32 @@ function WiringStage() {
   )
 }
 
-// ── live validation notices (compact, source-tagged) ───────────────
+// ── live validation — subtle, collapsed-by-default indicator (Part 4) ─
+// Previously an always-open prominent list. Now a quiet one-line status
+// chip (green when clean) that the user expands on demand, so validation
+// no longer dominates the sidebar.
 function ValidationNotices() {
   const { live, toggleHardware, entities } = useForge()
+  const [open, setOpen] = useState(false)
   const validation = live?.validation
   const shown = (validation?.issues || []).filter(i => i.severity !== 'info').slice(0, 4)
-  if (!shown.length) return null
+  const errors = validation?.summary?.errors || 0
+  const warnings = validation?.summary?.warnings || 0
+  const clean = errors === 0 && warnings === 0
+  const dot = errors ? 'var(--err2)' : warnings ? 'var(--warn2)' : 'var(--ok2)'
+  const summary = clean ? 'requisitos ok'
+    : [errors ? `${errors} erro${errors > 1 ? 's' : ''}` : null, warnings ? `${warnings} aviso${warnings > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')
+
   return (
     <div style={{ marginBottom: 16 }}>
-      <span style={sectionTitle}>Validação ao vivo</span>
-      {shown.map((iss, i) => (
+      <button onClick={() => !clean && setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '6px 9px', borderRadius: 'var(--r-md)',
+          border: '1px solid var(--rule)', background: 'var(--paper)', cursor: clean ? 'default' : 'pointer', textAlign: 'left' }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: dot }} />
+        <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', color: 'var(--ink3)', flex: 1 }}>{summary}</span>
+        {!clean && <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)' }}>{open ? '▾' : '▸'}</span>}
+      </button>
+      {open && shown.map((iss, i) => (
         <div key={i} style={{ border: '1px solid var(--rule)', background: iss.severity === 'error' ? 'rgba(184,75,44,.06)' : 'rgba(200,131,26,.06)', borderRadius: 'var(--r-md)', padding: '7px 10px', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: SEV_COLOR[iss.severity] }} />
@@ -211,7 +222,7 @@ function BuilderCanvas() {
 
 // ── main section ──────────────────────────────────────────────────
 export default function HardwareSection() {
-  const { entities, live, missionPlan, openPhaseReview } = useForge()
+  const { entities, live, missionPlan, openPhaseReview, sidebarCollapsed } = useForge()
   const [cfgW, setCfgW] = usePanelWidth('forge.hwBuilderW', 308, 232, 540)
   const [hoverComp, setHoverComp] = useState(null)
   const hoverDelta = hoverComp && !entities[hoverComp] ? budgetDelta({ defs: COMPONENT_DEFS, compId: hoverComp, overrides: missionPlan.overrides }) : null
@@ -233,10 +244,15 @@ export default function HardwareSection() {
           <WiringStage />
           <ValidationNotices />
         </div>
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
-          <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>orçamentos</div>
-          <BudgetMeters delta={hoverDelta} showFormat={false} />
-        </div>
+        {/* Budget meters live in the phase sidebar when it is expanded, so we
+            only dock them here when that sidebar is collapsed (Part 4) — no
+            duplicate meters on screen. */}
+        {sidebarCollapsed && (
+          <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
+            <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>orçamentos</div>
+            <BudgetMeters delta={hoverDelta} showFormat={false} />
+          </div>
+        )}
         <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
           <button onClick={() => openPhaseReview('hardware')} disabled={!ready}
             style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
