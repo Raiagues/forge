@@ -1,303 +1,308 @@
-import { useState } from 'react'
-import useForge, { COMPONENT_DEFS } from '../../store/useForge'
+import useForge from '../../store/useForge'
 import {
-  FRAMEWORK_LIST, COMING_SOON_FRAMEWORKS, OBJECTIVES, getFramework, resolveObjective,
-  FAB_RULES, getFabRule, OBSAT_FORMAT_LIST,
+  getFramework, resolveObjective, OBJECTIVE_CATEGORIES, MISSION_PRIORITIES,
+  FAB_RULES, getFabRule,
 } from '../../mission/index.js'
-import { track } from '../../lib/analytics.js'
 import {
-  mono, slab, CREAM, GOLD, NAVY_FIELD, primaryBtn, h2, sub, inputStyle,
-  MISSION_KINDS, StepDots, Card,
+  mono, slab, CREAM, GOLD, NAVY_FIELD, h2, sub, inputStyle, StepDots, Card,
 } from '../onboarding/posterKit.jsx'
 import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
 
 // ──────────────────────────────────────────────────────────────────
-// MissionWindow — the mission-definition CONSULTANT (Part 2).
+// MissionWindow — the mission-definition flow (Part 2 redesign).
 //
-// Not a chat box and not a form: a structured flow that asks targeted
-// questions and, after each answer, thinks alongside the user — surfacing
-// constraints, implications and an early DRAFT component list so they
-// reach Hardware with a populated board, not a blank one. The mission is
-// DEFINED here exactly once; Hardware (Part 8) only lays it out.
+// A structured, visual flow — NOT a chat and NOT a free-text form. The
+// competition is LOCKED to OBSAT (the only one supported today), so it is
+// pre-filled and shown read-only rather than chosen. Four steps:
 //
-// Flow (competition path): contexto → competição → formato → objetivo
-// (texto livre + sugestões do consultor) → equipe (+ situação em
-// linguagem natural) → restrições (orçamento) → identidade. Non-
-// competition kinds skip the competition step. Every field is live-bound
-// to missionPlan; the SatelliteAssembly side panel grows per decision.
+//   equipe → formato → objetivo → restrições
+//
+// WHY TEAM FIRST: the team is the mission's identity, captured before any
+// engineering decision. Asking "who are you?" up front (mission name + team
+// + members) frames the rest of the flow as *this team's* satellite and
+// avoids interrupting the engineering reasoning later with administrative
+// fields. It also means the SatelliteAssembly bus appears on the very first
+// answer, so progress feels owned immediately.
+//
+// Every field is live-bound to missionPlan; the SatelliteAssembly side
+// panel grows per decision. The current step lives in the store
+// (missionStep) so the sidebar + step pipeline can jump straight to it.
 // ──────────────────────────────────────────────────────────────────
 
 const label = { ...mono, fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)' }
 
-// fabrication target lives in advanced options (still real, functional)
-function AdvancedOptions() {
-  const [open, setOpen] = useState(false)
-  const ruleId = useForge(s => s.board.ruleId)
-  const setFabRule = useForge(s => s.setFabRule)
-  const rule = getFabRule(ruleId)
+const STEP_DEFS = [
+  { id: 'team', title: 'equipe' },
+  { id: 'format', title: 'formato' },
+  { id: 'objective', title: 'objetivo' },
+  { id: 'restrictions', title: 'restrições' },
+]
+
+// CubeSat sizes — centred visual cards with dimensions + a mini stack
+// illustration whose height grows with U.
+const CUBE_SIZES = [
+  { u: '1U', dims: '10 × 10 × 10 cm', note: 'um cubo — missão compacta' },
+  { u: '2U', dims: '10 × 10 × 20 cm', note: 'dois cubos — mais carga útil' },
+  { u: '3U', dims: '10 × 10 × 30 cm', note: 'três cubos — payload completo' },
+]
+
+function CubeIcon({ u, active }) {
+  const n = { '1U': 1, '2U': 2, '3U': 3 }[u] || 1
+  const unit = 16, w = 26, top = 6
+  const h = n * unit
+  const col = active ? 'var(--poster-gold)' : 'var(--poster-fg-dim)'
   return (
-    <div style={{ marginTop: 4 }}>
-      <button onClick={() => { track('panel_toggle', { panel: 'advanced_options', action: open ? 'close' : 'open' }); setOpen(v => !v) }}
-        style={{ ...mono, fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s', display: 'inline-block' }}>▸</span>
-        opções avançadas
-        <span style={{ fontSize: 10, color: 'var(--poster-fg-dim)', textTransform: 'none', letterSpacing: '.04em' }}>opcional</span>
+    <svg width="34" height="60" viewBox="0 0 40 60" aria-hidden="true">
+      <g stroke={col} strokeWidth="1.6" fill="none">
+        <rect x={(40 - w) / 2} y={top} width={w} height={h} />
+        {Array.from({ length: n - 1 }, (_, i) => (
+          <line key={i} x1={(40 - w) / 2} y1={top + unit * (i + 1)} x2={(40 - w) / 2 + w} y2={top + unit * (i + 1)} strokeOpacity=".6" />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
+// locked banner: the supported competition is pre-filled, others are "em breve"
+function CompetitionLock() {
+  const comingSoon = useForge(s => s.comingSoon)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderRadius: 7, border: `1.5px solid ${GOLD}`, background: 'var(--poster-card-sel)' }}>
+        <span style={{ ...mono, fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)' }}>competição universitária</span>
+        <span style={{ ...slab, fontSize: 14, fontWeight: 700, color: CREAM }}>OBSAT</span>
+        <span title="Pré-definido — único disponível hoje" style={{ ...mono, fontSize: 11, color: GOLD }}>🔒</span>
+      </span>
+      <button onClick={(e) => comingSoon('Outras competições', e.currentTarget, 'framework_lasc')}
+        style={{ ...mono, fontSize: 11, letterSpacing: '.06em', color: 'var(--poster-fg-dim)', background: 'none', border: '1px dashed var(--poster-line)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer' }}>
+        outras competições · em breve
       </button>
-      {open && (
-        <div style={{ marginTop: 9, padding: '12px 14px', borderRadius: 8, border: '1.5px dashed var(--poster-line)', background: 'var(--poster-card)' }}>
-          <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 7 }}>alvo de fabricação</div>
-          <select value={ruleId} onChange={(e) => setFabRule(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', borderRadius: 6, ...mono, fontSize: 13, border: '1px solid var(--poster-line)', background: 'var(--poster-input)', color: 'var(--poster-fg)' }}>
-            {FAB_RULES.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <div style={{ ...mono, fontSize: 10.5, color: 'var(--poster-fg-dim)', lineHeight: 1.5, marginTop: 6 }}>
-            trilha mín {rule.minTraceMm} mm · isolamento {rule.minClearanceMm} mm · {rule.material}. {rule.note}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-// The consultant's feedback panel — reply + warnings + draft (add to build).
-function ConsultantPanel() {
-  const { consult, askConsultant, applyConsultDraft, entities } = useForge()
-  const r = consult.result
+// a disabled, clickable "em breve" pill that explains itself on click
+function LockedPill({ label: text, featureKey }) {
+  const comingSoon = useForge(s => s.comingSoon)
   return (
-    <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--poster-line)', background: 'var(--poster-card)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ ...mono, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: GOLD }}>Consultor de engenharia</span>
-        {consult.provider === 'anthropic' && <span style={{ ...mono, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)' }}>· ao vivo</span>}
-        <span style={{ flex: 1 }} />
-        <button onClick={() => askConsultant()} disabled={consult.running}
-          style={{ ...mono, fontSize: 11, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 5, padding: '5px 12px', cursor: consult.running ? 'wait' : 'pointer', opacity: consult.running ? .6 : 1 }}>
-          {consult.running ? 'analisando…' : r ? 'analisar de novo' : 'pedir análise'}
-        </button>
-      </div>
-      {!r && !consult.running && (
-        <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--poster-fg-dim)' }}>
-          Descreva o objetivo e a situação da equipe e o consultor sugere sensores e aponta os tradeoffs antes de você ir ao hardware.
-        </div>
-      )}
-      {r && (
-        <>
-          <div style={{ fontSize: 14, lineHeight: 1.55, color: CREAM }}>{r.reply}</div>
-          {r.warnings?.length > 0 && (
-            <ul style={{ margin: '10px 0 0', paddingLeft: 18 }}>
-              {r.warnings.map((w, i) => (
-                <li key={i} style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--poster-fg-dim)', marginBottom: 4 }}>{w}</li>
-              ))}
-            </ul>
-          )}
-          {r.draft?.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)', marginBottom: 6 }}>componentes sugeridos</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {r.draft.map(id => {
-                  const placed = !!entities[id]
-                  return (
-                    <button key={id} onClick={() => !placed && useForge.getState().toggleHardware(id)} disabled={placed}
-                      style={{ ...mono, fontSize: 12, padding: '4px 10px', borderRadius: 5, cursor: placed ? 'default' : 'pointer',
-                        border: `1px solid ${placed ? 'var(--ok2)' : 'var(--poster-line)'}`, background: placed ? 'rgba(58,144,96,.12)' : 'var(--poster-input)',
-                        color: placed ? 'var(--ok2)' : CREAM }}>
-                      {placed ? '✓ ' : '+ '}{COMPONENT_DEFS[id]?.friendly || id}
-                    </button>
-                  )
-                })}
-              </div>
-              <button onClick={() => applyConsultDraft()} style={{ ...mono, fontSize: 11.5, marginTop: 9, color: GOLD, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                adicionar todos ao satélite →
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+    <button onClick={(e) => comingSoon(text, e.currentTarget, featureKey)}
+      style={{ ...mono, fontSize: 12, letterSpacing: '.04em', color: 'var(--poster-fg-dim)', background: 'var(--poster-card)', border: '1px dashed var(--poster-line)', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+      {text} <span style={{ color: GOLD, marginLeft: 6 }}>em breve</span>
+    </button>
   )
 }
 
 export default function MissionWindow() {
   const {
-    missionPlan, selectFramework, setMissionKind, selectObjective,
-    setPlanName, setBudget, comingSoon, setFormat,
-    setCustomDescription, setTeamField, setPriorities, enterHardware,
+    missionPlan, setPlanName, setBudget, setCubeU, setFabRule,
+    toggleObjectiveCategory, setTeamField, addTeamMember, setTeamMember, removeTeamMember,
+    setPriorityRanking, enterHardware, missionStep, setMissionStep, sidebarCollapsed,
   } = useForge()
-  const kind = missionPlan.kind || null
-  const isCompetition = kind === 'competition'
-
-  // dynamic step list — competition path has the extra "competição" step
-  const stepDefs = [
-    { id: 'context', title: 'tipo de missão' },
-    ...(isCompetition || kind == null ? [{ id: 'competition', title: 'competição' }] : []),
-    { id: 'format', title: 'formato' },
-    { id: 'objective', title: 'objetivo' },
-    { id: 'team', title: 'equipe' },
-    { id: 'constraints', title: 'restrições' },
-    { id: 'identity', title: 'identidade' },
-  ]
-  const steps = stepDefs.map(s => s.title)
-  const idx = (id) => stepDefs.findIndex(s => s.id === id)
-
-  // resume at the first incomplete decision
-  const firstIncomplete = !kind ? 0
-    : (isCompetition && !missionPlan.frameworkId) ? idx('competition')
-    : !missionPlan.format ? idx('format')
-    : (!missionPlan.objectiveId && !(missionPlan.custom?.description || '').trim()) ? idx('objective')
-    : !(missionPlan.team?.name || '').trim() ? idx('team')
-    : (missionPlan.budgetBRL == null && !(missionPlan.priorities || '').trim()) ? idx('constraints')
-    : idx('identity')
-  const [step, setStep] = useState(Math.max(0, firstIncomplete))
+  const board = useForge(s => s.board)
   const [asmW, setAsmW] = usePanelWidth('forge.missionAsmW', 300, 220, 460)
 
-  const complete = !!kind && !!missionPlan.format && (!!missionPlan.objectiveId || !!(missionPlan.custom?.description || '').trim()) && missionPlan.name.trim().length >= 2
-  const competitions = FRAMEWORK_LIST.filter(f => f.kind === 'competition')
+  const steps = STEP_DEFS.map(s => s.title)
+  const stepIdx = Math.max(0, STEP_DEFS.findIndex(s => s.id === missionStep))
+  const goByIndex = (i) => setMissionStep(STEP_DEFS[Math.max(0, Math.min(STEP_DEFS.length - 1, i))].id)
+
+  const cats = missionPlan.objectiveCategories || []
+  const ranked = missionPlan.priorityRanking || []
+  const unranked = MISSION_PRIORITIES.filter(p => !ranked.includes(p.id))
+  const addPriority = (id) => setPriorityRanking([...ranked, id])
+  const removePriority = (id) => setPriorityRanking(ranked.filter(x => x !== id))
+  const movePriority = (i, dir) => {
+    const j = i + dir
+    if (j < 0 || j >= ranked.length) return
+    const next = ranked.slice();[next[i], next[j]] = [next[j], next[i]]
+    setPriorityRanking(next)
+  }
+
+  const complete = missionPlan.name.trim().length >= 2
+    && !!(missionPlan.team?.name || '').trim()
+    && cats.length > 0
+    && missionPlan.budgetBRL != null
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
-
-  const go = (id) => setStep(idx(id))
-  const chooseKind = (k) => {
-    if (k !== 'competition') { selectFramework('custom'); setMissionKind(k); go('format') }
-    else { setMissionKind('competition'); track('onboarding', { action: 'kind_competition' }); setStep(1) }
-  }
-  const chooseCompetition = (id) => { selectFramework(id); setMissionKind('competition'); go('format') }
+  const fabRule = getFabRule(board.ruleId)
 
   const screensById = {}
-  screensById.context = (
-    <>
-      <h2 style={h2}>Que tipo de missão você vai voar?</h2>
-      <p style={sub}>Isso define as regras de validação e as recomendações que o consultor aplica ao seu projeto.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 320px))', gap: 16, justifyContent: 'center' }}>
-        {MISSION_KINDS.map(k => (
-          <Card key={k.id} width="100%" selected={kind === k.id} onClick={() => chooseKind(k.id)}>
-            <div style={{ ...mono, fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 7 }}>{k.tag}</div>
-            <div style={{ ...slab, fontSize: 22, fontWeight: 700, marginBottom: 5 }}>{k.label}</div>
-            <div style={{ fontSize: 14.5, lineHeight: 1.5, color: 'var(--poster-fg-dim)' }}>{k.desc}</div>
-          </Card>
-        ))}
-      </div>
-    </>
-  )
-  screensById.competition = (
-    <>
-      <h2 style={h2}>Qual competição?</h2>
-      <p style={sub}>Os requisitos oficiais (massa, telemetria, enlace) entram direto na validação do projeto.</p>
-      <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-        {competitions.map(f => (
-          <Card key={f.id} selected={missionPlan.frameworkId === f.id} onClick={() => chooseCompetition(f.id)}>
-            <div style={{ ...slab, fontSize: 23, fontWeight: 700, marginBottom: 4 }}>{f.name}</div>
-            <div style={{ ...mono, fontSize: 12, color: GOLD, marginBottom: 8 }}>{f.full}</div>
-            <div style={{ fontSize: 14, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>{f.tagline}</div>
-          </Card>
-        ))}
-        {COMING_SOON_FRAMEWORKS.map(f => (
-          <Card key={f.id} onClick={(e) => comingSoon(f.name, e.currentTarget, `framework_${f.id}`)}>
-            <div style={{ ...slab, fontSize: 23, fontWeight: 700, marginBottom: 4, opacity: .65 }}>{f.name}</div>
-            <div style={{ ...mono, fontSize: 12, color: 'var(--poster-fg-dim)', marginBottom: 8 }}>{f.full}</div>
-            <div style={{ fontSize: 14, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>{f.tagline}</div>
-          </Card>
-        ))}
-      </div>
-    </>
-  )
-  screensById.format = (
-    <>
-      <h2 style={h2}>Qual o formato do satélite?</h2>
-      <p style={sub}>O formato fixa os orçamentos de massa, volume e energia que você acompanha o tempo todo.</p>
-      <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-        {OBSAT_FORMAT_LIST.map(f => (
-          <Card key={f.id} selected={missionPlan.format === f.id} onClick={() => { setFormat(f.id); go('objective') }}>
-            <div style={{ ...slab, fontSize: 21, fontWeight: 700, marginBottom: 4 }}>{f.label}</div>
-            <div style={{ ...mono, fontSize: 12, color: GOLD, marginBottom: 8 }}>≤ {f.massMaxG} g</div>
-            <div style={{ ...mono, fontSize: 12, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>{f.sizeNote}</div>
-          </Card>
-        ))}
-      </div>
-    </>
-  )
-  screensById.objective = (
-    <>
-      <h2 style={h2}>O que a missão vai medir ou fazer?</h2>
-      <p style={sub}>Escolha um objetivo de partida e/ou descreva em texto livre — o consultor sugere os sensores.</p>
-      <div style={{ width: 540, maxWidth: '100%', margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-          {OBJECTIVES.filter(o => o.id !== 'custom').map(o => (
-            <Card key={o.id} width="100%" selected={missionPlan.objectiveId === o.id} onClick={() => selectObjective(o.id)}>
-              <div style={{ ...slab, fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{o.label}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--poster-fg-dim)' }}>{o.desc}</div>
-            </Card>
-          ))}
-        </div>
-        <label style={label}>descreva a missão (opcional)
-          <textarea value={missionPlan.custom?.description || ''} onChange={e => setCustomDescription(e.target.value)}
-            placeholder="ex.: medir o perfil de temperatura e pressão na subida e estimar o movimento do satélite com IMU"
-            rows={3} style={{ ...inputStyle, marginTop: 6, resize: 'vertical', lineHeight: 1.5 }} />
-        </label>
-        <ConsultantPanel />
-      </div>
-    </>
-  )
+
+  // ── step 1: equipe (mission name + team identity) ────────────────
   screensById.team = (
     <>
+      <CompetitionLock />
       <h2 style={h2}>Quem é a equipe?</h2>
-      <p style={sub}>O contexto da equipe ajusta as recomendações — descreva a situação e o consultor adapta os tradeoffs.</p>
-      <div style={{ width: 460, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <p style={sub}>Comece pela identidade da missão — o nome e quem está construindo. O resto da missão é desta equipe.</p>
+      <div style={{ width: 480, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={label}>nome da missão
+            <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={inputStyle} autoFocus />
+          </label>
           <label style={label}>nome da equipe
             <input value={missionPlan.team?.name || ''} onChange={e => setTeamField('name', e.target.value)} placeholder="ex.: Equipe Zênite" style={inputStyle} />
           </label>
-          <label style={label}>instituição
-            <input value={missionPlan.team?.institution || ''} onChange={e => setTeamField('institution', e.target.value)} placeholder="ex.: UFMG" style={inputStyle} />
-          </label>
         </div>
-        <label style={label}>tamanho da equipe
-          <input value={missionPlan.team?.size || ''} onChange={e => setTeamField('size', e.target.value)} placeholder="ex.: 4 integrantes" style={inputStyle} />
-        </label>
-        <label style={label}>situação da equipe (texto livre)
-          <textarea value={missionPlan.team?.situationText || ''} onChange={e => setTeamField('situationText', e.target.value)}
-            placeholder="ex.: equipe pequena, primeira vez na OBSAT, com outro projeto em paralelo e orçamento apertado"
-            rows={3} style={{ ...inputStyle, marginTop: 6, resize: 'vertical', lineHeight: 1.5 }} />
-        </label>
-        <ConsultantPanel />
-      </div>
-    </>
-  )
-  screensById.constraints = (
-    <>
-      <h2 style={h2}>Restrições e prioridades</h2>
-      <p style={sub}>O orçamento alimenta o medidor de custos; as prioridades guiam as recomendações.</p>
-      <div style={{ width: 420, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <label style={label}>orçamento total (R$ · opcional)
-          <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="ex.: 300" style={inputStyle} />
-        </label>
-        <label style={label}>prioridades e restrições conhecidas (opcional)
-          <textarea value={missionPlan.priorities || ''} onChange={e => setPriorities(e.target.value)}
-            placeholder="ex.: priorizar robustez da telemetria; já temos uma bateria; prazo curto para integração"
-            rows={3} style={{ ...inputStyle, marginTop: 6, resize: 'vertical', lineHeight: 1.5 }} />
-        </label>
-      </div>
-    </>
-  )
-  screensById.identity = (
-    <>
-      <h2 style={h2}>Dê um nome à missão</h2>
-      <p style={sub}>Quase lá — depois disso você vai direto para o hardware com um rascunho pronto.</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 380, margin: '0 auto' }}>
-        <label style={label}>nome da missão
-          <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={inputStyle} autoFocus />
-        </label>
-        <AdvancedOptions />
-        <button onClick={() => { track('onboarding', { action: 'to_hardware' }); enterHardware() }}
-          disabled={missionPlan.name.trim().length < 2}
-          style={{ ...primaryBtn, marginTop: 10, opacity: missionPlan.name.trim().length < 2 ? .45 : 1 }}>
-          Continuar para o hardware →
-        </button>
+
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={label}>integrantes</span>
+            <button onClick={() => addTeamMember()} style={{ ...mono, fontSize: 12, color: GOLD, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>+ adicionar</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {(missionPlan.team?.members || []).length === 0 && (
+              <div style={{ ...mono, fontSize: 12, color: 'var(--poster-fg-dim)' }}>nenhum integrante ainda — adicione nome e função.</div>
+            )}
+            {(missionPlan.team?.members || []).map((m, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
+                <input value={m.name} onChange={e => setTeamMember(i, 'name', e.target.value)} placeholder="nome" style={{ ...inputStyle, marginTop: 0 }} />
+                <input value={m.role} onChange={e => setTeamMember(i, 'role', e.target.value)} placeholder="função (ex.: firmware)" style={{ ...inputStyle, marginTop: 0 }} />
+                <button onClick={() => removeTeamMember(i)} title="remover" style={{ ...mono, fontSize: 14, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* the situation analysis is a future consultant feature */}
+        <LockedPill label="situação da equipe" featureKey="team_situation" />
       </div>
     </>
   )
 
-  const current = stepDefs[Math.min(step, stepDefs.length - 1)]
+  // ── step 2: formato (CubeSat only; 1U/2U/3U) ─────────────────────
+  screensById.format = (
+    <>
+      <h2 style={h2}>Qual o formato do satélite?</h2>
+      <p style={sub}>Hoje o GuiaSat monta CubeSats. Escolha o tamanho — ele fixa os orçamentos de massa, volume e energia.</p>
+      <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 22 }}>
+        <Card width={220} selected onClick={() => {}}>
+          <div style={{ ...slab, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>CubeSat</div>
+          <div style={{ ...mono, fontSize: 12, color: GOLD, marginBottom: 6 }}>padrão · selecionado</div>
+          <div style={{ fontSize: 13, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>Estrutura cúbica modular (1U a 3U).</div>
+        </Card>
+        <Card width={220} onClick={(e) => useForge.getState().comingSoon('CanSat', e.currentTarget, 'framework_cansat')}>
+          <div style={{ ...slab, fontSize: 20, fontWeight: 700, marginBottom: 4, opacity: .6 }}>CanSat</div>
+          <div style={{ ...mono, fontSize: 12, color: 'var(--poster-fg-dim)', marginBottom: 6 }}>em breve</div>
+          <div style={{ fontSize: 13, lineHeight: 1.45, color: 'var(--poster-fg-dim)' }}>Satélite-lata cilíndrico — disponível em breve.</div>
+        </Card>
+      </div>
+
+      <div style={{ ...label, textAlign: 'center', marginBottom: 12 }}>tamanho do CubeSat</div>
+      <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {CUBE_SIZES.map(s => {
+          const active = (missionPlan.cubeU || '1U') === s.u
+          return (
+            <button key={s.u} onClick={() => setCubeU(s.u)} style={{
+              width: 170, cursor: 'pointer', borderRadius: 'var(--r-lg)', padding: '18px 16px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+              background: active ? 'var(--poster-card-sel)' : 'var(--poster-card)',
+              border: `1.5px solid ${active ? GOLD : 'var(--poster-line)'}`, transition: 'all .15s', color: CREAM,
+            }}>
+              <CubeIcon u={s.u} active={active} />
+              <div style={{ ...slab, fontSize: 19, fontWeight: 700 }}>{s.u}</div>
+              <div style={{ ...mono, fontSize: 12, color: GOLD }}>{s.dims}</div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--poster-fg-dim)', textAlign: 'center' }}>{s.note}</div>
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+
+  // ── step 3: objetivo (visual category cards, multi-select) ───────
+  screensById.objective = (
+    <>
+      <h2 style={h2}>O que a missão vai fazer?</h2>
+      <p style={sub}>Escolha uma ou mais categorias — cada objetivo adiciona uma carga útil ao satélite.</p>
+      <div style={{ width: 640, maxWidth: '100%', margin: '0 auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12, marginBottom: 16 }}>
+          {OBJECTIVE_CATEGORIES.map(c => {
+            const active = cats.includes(c.id)
+            return (
+              <button key={c.id} onClick={() => toggleObjectiveCategory(c.id)} style={{
+                textAlign: 'left', cursor: 'pointer', borderRadius: 'var(--r-lg)', padding: '14px 14px 12px',
+                background: active ? 'var(--poster-card-sel)' : 'var(--poster-card)',
+                border: `1.5px solid ${active ? GOLD : 'var(--poster-line)'}`, transition: 'all .15s', color: CREAM,
+                display: 'flex', flexDirection: 'column', gap: 7,
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={active ? 'var(--poster-gold)' : 'currentColor'} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={c.icon} />
+                </svg>
+                <div style={{ ...slab, fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</div>
+                <div style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--poster-fg-dim)' }}>{c.desc}</div>
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ width: 320, margin: '0 auto' }}>
+          <LockedPill label="objetivo · missão personalizada" featureKey="custom_objective" />
+        </div>
+      </div>
+    </>
+  )
+
+  // ── step 4: restrições (budget + fab target + university + priorities) ─
+  screensById.restrictions = (
+    <>
+      <h2 style={h2}>Restrições e prioridades</h2>
+      <p style={sub}>O orçamento alimenta o medidor de custos; o alvo de fabricação e a afiliação contextualizam o projeto.</p>
+      <div style={{ width: 480, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label style={label}>orçamento total (R$)
+            <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="ex.: 300" style={inputStyle} />
+          </label>
+          {/* university affiliation (moved here from the team step / advanced options) */}
+          <label style={label}>afiliação (universidade)
+            <input value={missionPlan.team?.institution || ''} onChange={e => setTeamField('institution', e.target.value)} placeholder="ex.: UFMG" style={inputStyle} />
+          </label>
+        </div>
+        <label style={label}>alvo de fabricação
+          <select value={board.ruleId} onChange={e => setFabRule(e.target.value)}
+            style={{ ...inputStyle, fontFamily: "'Space Mono', monospace", fontSize: 14 }}>
+            {FAB_RULES.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+          <span style={{ ...mono, fontSize: 10.5, color: 'var(--poster-fg-dim)', lineHeight: 1.5, display: 'block', marginTop: 6, textTransform: 'none', letterSpacing: 0 }}>
+            trilha mín {fabRule.minTraceMm} mm · isolamento {fabRule.minClearanceMm} mm · {fabRule.material}
+          </span>
+        </label>
+
+        <div>
+          <span style={label}>prioridades da missão</span>
+          <p style={{ ...mono, fontSize: 11, color: 'var(--poster-fg-dim)', margin: '6px 0 8px', lineHeight: 1.5, textTransform: 'none', letterSpacing: 0 }}>
+            clique para priorizar; use ▲▼ para ordenar (a primeira é a mais importante).
+          </p>
+          {ranked.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+              {ranked.map((id, i) => {
+                const p = MISSION_PRIORITIES.find(x => x.id === id)
+                return (
+                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${GOLD}`, background: 'var(--poster-card-sel)' }}>
+                    <span style={{ ...mono, fontSize: 13, fontWeight: 700, color: GOLD, width: 18 }}>{i + 1}</span>
+                    <span style={{ ...slab, fontSize: 14, color: CREAM, flex: 1 }}>{p?.label}</span>
+                    <button onClick={() => movePriority(i, -1)} disabled={i === 0} title="subir" style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--poster-line)' : 'var(--poster-fg-dim)', fontSize: 12 }}>▲</button>
+                    <button onClick={() => movePriority(i, 1)} disabled={i === ranked.length - 1} title="descer" style={{ background: 'none', border: 'none', cursor: i === ranked.length - 1 ? 'default' : 'pointer', color: i === ranked.length - 1 ? 'var(--poster-line)' : 'var(--poster-fg-dim)', fontSize: 12 }}>▼</button>
+                    <button onClick={() => removePriority(id)} title="remover" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--poster-fg-dim)', fontSize: 14 }}>×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {unranked.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              {unranked.map(p => (
+                <button key={p.id} onClick={() => addPriority(p.id)} style={{ ...mono, fontSize: 12.5, padding: '7px 12px', borderRadius: 7, border: '1.5px solid var(--poster-line)', background: 'var(--poster-card)', color: CREAM, cursor: 'pointer' }}>
+                  + {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const current = STEP_DEFS[stepIdx]
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 36px 22px', background: NAVY_FIELD, overflow: 'hidden' }}>
@@ -306,11 +311,13 @@ export default function MissionWindow() {
           <div style={{ ...slab, fontSize: 22, fontWeight: 700, color: CREAM }}>Definição da missão</div>
           <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)' }}>
             {complete && fw && resolved
-              ? `${missionPlan.name} · ${fw.name} · ${resolved.label}`
-              : 'o consultor pensa junto com você — o hardware vem depois'}
+              ? `${missionPlan.name} · ${fw.name} · CubeSat ${missionPlan.cubeU}`
+              : 'monte a missão passo a passo — o hardware vem depois'}
           </div>
         </div>
-        <StepDots steps={steps} current={Math.min(step, steps.length - 1)} />
+        {/* the step pipeline is redundant with the expanded sidebar, so it
+            only appears when the sidebar is collapsed (Part 2) */}
+        {sidebarCollapsed && <StepDots steps={steps} current={stepIdx} onStep={goByIndex} />}
         {complete ? (
           <button onClick={() => enterHardware()} style={{ ...mono, fontSize: 13, letterSpacing: '.04em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '8px 16px', cursor: 'pointer', fontWeight: 700 }}>ir para o hardware →</button>
         ) : <span style={{ width: 10 }} />}
@@ -327,11 +334,11 @@ export default function MissionWindow() {
       </div>
 
       <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 22 }}>
-        {step > 0 && (
-          <button onClick={() => setStep(s => Math.max(0, s - 1))} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← voltar</button>
+        {stepIdx > 0 && (
+          <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← voltar</button>
         )}
-        {step < steps.length - 1 && kind != null && (
-          <button onClick={() => setStep(s => Math.min(steps.length - 1, s + 1))} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>avançar →</button>
+        {stepIdx < STEP_DEFS.length - 1 && (
+          <button onClick={() => goByIndex(stepIdx + 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>avançar →</button>
         )}
       </div>
     </div>

@@ -29,6 +29,20 @@ export const POWER_GUIDELINE_MW = { cubesat: 3700, cansat: 3000, pocketqube: 200
 // battery, structure). 0.55 is a deliberate, conservative packing estimate.
 const USABLE_VOLUME_FRACTION = 0.55
 
+// CubeSat U multiplier (1U/2U/3U). Volume scales geometrically with U.
+// ⚠️ Mass: only the 1U limit (455 g) is from the OBSat edital. The 2U/3U
+// limits below are a LINEAR extrapolation (GuiaSat estimate) so the meter
+// stays useful for larger formats — re-verify against the edital if 2U/3U
+// are ever officially admitted.
+export const CUBE_U_FACTOR = { '1U': 1, '2U': 2, '3U': 3 }
+const uFactor = (cubeU) => CUBE_U_FACTOR[cubeU] || 1
+
+// Format mass limit honouring the CubeSat U size (used by validation too).
+export function formatMassMaxG(formatId, cubeU = '1U') {
+  const fmt = getObsatFormat(formatId)
+  return fmt.massMaxG * (formatId === 'cubesat' ? uFactor(cubeU) : 1)
+}
+
 const voltsOf = (def) => parseFloat(String(def.voltage)) || 3.3
 
 // instantaneous power draw of a part in mW (override-aware current).
@@ -63,9 +77,10 @@ function meter(used, limit, { nearFrac = 0.85 } = {}) {
 
 // Compute all four meters for a design.
 export function computeBudgets({
-  defs, componentIds = [], overrides = {}, formatId = 'cubesat', budgetBRL = null,
+  defs, componentIds = [], overrides = {}, formatId = 'cubesat', cubeU = '1U', budgetBRL = null,
 }) {
   const fmt = getObsatFormat(formatId)
+  const u = formatId === 'cubesat' ? uFactor(cubeU) : 1
   const eco = economics({ defs, componentIds, overrides })
   let volumeCm3 = 0, powerMw = 0
   for (const id of componentIds) {
@@ -73,11 +88,12 @@ export function computeBudgets({
     volumeCm3 += componentVolumeCm3(def)
     powerMw += componentPowerMw(def, overrides[id])
   }
-  const usableVol = Math.round(formatEnvelopeCm3(fmt) * USABLE_VOLUME_FRACTION)
+  const usableVol = Math.round(formatEnvelopeCm3(fmt) * USABLE_VOLUME_FRACTION * u)
+  const massMaxG = fmt.massMaxG * u
 
   return {
-    formatId: fmt.id, formatLabel: fmt.label,
-    mass:   { ...meter(eco.massG, fmt.massMaxG),                      unit: 'g',   label: 'Massa' },
+    formatId: fmt.id, formatLabel: u > 1 ? `CubeSat ${cubeU}` : fmt.label,
+    mass:   { ...meter(eco.massG, massMaxG),                          unit: 'g',   label: 'Massa' },
     volume: { ...meter(volumeCm3, usableVol),                        unit: 'cm³', label: 'Volume' },
     power:  { ...meter(powerMw, POWER_GUIDELINE_MW[fmt.id] || 3700), unit: 'mW',  label: 'Potência', guideline: true },
     cost:   { ...meter(eco.priceBRL, budgetBRL || 0),                unit: 'R$',  label: 'Orçamento', optional: !budgetBRL },

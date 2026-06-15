@@ -14,13 +14,15 @@
 export const PHASES = [
   {
     id: 'mission', section: 'mission', label: 'Mission',
+    // Order matches the redesigned mission flow (Part 2): the team is
+    // captured FIRST (identity before engineering), then form factor,
+    // mission objectives and finally the restrictions. `step` lets the
+    // sidebar/pipeline jump straight to that step of MissionWindow.
     sub: [
-      { id: 'context', label: 'Contexto' },
-      { id: 'format', label: 'Formato' },
-      { id: 'objective', label: 'Objetivo' },
-      { id: 'team', label: 'Equipe' },
-      { id: 'constraints', label: 'Restrições' },
-      { id: 'components', label: 'Componentes' },
+      { id: 'team', label: 'Equipe', step: 'team' },
+      { id: 'format', label: 'Formato', step: 'format' },
+      { id: 'objective', label: 'Objetivo', step: 'objective' },
+      { id: 'restrictions', label: 'Restrições', step: 'restrictions' },
     ],
   },
   {
@@ -73,12 +75,10 @@ export function derivePhases(state, { gateAt = 2 } = {}) {
   // sub-item completion predicates
   const subDone = {
     mission: {
-      context: !!mp.kind,
-      format: !!mp.format,
-      objective: !!mp.objectiveId || !!(mp.custom?.description || '').trim(),
       team: !!(mp.team?.name || '').trim(),
-      constraints: mp.budgetBRL != null || !!(mp.priorities || '').trim(),
-      components: nEnts >= 1,
+      format: !!mp.cubeU,
+      objective: (mp.objectiveCategories?.length || 0) > 0 || !!mp.objectiveId,
+      restrictions: mp.budgetBRL != null,
     },
     hardware: {
       schematic: (wires?.length || 0) > 0,
@@ -101,7 +101,7 @@ export function derivePhases(state, { gateAt = 2 } = {}) {
 
   // phase-level completion (a phase is done when its key milestone is met)
   const phaseDone = {
-    mission: !!mp.frameworkId && (!!mp.objectiveId || !!(mp.custom?.description || '').trim()) && (mp.name?.trim().length >= 2) && !!mp.format,
+    mission: !!mp.frameworkId && ((mp.objectiveCategories?.length || 0) > 0 || !!mp.objectiveId) && (mp.name?.trim().length >= 2) && !!mp.cubeU && !!(mp.team?.name || '').trim(),
     hardware: nEnts >= gateAt,
     firmware: wiredAll && nEnts >= 1,
     testing: allPassed,

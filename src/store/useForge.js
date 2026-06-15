@@ -3,7 +3,8 @@ import {
   getFramework, validateDesign, validateLive, runCopilot, generateArchitecture,
   getObjective, resolveObjective, assignPins, economics,
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
-  SOFTWARE_MODULES, computeBudgets, getObsatFormat, runConsultant, nextPhase,
+  SOFTWARE_MODULES, computeBudgets, getObsatFormat, formatMassMaxG, runConsultant, nextPhase,
+  primaryObjectiveId,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
@@ -249,23 +250,28 @@ function loadSidebarCollapsed() {
 }
 
 const EMPTY_PLAN = {
-  frameworkId: null,
+  // Competition is LOCKED to OBSAT in the redesigned flow (Part 2): there is
+  // a single supported competition today, so it is pre-filled, not chosen.
+  frameworkId: 'obsat',
+  kind: 'competition',
   name: '',
-  format: null,             // satellite form factor: 'cubesat' | 'cansat' | 'pocketqube' (sets mass/volume/power budgets)
+  format: 'cubesat',        // only CubeSat is selectable today (CanSat "em breve")
+  cubeU: '1U',              // CubeSat size: '1U' | '2U' | '3U' (scales volume/mass budgets)
   objectives: [],
-  objectiveId: null,        // single primary scientific objective
+  objectiveCategories: [],  // visual mission categories (multi-select, Part 2)
+  objectiveId: null,        // primary objective (derived from the first category)
   objectiveMeta: {},        // user edits over the objective's metadata
-  budgetBRL: null,          // user-defined budget (R$) — headline total
+  budgetBRL: null,          // user-defined budget (R$) — headline total, required
   budgetCategories: {},     // optional breakdown: electronics/structure/propulsion/travel/fees
   overrides: {},            // compId → { price, mass, current } user edits
-  // team composition + a free-text "situation" the consultant parses for
-  // tailored warnings (parallel projects, small team, tight budget, …)
-  team: { name: '', institution: '', size: '', situationText: '' },
-  priorities: '',           // free-text constraints / priorities
+  // team composition. `members` is a roster of { name, role }. `institution`
+  // is the university affiliation (also surfaced under restrictions).
+  team: { name: '', institution: '', members: [] },
+  priorityRanking: [],      // ordered priority ids (visual ranking, Part 2)
   environment: { platform: '', altitude: '', tempRange: '', notes: '' },
   components: [],           // planned component ids (mirrors entities)
   software: [],             // chosen software module ids
-  custom: { description: '' },  // free-form mission objective text
+  custom: { description: '' },  // free-form mission objective text (legacy)
 }
 
 let noticeSeq = 0
@@ -290,20 +296,21 @@ const useForge = create((set, get) => {
     const pinIssues = pins.issues.filter(i => !i.title.startsWith('Sensores sem'))
     const wiring = wiringStatusAll(componentIds, s.wires)
     // satellite format → the real mass/volume/power budget (default CubeSat).
+    // CubeSat size (1U/2U/3U) scales the volume + mass envelope.
     const formatId = s.missionPlan.format || framework?.defaultFormat || 'cubesat'
-    const fmt = getObsatFormat(formatId)
+    const cubeU = s.missionPlan.cubeU || '1U'
     const validation = validateLive({
       defs: COMPONENT_DEFS, framework, objective,
       componentIds, overrides: s.missionPlan.overrides,
       budgetBRL: s.missionPlan.budgetBRL,
       pinIssues: [...pinIssues, ...wiringIssues],
       softwareIds: s.missionPlan.software, modules: SOFTWARE_MODULES,
-      massMaxG: fmt.massMaxG,
+      massMaxG: formatMassMaxG(formatId, cubeU),
     })
     const eco = economics({ defs: COMPONENT_DEFS, componentIds, overrides: s.missionPlan.overrides })
     const budgets = computeBudgets({
       defs: COMPONENT_DEFS, componentIds, overrides: s.missionPlan.overrides,
-      formatId, budgetBRL: s.missionPlan.budgetBRL,
+      formatId, cubeU, budgetBRL: s.missionPlan.budgetBRL,
     })
 
     // honest entity status: wired (simulated OK) vs not connected (idle)
@@ -358,6 +365,10 @@ const useForge = create((set, get) => {
     mission: { id: null, label: '', description: '', objectives: [], constraints: '', altitude: '—' },
     entities: {},
     activeSection: 'mission',
+    // current step of the mission-definition flow (Part 2). Lifted to the
+    // store so the sidebar sub-items + the step pipeline can jump directly
+    // to a step. Ids match phases.js → PHASES[mission].sub[].step.
+    missionStep: 'team',
     selectedId: null,
     drawerOpen: false,
     isScanning: false,
@@ -900,6 +911,46 @@ const useForge = create((set, get) => {
       track('format', { target: fmt.id })
       set(s => recomputeLive({ missionPlan: { ...s.missionPlan, format: fmt.id } }))
     },
+    // CubeSat size (1U/2U/3U) — scales the volume + mass budget envelope.
+    setCubeU: (u) => {
+      track('cube_u', { target: u })
+      set(s => recomputeLive({ missionPlan: { ...s.missionPlan, cubeU: u } }))
+    },
+
+    // ── mission-definition flow (Part 2) ─────────────────────────────
+    setMissionStep: (step) => set({ missionStep: step }),
+
+    // Visual mission objective categories (multi-select). The first
+    // selected category's mapped objective becomes the plan's primary
+    // objectiveId so validation + firmware keep their single-objective
+    // contract; deselecting all clears it.
+    toggleObjectiveCategory: (catId) => set(s => {
+      const cur = s.missionPlan.objectiveCategories || []
+      const next = cur.includes(catId) ? cur.filter(c => c !== catId) : [...cur, catId]
+      const objectiveId = primaryObjectiveId(next)
+      return recomputeLive({
+        missionPlan: { ...s.missionPlan, objectiveCategories: next, objectiveId, objectiveMeta: {} },
+      })
+    }),
+
+    // Visual priority ranking — ordered list of priority ids (drag/click to
+    // rank). Stored verbatim; the consultant/validation can read the order.
+    setPriorityRanking: (ids) => set(s => ({ missionPlan: { ...s.missionPlan, priorityRanking: ids } })),
+
+    // Team roster: { name, role } members (the institution is set via
+    // setTeamField). Kept minimal — add/edit/remove.
+    addTeamMember: () => set(s => ({
+      missionPlan: { ...s.missionPlan, team: { ...s.missionPlan.team, members: [...(s.missionPlan.team.members || []), { name: '', role: '' }] } },
+    })),
+    setTeamMember: (i, key, value) => set(s => {
+      const members = (s.missionPlan.team.members || []).slice()
+      if (!members[i]) return s
+      members[i] = { ...members[i], [key]: value }
+      return { missionPlan: { ...s.missionPlan, team: { ...s.missionPlan.team, members } } }
+    }),
+    removeTeamMember: (i) => set(s => ({
+      missionPlan: { ...s.missionPlan, team: { ...s.missionPlan.team, members: (s.missionPlan.team.members || []).filter((_, j) => j !== i) } },
+    })),
     setBudget: (value) => set(s => recomputeLive({
       missionPlan: { ...s.missionPlan, budgetBRL: value === '' || value == null ? null : Math.max(0, Number(value) || 0) },
     })),

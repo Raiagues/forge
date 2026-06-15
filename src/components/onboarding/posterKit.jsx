@@ -111,22 +111,34 @@ export const MISSION_KINDS = [
   { id: 'professional', tag: 'Profissional', label: 'Missão profissional',    desc: 'Prototipagem séria com requisitos e orçamento de verdade.' },
 ]
 
-export function StepDots({ steps, current }) {
+// `onStep(i)` makes every node a direct-navigation button (Part 2). Without
+// it the dots are display-only (the original onboarding behaviour).
+export function StepDots({ steps, current, onStep }) {
+  const clickable = typeof onStep === 'function'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       {steps.map((s, i) => (
         <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{
-            width: 26, height: 26, borderRadius: '50%', ...mono, fontSize: 12, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: i < current ? GOLD : i === current ? CREAM : 'transparent',
-            color: i <= current ? 'var(--poster-bg-solid)' : DIM,
-            border: `1.5px solid ${i <= current ? 'transparent' : LINE}`,
-          }}>{i < current ? '✓' : i + 1}</span>
-          <span style={{
-            ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase',
-            color: i === current ? CREAM : DIM,
-          }}>{s}</span>
+          <button
+            onClick={clickable ? () => onStep(i) : undefined}
+            disabled={!clickable}
+            title={clickable ? `Ir para ${s}` : undefined}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: 0, border: 'none',
+              background: 'none', cursor: clickable ? 'pointer' : 'default',
+            }}>
+            <span style={{
+              width: 26, height: 26, borderRadius: '50%', ...mono, fontSize: 12, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: i < current ? GOLD : i === current ? CREAM : 'transparent',
+              color: i <= current ? 'var(--poster-bg-solid)' : DIM,
+              border: `1.5px solid ${i <= current ? 'transparent' : LINE}`,
+            }}>{i < current ? '✓' : i + 1}</span>
+            <span style={{
+              ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase',
+              color: i === current ? CREAM : DIM,
+            }}>{s}</span>
+          </button>
           {i < steps.length - 1 && <span style={{ width: 26, height: 1, background: LINE }} />}
         </div>
       ))}

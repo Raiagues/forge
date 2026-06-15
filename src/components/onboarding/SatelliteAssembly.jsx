@@ -20,11 +20,12 @@ import { mono } from './posterKit.jsx'
 // accents go through inline style.fill (var() in SVG presentation
 // attributes is not supported in Chrome/Safari — see posterKit).
 //
-// Part mapping (one subsystem per mission decision):
-//   tipo de missão   → barramento (bus frame appears)
-//   competição       → painéis solares (wings deploy)
-//   objetivo         → carga útil (payload instrument)
-//   identidade       → antena + callsign stencil → mission-ready light
+// Part mapping (one subsystem per mission decision, Part 2 flow):
+//   equipe    → barramento (bus frame appears; the team claims the craft)
+//   formato   → escala do barramento (1U/2U/3U) + painéis solares
+//   objetivo  → carga útil — one payload module PER selected category, so
+//               more objectives literally build a more complex payload bay
+//   nome      → antena + callsign stencil → mission-ready light
 // ──────────────────────────────────────────────────────────────────
 
 const gold = { fill: 'var(--poster-gold)' }
@@ -57,19 +58,25 @@ function Part({ on, ghost, children, label, labelAt, anchor }) {
   )
 }
 
-const BUS = (solid) => (
-  <g stroke="currentColor" strokeWidth={solid ? 1.6 : 1.2} fill="currentColor"
-    fillOpacity={solid ? 0.06 : 0} strokeDasharray={solid ? 'none' : '4 4'}>
-    <rect x="105" y="150" width="90" height="90" />
-    {solid && <>
-      <line x1="105" y1="180" x2="195" y2="180" strokeOpacity=".5" />
-      <line x1="105" y1="212" x2="195" y2="212" strokeOpacity=".5" />
-      <line x1="135" y1="150" x2="135" y2="240" strokeOpacity=".3" />
-      <rect x="113" y="157" width="14" height="14" fillOpacity="0" strokeOpacity=".7" />
-      <circle cx="178" cy="226" r="6" fillOpacity="0" strokeOpacity=".7" />
-    </>}
-  </g>
-)
+// bus frame, sized by CubeSat U (taller for 2U/3U). `top`/`h` derive from U.
+const BUS = (solid, top, h) => {
+  const bot = top + h
+  return (
+    <g stroke="currentColor" strokeWidth={solid ? 1.6 : 1.2} fill="currentColor"
+      fillOpacity={solid ? 0.06 : 0} strokeDasharray={solid ? 'none' : '4 4'}>
+      <rect x="105" y={top} width="90" height={h} />
+      {solid && <>
+        {/* one deck line per U keeps the stacked-cube reading */}
+        {Array.from({ length: Math.round(h / 90) - 1 }, (_, i) => (
+          <line key={i} x1="105" y1={top + (h / Math.round(h / 90)) * (i + 1)} x2="195" y2={top + (h / Math.round(h / 90)) * (i + 1)} strokeOpacity=".5" />
+        ))}
+        <line x1="135" y1={top} x2="135" y2={bot} strokeOpacity=".3" />
+        <rect x="113" y={top + 7} width="14" height="14" fillOpacity="0" strokeOpacity=".7" />
+        <circle cx="178" cy={bot - 14} r="6" fillOpacity="0" strokeOpacity=".7" />
+      </>}
+    </g>
+  )
+}
 
 const WING = (x, solid) => (
   <g stroke="currentColor" strokeWidth={solid ? 1.4 : 1} fill="currentColor"
@@ -82,14 +89,27 @@ const WING = (x, solid) => (
   </g>
 )
 
+// vertical centre of the bus stack per CubeSat U (the 1U cube is square,
+// 2U/3U grow downward). Returns { top, h } in the 0..400 viewBox.
+const BUS_GEOM = { '1U': { top: 150, h: 90 }, '2U': { top: 130, h: 140 }, '3U': { top: 110, h: 180 } }
+
 export default function SatelliteAssembly({ plan }) {
-  const kind = plan.kind || null
-  const hasBus = !!kind
-  const hasPanels = !!plan.frameworkId
-  const hasPayload = !!plan.objectiveId
-  const hasAntenna = plan.name.trim().length >= 2
+  const cubeU = plan.cubeU || '1U'
+  const { top, h } = BUS_GEOM[cubeU] || BUS_GEOM['1U']
+  const bot = top + h
+  const cats = plan.objectiveCategories || []
+
+  const hasBus = !!(plan.team?.name || '').trim()   // team is the first decision
+  const hasPanels = hasBus                            // panels deploy with the structure
+  const nPayload = cats.length                        // one module per objective category
+  const hasPayload = nPayload > 0
+  const hasAntenna = (plan.name || '').trim().length >= 2
   const ready = hasBus && hasPanels && hasPayload && hasAntenna
   const parts = [hasBus, hasPanels, hasPayload, hasAntenna].filter(Boolean).length
+
+  // payload modules stacked inside the lower bus; more objectives → busier bay
+  const payW = 44, payH = 13, payGap = 4
+  const payTop = bot - 18 - (Math.max(1, nPayload) * (payH + payGap))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
@@ -100,48 +120,51 @@ export default function SatelliteAssembly({ plan }) {
         ))}
 
         {/* antenna — identity (name gives the satellite its callsign) */}
-        <Part on={hasAntenna} label="antena uhf" anchor={[150, 108]} labelAt={[226, 96]}
-          ghost={<g stroke="currentColor" strokeDasharray="4 4"><line x1="150" y1="150" x2="150" y2="118" /><path d="M132 118 A 24 24 0 0 1 168 118" fill="none" /></g>}>
+        <Part on={hasAntenna} label="antena uhf" anchor={[150, top - 42]} labelAt={[226, top - 54]}
+          ghost={<g stroke="currentColor" strokeDasharray="4 4"><line x1="150" y1={top} x2="150" y2={top - 32} /><path d={`M132 ${top - 32} A 24 24 0 0 1 168 ${top - 32}`} fill="none" /></g>}>
           <g stroke="currentColor" strokeWidth="1.4" fill="none">
-            <line x1="150" y1="150" x2="150" y2="118" />
-            <path d="M132 118 A 24 24 0 0 1 168 118" />
-            <line x1="150" y1="118" x2="150" y2="106" />
-            <circle cx="150" cy="104" r="2.4" style={gold} stroke="none" />
+            <line x1="150" y1={top} x2="150" y2={top - 32} />
+            <path d={`M132 ${top - 32} A 24 24 0 0 1 168 ${top - 32}`} />
+            <line x1="150" y1={top - 32} x2="150" y2={top - 44} />
+            <circle cx="150" cy={top - 46} r="2.4" style={gold} stroke="none" />
           </g>
         </Part>
 
-        {/* solar wings — framework/competition (power for the rules you fly) */}
-        <Part on={hasPanels} label="painéis solares" anchor={[40, 195]} labelAt={[34, 130]}
+        {/* solar wings — power (deploy with the structure) */}
+        <Part on={hasPanels} label="painéis solares" anchor={[40, top + 45]} labelAt={[34, top - 20]}
           ghost={<>{WING(36, false)}{WING(202, false)}</>}>
           {WING(36, true)}{WING(202, true)}
-          <line x1="98" y1="195" x2="105" y2="195" stroke="currentColor" strokeWidth="1.4" />
-          <line x1="195" y1="195" x2="202" y2="195" stroke="currentColor" strokeWidth="1.4" />
+          <line x1="98" y1={top + 45} x2="105" y2={top + 45} stroke="currentColor" strokeWidth="1.4" />
+          <line x1="195" y1={top + 45} x2="202" y2={top + 45} stroke="currentColor" strokeWidth="1.4" />
         </Part>
 
-        {/* bus — mission kind (the structure everything mounts on) */}
-        <Part on={hasBus} label="barramento" anchor={[195, 165]} labelAt={[252, 152]} ghost={BUS(false)}>
-          {BUS(true)}
+        {/* bus — team (the structure everything mounts on), sized by U */}
+        <Part on={hasBus} label={`barramento · ${cubeU}`} anchor={[195, top + 15]} labelAt={[252, top + 2]} ghost={BUS(false, top, h)}>
+          {BUS(true, top, h)}
         </Part>
 
-        {/* payload — scientific objective (what the mission measures) */}
-        <Part on={hasPayload} label="carga útil" anchor={[150, 262]} labelAt={[230, 286]}
-          ghost={<g stroke="currentColor" strokeDasharray="4 4" fill="none"><rect x="128" y="240" width="44" height="22" /><circle cx="150" cy="270" r="8" /></g>}>
+        {/* payload — one module per objective category (busier bay = more objectives) */}
+        <Part on={hasPayload} label={nPayload > 1 ? `carga útil · ${nPayload}` : 'carga útil'} anchor={[150, payTop + 6]} labelAt={[230, payTop]}
+          ghost={<g stroke="currentColor" strokeDasharray="4 4" fill="none"><rect x={150 - payW / 2} y={bot - 30} width={payW} height={payH} /></g>}>
           <g stroke="currentColor" strokeWidth="1.4" fill="currentColor" fillOpacity="0.05">
-            <rect x="128" y="240" width="44" height="22" />
-            <circle cx="150" cy="270" r="8" fillOpacity="0" />
-            <circle cx="150" cy="270" r="3.4" style={gold} stroke="none" fillOpacity="1" />
+            {Array.from({ length: nPayload }, (_, i) => (
+              <g key={i}>
+                <rect x={150 - payW / 2} y={payTop + i * (payH + payGap)} width={payW} height={payH} />
+                <circle cx={150 - payW / 2 + 7} cy={payTop + i * (payH + payGap) + payH / 2} r="2.4" style={gold} stroke="none" fillOpacity="1" />
+              </g>
+            ))}
           </g>
         </Part>
 
         {/* callsign stencil + mission-ready status light */}
         <g style={{ opacity: hasAntenna && plan.name.trim() ? 1 : 0, transition: 'opacity .5s' }}>
-          <text x="150" y="200" textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="11"
+          <text x="150" y={top + 50} textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="11"
             fontWeight="700" style={gold} stroke="none">
             {plan.name.trim().slice(0, 10).toUpperCase()}
           </text>
         </g>
         {ready && (
-          <circle cx="186" cy="161" r="3" style={okFill}>
+          <circle cx="186" cy={top + 11} r="3" style={okFill}>
             <animate attributeName="opacity" values="1;.25;1" dur="1.6s" repeatCount="indefinite" />
           </circle>
         )}
@@ -150,7 +173,7 @@ export default function SatelliteAssembly({ plan }) {
         <g fontFamily="'Space Mono', monospace" fill="currentColor">
           <rect x="22" y="346" width="256" height="34" fill="none" stroke="currentColor" strokeOpacity=".35" />
           <line x1="170" y1="346" x2="170" y2="380" stroke="currentColor" strokeOpacity=".35" />
-          <text x="30" y="360" fontSize="8.5" fillOpacity=".6" style={{ letterSpacing: '.1em' }}>CONJUNTO · SATÉLITE</text>
+          <text x="30" y="360" fontSize="8.5" fillOpacity=".6" style={{ letterSpacing: '.1em' }}>CUBESAT · {cubeU}</text>
           <text x="30" y="373" fontSize="9.5" fillOpacity=".9" fontWeight="700">
             {plan.name.trim() ? plan.name.trim().slice(0, 16).toUpperCase() : 'SEM DESIGNAÇÃO'}
           </text>
@@ -158,9 +181,11 @@ export default function SatelliteAssembly({ plan }) {
           <text x="178" y="373" fontSize="9.5" fillOpacity=".9" fontWeight="700">{parts}/4 {ready ? '· PRONTO' : ''}</text>
         </g>
       </svg>
-      <div style={{ ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: ready ? 'var(--ok2)' : 'var(--poster-fg-dim)', paddingBottom: 4, textAlign: 'center' }}>
-        {ready ? 'satélite montado · pronto para o hardware' : 'cada decisão monta uma parte do satélite'}
-      </div>
+      {ready && (
+        <div style={{ ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ok2)', paddingBottom: 4, textAlign: 'center' }}>
+          satélite montado · pronto para o hardware
+        </div>
+      )}
     </div>
   )
 }

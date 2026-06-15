@@ -42,7 +42,7 @@ function Lock() {
 
 export default function IconSidebar() {
   const store = useForge()
-  const { activeSection, setSection, setHardwareView, theme, toggleTheme, sidebarCollapsed, toggleSidebar, showPopover } = store
+  const { activeSection, setSection, setHardwareView, setMissionStep, theme, toggleTheme, sidebarCollapsed, toggleSidebar, showPopover } = store
   const { status, hwReady } = derivePhases(store)
   const [expanded, setExpanded] = useState(() => ({ [PHASE_BY_ACTIVE(activeSection)]: true }))
 
@@ -61,6 +61,7 @@ export default function IconSidebar() {
     if (status[p.id].locked) return
     setSection(p.section)
     if (sub.view) setHardwareView(sub.view)
+    if (sub.step) setMissionStep(sub.step)   // jump to that mission-flow step
   }
 
   // ── collapsed: icon-only rail ────────────────────────────────────

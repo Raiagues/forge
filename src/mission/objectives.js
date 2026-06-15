@@ -108,6 +108,81 @@ export const OBJECTIVES = [
 export const OBJECTIVES_BY_ID = Object.fromEntries(OBJECTIVES.map((o) => [o.id, o]))
 export const getObjective = (id) => OBJECTIVES_BY_ID[id] || null
 
+// ──────────────────────────────────────────────────────────────────
+// Visual objective CATEGORIES (Part 2 of the redesign).
+//
+// Instead of a free-text "what does the mission measure?" box, the user
+// picks one or more mission categories as illustrated cards. Each card
+// maps (`objective`) to one of the OBJECTIVES above so the existing
+// declarative validation + firmware generation keep working unchanged —
+// the PRIMARY (first-selected) category's mapped objective becomes the
+// plan's `objectiveId`. `icon` is an SVG path string drawn by the cards;
+// `payload` keys the extra payload module the SatelliteAssembly draws,
+// so multiple objectives build a visibly more complex payload bay.
+// ──────────────────────────────────────────────────────────────────
+export const OBJECTIVE_CATEGORIES = [
+  {
+    id: 'atmospheric', label: 'Sensoriamento atmosférico', objective: 'environmental', payload: 'baro',
+    desc: 'Temperatura, pressão e perfil da atmosfera em altitude.',
+    icon: 'M4 14h16M6 18h12M8 10c0-3 8-3 8 0M3 6h7',
+  },
+  {
+    id: 'earth_obs', label: 'Observação da Terra', objective: 'custom', payload: 'cam',
+    desc: 'Imagear ou medir a superfície e a atmosfera abaixo.',
+    icon: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+  },
+  {
+    id: 'communication', label: 'Experimentos de comunicação', objective: 'custom', payload: 'antenna',
+    desc: 'Testar enlaces de rádio, protocolos e alcance.',
+    icon: 'M12 20v-8M12 12a5 5 0 015 5M12 12a5 5 0 00-5 5M12 7a9 9 0 019 9M12 7a9 9 0 00-9 9',
+  },
+  {
+    id: 'radiation', label: 'Medição de radiação', objective: 'custom', payload: 'geiger',
+    desc: 'Dose e fluxo de partículas ao longo do voo.',
+    icon: 'M12 12l5-7M12 12l5 7M12 12L5 12M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z',
+  },
+  {
+    id: 'attitude_control', label: 'Controle de atitude', objective: 'attitude', payload: 'imu',
+    desc: 'Demonstrar estabilização e orientação do satélite.',
+    icon: 'M12 3v18M3 12h18M5 5l14 14M19 5L5 19',
+  },
+  {
+    id: 'biological', label: 'Carga biológica', objective: 'custom', payload: 'bio',
+    desc: 'Expor amostras vivas ao ambiente de voo.',
+    icon: 'M9 3c0 6 6 6 6 12a3 3 0 11-6 0c0-6 6-6 6-12M9 8h6M9 12h6',
+  },
+  {
+    id: 'tech_demo', label: 'Demonstração tecnológica', objective: 'custom', payload: 'tech',
+    desc: 'Validar um subsistema ou tecnologia nova em voo.',
+    icon: 'M9 3h6v4l4 9a2 2 0 01-2 3H7a2 2 0 01-2-3l4-9V3zM7 14h10',
+  },
+]
+export const OBJECTIVE_CATEGORIES_BY_ID = Object.fromEntries(OBJECTIVE_CATEGORIES.map(c => [c.id, c]))
+
+// Mission priorities the team ranks visually (Part 2) — replaces the old
+// free-text "priorities" box. The ORDER expresses what matters most; the
+// consultant/validation can read it to bias tradeoffs.
+export const MISSION_PRIORITIES = [
+  { id: 'cost',        label: 'Minimizar custo' },
+  { id: 'mass',        label: 'Minimizar massa' },
+  { id: 'reliability', label: 'Maximizar confiabilidade' },
+  { id: 'deadline',    label: 'Cumprir o prazo' },
+  { id: 'science',     label: 'Maximizar retorno científico' },
+  { id: 'integration', label: 'Facilidade de integração' },
+  { id: 'education',    label: 'Valor educacional' },
+]
+export const MISSION_PRIORITIES_BY_ID = Object.fromEntries(MISSION_PRIORITIES.map(p => [p.id, p]))
+
+// The primary objectiveId for a set of selected category ids (first wins),
+// so validation/firmware keep their single-objective contract.
+export function primaryObjectiveId(categoryIds = []) {
+  for (const cid of categoryIds) {
+    const c = OBJECTIVE_CATEGORIES_BY_ID[cid]
+    if (c) return c.objective
+  }
+  return null
+}
+
 // Metadata field labels (for the editable metadata UI)
 export const OBJECTIVE_META_FIELDS = [
   { key: 'sensors',   label: 'Sensores esperados' },
