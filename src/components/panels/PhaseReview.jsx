@@ -1,5 +1,5 @@
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
-import { buildPhaseReview, SOURCE_LABEL } from '../../mission/index.js'
+import { buildPhaseReview, SOURCE_LABEL, derivePhases, PHASES } from '../../mission/index.js'
 import BudgetMeters from '../ui/BudgetMeters'
 import { mono, slab, CREAM, GOLD } from '../onboarding/posterKit.jsx'
 
@@ -46,6 +46,11 @@ export default function PhaseReview() {
     live: store.live,
     hwtest: store.hwtest,
   })
+
+  // explicit completion criteria + dependency info (Prompt B Part 2)
+  const st = derivePhases(store).status[phaseReview] || {}
+  const ready = st.ready !== false
+  const labelOf = (id) => PHASES.find(p => p.id === id)?.label || id
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 180, background: 'rgba(12,18,30,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
@@ -95,6 +100,23 @@ export default function PhaseReview() {
           <div style={{ ...mono, fontSize: 12, color: 'var(--ok2)', marginBottom: 18 }}>✓ nenhuma pendência crítica</div>
         )}
 
+        {/* explicit completion criteria (Prompt B Part 2) */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)', marginBottom: 8 }}>critérios de conclusão</div>
+          {(st.criteria || []).map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5 }}>
+              <span style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: c.met ? 'var(--ok2)' : 'transparent', border: c.met ? 'none' : '1.5px solid var(--poster-line)', color: 'var(--poster-bg-solid)', fontSize: 10, fontWeight: 800 }}>{c.met ? '✓' : ''}</span>
+              <span style={{ fontSize: 13.5, color: c.met ? CREAM : 'var(--poster-fg-dim)' }}>{c.label}</span>
+            </div>
+          ))}
+          {(st.requires?.length > 0 || st.dependents?.length > 0) && (
+            <div style={{ ...mono, fontSize: 10.5, color: 'var(--poster-fg-dim)', marginTop: 8, lineHeight: 1.6 }}>
+              {st.requires?.length > 0 && <div>depende de: {st.requires.map(labelOf).join(' · ')}</div>}
+              {st.dependents?.length > 0 && <div>libera: {st.dependents.map(labelOf).join(' · ')}</div>}
+            </div>
+          )}
+        </div>
+
         {/* actions */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
           <button onClick={store.closePhaseReview} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← revisar</button>
@@ -102,11 +124,11 @@ export default function PhaseReview() {
             ...slab, fontSize: 15, fontWeight: 700, color: 'var(--poster-bg-solid)',
             background: review.nominal ? GOLD : 'var(--warn2)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer',
           }}>
-            {!review.nextPhase
-              ? 'Concluir →'
-              : review.nominal
-                ? `Confirmar e avançar para ${review.nextPhase.label} →`
-                : 'Avançar mesmo assim →'}
+            {!ready
+              ? 'Avançar mesmo assim →'
+              : !review.nextPhase
+                ? 'Confirmar conclusão →'
+                : `Confirmar conclusão e avançar para ${review.nextPhase.label} →`}
           </button>
         </div>
       </div>

@@ -118,6 +118,7 @@ export default function IconSidebar() {
                   {st.done ? <Check /> : st.locked ? <Lock /> : <span style={{ display: 'block', width: 13, height: 13 }}>{ICONS[p.id]}</span>}
                 </span>
                 <span style={{ flex: 1, textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: st.current ? 700 : 500, color: st.locked ? 'var(--ink4)' : 'var(--rail-fg)' }}>{p.label}</span>
+                {st.needsUpdate && <span title="atualização necessária — uma etapa anterior mudou" style={{ ...mono, fontSize: 12, color: 'var(--warn2)' }}>⟳</span>}
                 <span style={{ ...mono, fontSize: 10, color: 'var(--rail-fg-dim)' }}>{st.locked ? '' : `${subDone}/${p.sub.length}`}</span>
                 {!st.locked && <span style={{ ...mono, fontSize: 11, color: 'var(--rail-fg-dim)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>}
               </button>

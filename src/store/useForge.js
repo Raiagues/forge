@@ -4,7 +4,7 @@ import {
   getObjective, resolveObjective, assignPins, economics,
   validateWires, wiringStatusAll, autoWiresFor, i2cPinsFromWires, uartPinsFromWires, i2cAddressFromWires, sameEnd,
   SOFTWARE_MODULES, computeBudgets, getObsatFormat, formatMassMaxG, runConsultant, nextPhase,
-  primaryObjectiveId,
+  primaryObjectiveId, phaseInputs, phaseReady,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
 import { track } from '../lib/analytics.js'
@@ -455,6 +455,14 @@ const useForge = create((set, get) => {
     // integration tests on the block diagram.
     hwtest: { stages: {}, selected: [], running: null, log: [] },
 
+    // ── explicit phase completion (Prompt B Part 2) ─────────────────
+    // phaseId → { confirmed, confirmedAt, sig }. A phase is "done" only
+    // after the user confirms it in the review screen with all criteria
+    // met; if the inputs it consumed change later, derivePhases marks it
+    // (and its dependents) stale ("atualização necessária"). No phase
+    // auto-completes.
+    phaseState: {},
+
     // ── Firmware bring-up screen (Serial Test) ──────────────────────
     // Persistent so the connection status, detected board and diagnostic
     // results survive navigation (Part 4a). The serial EventSource itself
@@ -605,11 +613,23 @@ const useForge = create((set, get) => {
     // ── phase-transition readiness review (Part 6) ───────────────────
     openPhaseReview: (phaseId) => { track('phase_review', { target: phaseId }); set({ phaseReview: phaseId }) },
     closePhaseReview: () => set({ phaseReview: null }),
-    // confirm → advance to the next phase's section
+    // Explicitly mark a phase complete (Prompt B Part 2). Only succeeds
+    // when all of the phase's criteria are met; records the input
+    // signature so later upstream changes can flag it stale.
+    confirmPhase: (id) => {
+      const s = get()
+      if (!phaseReady(id, s)) return false
+      const sig = phaseInputs(s)[id]
+      track('phase_complete', { target: id })
+      set({ phaseState: { ...s.phaseState, [id]: { confirmed: true, confirmedAt: new Date().toISOString(), sig } } })
+      return true
+    },
+    // confirm → mark this phase done (if ready) and advance to the next
     confirmPhaseReview: () => {
       const id = get().phaseReview
       const next = nextPhase(id)
       track('phase_review_confirm', { target: id, next: next?.id || '' })
+      get().confirmPhase(id)   // explicit completion (no-op if criteria unmet)
       set({ phaseReview: null })
       // Mission → Hardware advances THROUGH the assembly animation (the
       // satellite the team just defined opens into the board); other phases
