@@ -28,6 +28,8 @@ const ICONS = {
   team: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   reports: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>,
   metrics: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  review: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>,
+  intel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
   sun:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>,
   moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>,
   collapse: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
@@ -47,6 +49,7 @@ export default function IconSidebar() {
   const store = useForge()
   const { activeSection, setSection, setHardwareView, setMissionStep, missionStep, hardwareView, theme, toggleTheme, sidebarCollapsed, toggleSidebar, showPopover } = store
   const isManager = store.auth?.role === 'manager'
+  const isAdmin = !!store.auth?.user?.isAdmin
   const { status, hwReady } = derivePhases(store)
   const [expanded, setExpanded] = useState(() => ({ [PHASE_BY_ACTIVE(activeSection)]: true }))
 
@@ -100,6 +103,16 @@ export default function IconSidebar() {
             <button onClick={() => { track('nav_click', { target: 'metrics' }); setSection('metrics') }} title="Métricas de autonomia" style={railBtn({ current: activeSection === 'metrics' })}>
               <span style={{ display: 'block', width: 17, height: 17 }}>{ICONS.metrics}</span>
             </button>
+          )}
+          {isAdmin && (
+            <>
+              <button onClick={() => { track('nav_click', { target: 'challenge-review' }); setSection('challenge-review') }} title="Fila de revisão de desafios" style={railBtn({ current: activeSection === 'challenge-review' })}>
+                <span style={{ display: 'block', width: 17, height: 17 }}>{ICONS.review}</span>
+              </button>
+              <button onClick={() => { track('nav_click', { target: 'market-intel' }); setSection('market-intel') }} title="Inteligência de mercado" style={railBtn({ current: activeSection === 'market-intel' })}>
+                <span style={{ display: 'block', width: 17, height: 17 }}>{ICONS.intel}</span>
+              </button>
+            </>
           )}
         </div>
         <div style={{ flex: 1 }} />
@@ -186,6 +199,21 @@ export default function IconSidebar() {
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}><span style={{ display: 'block', width: 14, height: 14, color: 'var(--rail-fg-dim)' }}>{ICONS.metrics}</span></span>
             <span style={{ flex: 1, textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: 'var(--rail-fg)' }}>Métricas</span>
           </button>
+        )}
+
+        {/* platform admin (challenge moderation + market intelligence) */}
+        {isAdmin && (
+          <>
+            <div style={{ ...mono, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--rail-fg-dim)', padding: '12px 14px 4px' }}>Administração</div>
+            <button onClick={() => { track('nav_click', { target: 'challenge-review' }); setSection('challenge-review') }} style={phaseRow({ current: activeSection === 'challenge-review' })}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}><span style={{ display: 'block', width: 14, height: 14, color: 'var(--rail-fg-dim)' }}>{ICONS.review}</span></span>
+              <span style={{ flex: 1, textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: 'var(--rail-fg)' }}>Fila de revisão</span>
+            </button>
+            <button onClick={() => { track('nav_click', { target: 'market-intel' }); setSection('market-intel') }} style={phaseRow({ current: activeSection === 'market-intel' })}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}><span style={{ display: 'block', width: 14, height: 14, color: 'var(--rail-fg-dim)' }}>{ICONS.intel}</span></span>
+              <span style={{ flex: 1, textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: 'var(--rail-fg)' }}>Inteligência de mercado</span>
+            </button>
+          </>
         )}
       </div>
 

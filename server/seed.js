@@ -6,6 +6,7 @@
 // ──────────────────────────────────────────────────────────────────
 import { models } from './db/index.js'
 import { hashPassword } from './auth/index.js'
+import { SEED_CHALLENGES } from '../src/mission/challenges.js'
 
 // Seed/demo account password. Overridable via FORGE_SEED_PASSWORD; the
 // zero-config default is the public value documented for testers in
@@ -100,6 +101,105 @@ function demoMissionState() {
   }
 }
 
+// Curated seed challenges (src/mission/challenges.js) → Challenges table
+// as approved/isSeed rows. Idempotent on the challenge slug.
+async function seedChallenges() {
+  let created = 0
+  for (const c of SEED_CHALLENGES) {
+    const [, made] = await models.Challenge.findOrCreate({
+      where: { slug: c.id },
+      defaults: {
+        slug: c.id,
+        org: c.org,
+        location: c.location || null,
+        region: c.region || null,
+        category: c.category,
+        problem: c.problem,
+        cost: c.cost || null,
+        value: c.value || null,
+        cards: c.cards || {},
+        status: 'approved',
+        isSeed: true,
+      },
+    })
+    if (made) created++
+  }
+  return created
+}
+
+// A handful of demonstration ORGANISATION submissions (isSeed=false) so the
+// admin review queue + market-intelligence dashboard are populated out of
+// the box. Spread across categories / regions / statuses / months to make
+// the heat maps and timeline meaningful. Clearly labelled demo data.
+const DEMO_SUBMISSIONS = [
+  { org: 'Secretaria de Agricultura — RS (demonstração)', location: 'Passo Fundo, RS', region: 'RS', category: 'earth_obs', status: 'pending', monthsAgo: 0,
+    problem: 'Produtores de trigo do planalto gaúcho precisam de alerta precoce de geada e estresse hídrico por talhão, hoje inexistente fora das estações meteorológicas oficiais.',
+    cost: 'Geadas tardias destroem safras inteiras de trigo, com prejuízo de centenas de milhões de reais por evento severo.',
+    value: 'Mapa de risco térmico e de umidade do solo por talhão, atualizado a cada poucos dias.' },
+  { org: 'Operadora de saneamento — SP (demonstração)', location: 'Bacia do Piracicaba, SP', region: 'SP', category: 'earth_obs', status: 'pending', monthsAgo: 0,
+    problem: 'Reservatórios de abastecimento sofrem com floração de algas e perda de nível sem monitoramento contínuo da qualidade e do espelho d’água.',
+    cost: 'Crises hídricas afetam milhões de pessoas e elevam o custo de tratamento da água.',
+    value: 'Indicador periódico de área do reservatório e sinais de eutrofização.' },
+  { org: 'Cooperativa de energia eólica — RN (demonstração)', location: 'Serra do Mel, RN', region: 'RN', category: 'communication', status: 'approved', monthsAgo: 1,
+    problem: 'Parques eólicos remotos perdem telemetria de turbinas quando a rede terrestre cai, atrasando manutenção preventiva.',
+    cost: 'Cada turbina parada representa perda diária relevante de geração e receita.',
+    value: 'Canal de telemetria de baixa taxa independente da rede terrestre para status das turbinas.' },
+  { org: 'Instituto de pesquisa oceânica — SC (demonstração)', location: 'Florianópolis, SC', region: 'SC', category: 'atmospheric', status: 'approved', monthsAgo: 2,
+    problem: 'Boias de monitoramento costeiro ficam sem enlace por dias, perdendo séries de temperatura e correntes importantes para previsão.',
+    cost: 'Lacunas nos dados degradam modelos de previsão de ressaca e pesca.',
+    value: 'Coleta periódica de telemetria ambiental das boias mesmo sem cobertura celular.' },
+  { org: 'Defesa Civil estadual — MG (demonstração)', location: 'Região serrana, MG', region: 'MG', category: 'earth_obs', status: 'pending', monthsAgo: 1,
+    problem: 'Encostas urbanas sujeitas a deslizamento não têm monitoramento contínuo de umidade e movimentação do solo na estação chuvosa.',
+    cost: 'Deslizamentos causam vítimas e desabrigados todos os anos nas chuvas de verão.',
+    value: 'Sinal periódico de risco por área crítica para acionar alerta e evacuação.' },
+  { org: 'Concessionária rodoviária — GO (demonstração)', location: 'Eixo BR-153, GO', region: 'GO', category: 'communication', status: 'rejected', monthsAgo: 3,
+    problem: 'Sensores de tráfego e pesagem em trechos isolados não têm backhaul confiável para enviar dados em tempo hábil.',
+    cost: 'Falta de dados atrasa resposta a acidentes e fiscalização de excesso de peso.',
+    value: 'Backhaul intermitente de baixo volume para os sensores de pista.' },
+  { org: 'Associação de carcinicultura — CE (demonstração)', location: 'Litoral do Ceará', region: 'CE', category: 'atmospheric', status: 'approved', monthsAgo: 4,
+    problem: 'Fazendas de camarão precisam de previsão de temperatura e salinidade da água costeira para reduzir mortalidade nos viveiros.',
+    cost: 'Choques térmicos e salinos causam perdas expressivas de produção.',
+    value: 'Produto simples de TSM e salinidade costeira para planejar o manejo.' },
+  { org: 'Mineradora de pequeno porte — PA (demonstração)', location: 'Sudeste do Pará', region: 'PA', category: 'tech_demo', status: 'pending', monthsAgo: 5,
+    problem: 'Querem validar um terminal de comunicação por satélite de baixo custo para enviar status operacional de áreas sem qualquer infraestrutura.',
+    cost: 'Sem comunicação, falhas operacionais demoram a ser detectadas e corrigidas.',
+    value: 'Demonstração de enlace de baixo custo para status operacional remoto.' },
+]
+
+async function seedDemoSubmissions(submitter) {
+  if (!submitter) return 0
+  let created = 0
+  for (let i = 0; i < DEMO_SUBMISSIONS.length; i++) {
+    const s = DEMO_SUBMISSIONS[i]
+    const slug = `demo-sub-${i + 1}`
+    const createdAt = new Date(Date.now() - s.monthsAgo * 30 * 86400000)
+    const [, made] = await models.Challenge.findOrCreate({
+      where: { slug },
+      defaults: {
+        slug,
+        org: s.org,
+        location: s.location || null,
+        region: s.region || null,
+        category: s.category,
+        problem: s.problem,
+        cost: s.cost || null,
+        value: s.value || null,
+        cards: {},
+        status: s.status,
+        isSeed: false,
+        submitterId: submitter.id,
+        submitterName: submitter.name || submitter.username,
+        reviewNote: s.status === 'rejected' ? 'Fora do escopo de uma missão CubeSat estudantil (demonstração).' : null,
+        reviewedAt: s.status === 'pending' ? null : createdAt,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    })
+    if (made) created++
+  }
+  return created
+}
+
 // Run the full idempotent seed. Returns a small summary.
 export async function seedDatabase() {
   // core team
@@ -148,10 +248,16 @@ export async function seedDatabase() {
     }
   }
 
+  // real-world challenges: curated seeds + demo organisation submissions
+  const seededChallenges = await seedChallenges()
+  const seededSubmissions = await seedDemoSubmissions(demoMembers.lider_obsat)
+
   return {
     coreTeamId: coreTeam.id,
     demoTeamId: demoTeam.id,
     demoProjectId: demoProject.id,
     members: CORE.length + DEMO.length,
+    challenges: seededChallenges,
+    submissions: seededSubmissions,
   }
 }

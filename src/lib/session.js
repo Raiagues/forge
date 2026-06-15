@@ -56,6 +56,7 @@ function installEventSink() {
 export async function bootSession() {
   await checkAvailable()
   installEventSink()
+  loadChallenges()                         // public approved board → store.challenges
   const token = getToken()
   if (!token) { store().authChecked(); return }
   const res = await api.me()
@@ -212,6 +213,34 @@ export async function loadMetrics(teamId = store().activeTeamId) {
   if (!teamId) return { ok: false }
   const res = await api.metrics(teamId)
   if (res.ok) store().setMetrics(res)
+  return res
+}
+
+// ── real-world challenges (org submission + admin review/intel) ─────
+// Approved challenges are public and load on boot into store.challenges
+// (setChallenges) so the board works signed-out; submission + moderation +
+// the market-intelligence aggregates reuse the existing auth/admin guards.
+export async function loadChallenges() {
+  const res = await api.listChallenges()
+  if (res.ok) store().setChallenges(res.challenges)
+  return res
+}
+export async function submitChallenge(payload) {
+  return api.submitChallenge(payload)
+}
+export async function loadReviewQueue(status) {
+  const res = await api.reviewQueue(status)
+  if (res.ok) store().setChallengeQueue(res.challenges, res.counts)
+  return res
+}
+export async function reviewChallenge(id, decision, note) {
+  const res = await api.reviewChallenge(id, decision, note)
+  if (res.ok) { await loadReviewQueue(); loadChallenges() }   // refresh queue + public board
+  return res
+}
+export async function loadChallengeIntel() {
+  const res = await api.challengeIntel()
+  if (res.ok) store().setChallengeIntel(res)
   return res
 }
 

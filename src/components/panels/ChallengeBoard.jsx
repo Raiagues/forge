@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import useForge from '../../store/useForge'
+import * as session from '../../lib/session.js'
 import { OBJECTIVE_CATEGORIES_BY_ID } from '../../mission/index.js'
 import { SEED_CHALLENGES, CHALLENGE_CATEGORIES, filterChallenges } from '../../mission/challenges.js'
 import { ZONE_RECT, CARD_W, CARD_H } from '../../mission/brainstorm.js'
@@ -20,12 +21,14 @@ const catLabel = (id) => OBJECTIVE_CATEGORIES_BY_ID[id]?.label || id
 export default function ChallengeBoard() {
   const missionPlan = useForge(s => s.missionPlan)
   const challenges = useForge(s => s.challenges)        // backend-loaded; falls back to seeds
+  const user = useForge(s => s.auth.user)
   const toggleObjectiveCategory = useForge(s => s.toggleObjectiveCategory)
   const addBrainstormCard = useForge(s => s.addBrainstormCard)
 
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(null)
+  const [submitOpen, setSubmitOpen] = useState(false)
 
   const all = (challenges && challenges.length) ? challenges : SEED_CHALLENGES
   const cats = missionPlan.objectiveCategories || []
@@ -61,7 +64,13 @@ export default function ChallengeBoard() {
         <span style={{ flex: 1 }} />
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder="buscar…"
           style={{ width: 150, padding: '5px 9px', borderRadius: 6, border: '1px solid var(--poster-line)', background: 'var(--poster-input)', color: CREAM, ...mono, fontSize: 12 }} />
+        <button onClick={() => setSubmitOpen(o => !o)} style={{
+          ...mono, fontSize: 10.5, letterSpacing: '.04em', padding: '5px 11px', borderRadius: 14, cursor: 'pointer',
+          border: `1px solid ${submitOpen ? GOLD : 'var(--poster-line)'}`, background: submitOpen ? 'var(--poster-card-sel)' : 'transparent', color: CREAM,
+        }}>{submitOpen ? 'fechar' : '+ enviar desafio'}</button>
       </div>
+
+      {submitOpen && <SubmitForm user={user} onDone={() => setSubmitOpen(false)} />}
 
       {/* category filter chips */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -111,6 +120,89 @@ export default function ChallengeBoard() {
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── organisation submission form ───────────────────────────────────
+// Any signed-in member submits a challenge on behalf of an organisation;
+// it lands in the admin review queue (status=pending) and only appears on
+// the public board once an admin approves it. Reuses the poster tokens.
+const fieldStyle = {
+  width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--poster-line)',
+  background: 'var(--poster-input)', color: CREAM, ...mono, fontSize: 12, outline: 'none', boxSizing: 'border-box',
+}
+const labelStyle = { ...mono, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)', display: 'block', marginBottom: 3 }
+
+function Field({ label, children }) {
+  return <label style={{ display: 'block' }}><span style={labelStyle}>{label}</span>{children}</label>
+}
+
+function SubmitForm({ user, onDone }) {
+  const [form, setForm] = useState({ org: '', location: '', region: '', category: 'earth_obs', problem: '', cost: '', value: '', contact: '' })
+  const [state, setState] = useState({ busy: false, error: null, done: false })
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  if (!user) {
+    return (
+      <div style={{ border: '1px solid var(--poster-line)', borderRadius: 'var(--r-md)', background: 'var(--poster-card-sel)', padding: '12px 14px', marginBottom: 10 }}>
+        <div style={{ ...mono, fontSize: 12, color: CREAM, lineHeight: 1.5 }}>Entre na sua conta para enviar um desafio da sua organização. As submissões passam por revisão antes de aparecer no quadro.</div>
+      </div>
+    )
+  }
+
+  if (state.done) {
+    return (
+      <div style={{ border: `1px solid ${GOLD}`, borderRadius: 'var(--r-md)', background: 'var(--poster-card-sel)', padding: '12px 14px', marginBottom: 10 }}>
+        <div style={{ ...slab, fontSize: 13, fontWeight: 700, color: CREAM, marginBottom: 4 }}>Desafio enviado para revisão</div>
+        <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', lineHeight: 1.5 }}>Um administrador vai avaliar a submissão. Quando aprovada, ela aparece no quadro de desafios reais.</div>
+        <button onClick={onDone} style={{ ...mono, fontSize: 11, marginTop: 8, padding: '5px 12px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${GOLD}`, background: 'transparent', color: CREAM }}>concluir</button>
+      </div>
+    )
+  }
+
+  const submit = async () => {
+    setState({ busy: true, error: null, done: false })
+    const res = await session.submitChallenge(form)
+    if (res.ok) { setState({ busy: false, error: null, done: true }) }
+    else { setState({ busy: false, error: res.error || 'falha ao enviar', done: false }) }
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--poster-line)', borderRadius: 'var(--r-md)', background: 'var(--poster-card-sel)', padding: '12px 14px', marginBottom: 10 }}>
+      <div style={{ ...slab, fontSize: 13, fontWeight: 700, color: CREAM, marginBottom: 2 }}>Enviar desafio da sua organização</div>
+      <div style={{ ...mono, fontSize: 10.5, color: 'var(--poster-fg-dim)', marginBottom: 10 }}>passa por revisão de um administrador antes de entrar no quadro</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 9 }}>
+        <Field label="Organização *"><input value={form.org} onChange={set('org')} placeholder="ex.: Cooperativa agrícola — MT" style={fieldStyle} /></Field>
+        <Field label="Categoria *">
+          <select value={form.category} onChange={set('category')} style={fieldStyle}>
+            {CHALLENGE_CATEGORIES.map(cid => <option key={cid} value={cid}>{catLabel(cid)}</option>)}
+          </select>
+        </Field>
+        <Field label="Local"><input value={form.location} onChange={set('location')} placeholder="ex.: Sorriso, MT" style={fieldStyle} /></Field>
+        <Field label="UF / região"><input value={form.region} onChange={set('region')} placeholder="ex.: MT" maxLength={4} style={fieldStyle} /></Field>
+      </div>
+
+      <div style={{ marginBottom: 9 }}>
+        <Field label="Problema * (mín. 20 caracteres)"><textarea value={form.problem} onChange={set('problem')} rows={3} placeholder="Descreva o problema real que o satélite poderia atacar." style={{ ...fieldStyle, resize: 'vertical' }} /></Field>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 9 }}>
+        <Field label="Custo do problema"><textarea value={form.cost} onChange={set('cost')} rows={2} placeholder="Qual o impacto/custo de não resolver?" style={{ ...fieldStyle, resize: 'vertical' }} /></Field>
+        <Field label="O que uma solução vale"><textarea value={form.value} onChange={set('value')} rows={2} placeholder="Que dado/produto resolveria?" style={{ ...fieldStyle, resize: 'vertical' }} /></Field>
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <Field label="Contato (opcional)"><input value={form.contact} onChange={set('contact')} placeholder="e-mail ou telefone para retorno" style={fieldStyle} /></Field>
+      </div>
+
+      {state.error && <div style={{ ...mono, fontSize: 11, color: 'var(--err2, #C04030)', marginBottom: 8 }}>{state.error}</div>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button onClick={submit} disabled={state.busy} style={{
+          ...slab, fontSize: 12.5, fontWeight: 700, padding: '7px 16px', borderRadius: 'var(--r-sm)', cursor: state.busy ? 'default' : 'pointer',
+          border: 'none', background: 'var(--btn-bg)', color: 'var(--btn-fg)', opacity: state.busy ? 0.6 : 1,
+        }}>{state.busy ? 'enviando…' : 'enviar para revisão'}</button>
+        <button onClick={onDone} style={{ ...mono, fontSize: 11, padding: '7px 12px', borderRadius: 'var(--r-sm)', cursor: 'pointer', border: '1px solid var(--poster-line)', background: 'transparent', color: 'var(--poster-fg-dim)' }}>cancelar</button>
       </div>
     </div>
   )

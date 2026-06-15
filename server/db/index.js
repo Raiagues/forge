@@ -118,6 +118,32 @@ function define(seq) {
     confirmedAt: { type: DataTypes.DATE, allowNull: true },
   }, { timestamps: true })
 
+  // ── real-world challenges (org submission + admin review queue) ───
+  // Seeded from src/mission/challenges.js (isSeed=true, status=approved);
+  // organisations submit new ones (status=pending) which an admin reviews.
+  // Approved rows feed the public board/store; the anonymized aggregates
+  // power the admin market-intelligence dashboard.
+  models.Challenge = seq.define('challenge', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    slug: { type: DataTypes.STRING, allowNull: false, unique: true },
+    org: { type: DataTypes.STRING, allowNull: false },
+    location: { type: DataTypes.STRING, allowNull: true },
+    region: { type: DataTypes.STRING, allowNull: true },
+    category: { type: DataTypes.STRING, allowNull: false },
+    problem: { type: DataTypes.TEXT, allowNull: false },
+    cost: { type: DataTypes.TEXT, allowNull: true },
+    value: { type: DataTypes.TEXT, allowNull: true },
+    cards: json('cards', {}),
+    status: { type: DataTypes.ENUM('pending', 'approved', 'rejected'), allowNull: false, defaultValue: 'pending' },
+    isSeed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    submitterId: { type: DataTypes.INTEGER, allowNull: true },
+    submitterName: { type: DataTypes.STRING, allowNull: true },
+    contact: { type: DataTypes.STRING, allowNull: true },
+    reviewerId: { type: DataTypes.INTEGER, allowNull: true },
+    reviewNote: { type: DataTypes.TEXT, allowNull: true },
+    reviewedAt: { type: DataTypes.DATE, allowNull: true },
+  }, { timestamps: true })
+
   // ── associations ─────────────────────────────────────────────────
   models.Team.hasMany(models.TeamMember, { foreignKey: 'teamId', onDelete: 'CASCADE' })
   models.TeamMember.belongsTo(models.Team, { foreignKey: 'teamId' })

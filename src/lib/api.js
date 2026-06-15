@@ -96,4 +96,12 @@ export const api = {
 
   // public share summary (no auth)
   share: (token) => request(`/share/${token}`, { auth: false }),
+
+  // real-world challenges (public board + org submission + admin moderation)
+  listChallenges: () => request('/challenges', { auth: false }),
+  submitChallenge: (payload) => request('/challenges', { method: 'POST', body: payload }),
+  myChallenges: () => request('/challenges/mine'),
+  reviewQueue: (status) => request(`/challenges/review${status ? `?status=${status}` : ''}`),
+  reviewChallenge: (id, decision, note) => request(`/challenges/${id}/review`, { method: 'POST', body: { decision, note } }),
+  challengeIntel: () => request('/challenges/intelligence'),
 }

@@ -28,6 +28,7 @@ import eventsRouter from './routes/events.js'
 import metricsRouter from './routes/metrics.js'
 import reportsRouter from './routes/reports.js'
 import shareRouter from './routes/share.js'
+import challengesRouter from './routes/challenges.js'
 
 const PORT = Number(process.env.PORT) || 3001
 
@@ -93,6 +94,7 @@ app.use('/events', eventsRouter)
 app.use('/metrics', metricsRouter)
 app.use('/reports', reportsRouter)
 app.use('/share', shareRouter)
+app.use('/challenges', challengesRouter)
 
 const httpServer = createServer(app)
 attachWebSocket(httpServer)
@@ -102,7 +104,7 @@ async function boot() {
   if (db) {
     try {
       const summary = await seedDatabase()
-      console.log(`[forge] database ready — seeded ${summary.members} accounts (core + demo team)`)
+      console.log(`[forge] database ready — seeded ${summary.members} accounts (core + demo team), challenges +${summary.challenges} seed / +${summary.submissions} demo submissions`)
     } catch (e) {
       console.warn(`[forge] seed failed: ${e.message}`)
     }

@@ -1507,6 +1507,16 @@ const useForge = create((set, get) => {
     demoMode: false,
     presence: { online: [], connected: false, error: null, lastSyncBy: null, lastSyncAt: null },
 
+    // admin: organisation-submission review queue + anonymized market intel
+    challengeQueue: [],
+    challengeCounts: { pending: 0, approved: 0, rejected: 0 },
+    challengeIntel: null,
+    setChallengeQueue: (challenges, counts) => set({
+      challengeQueue: Array.isArray(challenges) ? challenges : [],
+      challengeCounts: counts || { pending: 0, approved: 0, rejected: 0 },
+    }),
+    setChallengeIntel: (intel) => set({ challengeIntel: intel || null }),
+
     // derive the caller's role + subsystem on a given team from the profile
     roleOnTeam: (teamId) => {
       const t = (get().auth.user?.teams || []).find(x => x.teamId === teamId)
@@ -1564,6 +1574,7 @@ const useForge = create((set, get) => {
     logoutLocal: () => set({
       auth: { user: null, role: null, subsystem: null, busy: false, error: null, checked: true },
       teams: [], activeTeamId: null, projects: [], activeProjectId: null, tasks: [], reports: [], metrics: null, demoMode: false,
+      challengeQueue: [], challengeCounts: { pending: 0, approved: 0, rejected: 0 }, challengeIntel: null,
       presence: { online: [], connected: false, error: null, lastSyncBy: null, lastSyncAt: null },
     }),
 

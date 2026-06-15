@@ -22,6 +22,8 @@ import PhaseReview from './components/panels/PhaseReview'
 import TeamPanel from './components/panels/TeamPanel'
 import ReportsPanel from './components/panels/ReportsPanel'
 import MetricsPanel from './components/panels/MetricsPanel'
+import ChallengeReviewPanel from './components/panels/ChallengeReviewPanel'
+import MarketIntelPanel from './components/panels/MarketIntelPanel'
 import MissionSummary from './components/panels/MissionSummary'
 import * as session from './lib/session.js'
 
@@ -38,6 +40,8 @@ function SectionContent({ section }) {
     case 'team':         return <TeamPanel />
     case 'reports':      return <ReportsPanel />
     case 'metrics':      return <MetricsPanel />
+    case 'challenge-review': return <ChallengeReviewPanel />
+    case 'market-intel': return <MarketIntelPanel />
     case 'analytics':    return <AnalyticsPanel />
     default:             return <EmptyState section={section} />
   }

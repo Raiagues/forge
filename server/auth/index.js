@@ -77,6 +77,13 @@ export async function optionalAuth(req, _res, next) {
   next()
 }
 
+// Require a platform admin (req.member.isAdmin). Used by the challenge
+// review queue + market-intelligence dashboard. Run after requireAuth.
+export function requireAdmin(req, res, next) {
+  if (!req.member?.isAdmin) { res.status(403).json({ ok: false, error: 'acesso restrito ao administrador' }); return }
+  next()
+}
+
 // Resolve the caller's role + subsystem on a given team.
 export async function teamRole(memberId, teamId) {
   const tm = await models.TeamMember.findOne({ where: { teamId, memberId } })
