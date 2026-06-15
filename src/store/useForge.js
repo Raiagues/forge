@@ -450,7 +450,7 @@ const useForge = create((set, get) => {
     // stage carries a status (idle|running|passed|failed|warn|skipped),
     // its last result and when it ran; `selected` drives multi-select
     // integration tests on the block diagram.
-    hwtest: { stages: {}, selected: [], running: null },
+    hwtest: { stages: {}, selected: [], running: null, log: [] },
 
     // ── Firmware bring-up screen (Serial Test) ──────────────────────
     // Persistent so the connection status, detected board and diagnostic
@@ -1274,14 +1274,20 @@ const useForge = create((set, get) => {
     },
     finishHwTestStage: (id, result) => {
       track('hwtest_result', { target: id, status: result.status })
-      set(s => ({ hwtest: { ...s.hwtest, running: null, stages: { ...s.hwtest.stages, [id]: { status: result.status, result, ranAt: new Date().toISOString() } } } }))
+      const entry = { t: new Date().toISOString(), stage: id, label: result.label || id, status: result.status, summary: result.summary || '' }
+      set(s => ({ hwtest: { ...s.hwtest, running: null,
+        stages: { ...s.hwtest.stages, [id]: { status: result.status, result, ranAt: entry.t } },
+        log: [...s.hwtest.log, entry].slice(-120) } }))
     },
-    // proceed past a failed/parcial gate — explicit, with a UI warning
-    skipHwTestGate: (id) => {
+    // proceed past a failed/parcial gate — explicit, with a UI warning;
+    // the decision is logged in the V&V history with a timestamp.
+    skipHwTestGate: (id, label) => {
       track('hwtest_gate_skip', { target: id })
-      set(s => ({ hwtest: { ...s.hwtest, stages: { ...s.hwtest.stages, [id]: { ...s.hwtest.stages[id], status: 'skipped' } } } }))
+      set(s => ({ hwtest: { ...s.hwtest,
+        stages: { ...s.hwtest.stages, [id]: { ...s.hwtest.stages[id], status: 'skipped' } },
+        log: [...s.hwtest.log, { t: new Date().toISOString(), stage: id, label: label || id, status: 'skipped', summary: 'portão pulado com falha não resolvida' }].slice(-120) } }))
     },
-    resetHwTest: () => { track('hwtest_reset'); set({ hwtest: { stages: {}, selected: [], running: null } }) },
+    resetHwTest: () => { track('hwtest_reset'); set({ hwtest: { stages: {}, selected: [], running: null, log: [] } }) },
 
     // ── Firmware bring-up actions (fed by src/lib/serialLink.js) ─────
     // All bring-up state lives in the store so it survives navigation;

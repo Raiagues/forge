@@ -59,6 +59,7 @@ export default function HardwareTestPanel() {
   const skipHwTestGate = useForge(s => s.skipHwTestGate)
   const resetHwTest = useForge(s => s.resetHwTest)
   const openPhaseReview = useForge(s => s.openPhaseReview)
+  const askAssistant = useForge(s => s.askAssistant)
 
   const [term, setTerm] = useState([])         // current/last terminal play-out
   const [activeStage, setActiveStage] = useState('comm')
@@ -122,8 +123,9 @@ export default function HardwareTestPanel() {
       setTerm(t => [...t, { text: `■ veredito: ${ST_LABEL[plan.status]} · ${plan.summary}`, cls: plan.status === 'passed' ? 'ok' : plan.status === 'failed' ? 'err' : 'warn' }])
       // single-sensor run merges into the sensors stage without discarding
       // the other sensors' verdicts
-      if (id === 'sensors' && opts.sensor) finishHwTestStage(id, mergeSensor(stages.sensors?.result, plan, sensorIds))
-      else finishHwTestStage(id, plan)
+      const label = stageById(id)?.label || id
+      if (id === 'sensors' && opts.sensor) finishHwTestStage(id, { ...mergeSensor(stages.sensors?.result, plan, sensorIds), label })
+      else finishHwTestStage(id, { ...plan, label })
     }, 240 * (steps.length + 1)))
   }
 
@@ -233,7 +235,7 @@ export default function HardwareTestPanel() {
                   </button>
                 )}
                 {st === 'failed' && (
-                  <button onClick={() => skipHwTestGate(s.id)} title="prosseguir pulando um portão de validação" style={{ ...runBtn(false), border: '1px dashed var(--err2)', color: 'var(--err2)', background: 'transparent' }}>
+                  <button onClick={() => { if (window.confirm(`Pular "${s.label}" com uma falha NÃO resolvida? Isso será registrado no log de verificação.`)) skipHwTestGate(s.id, s.label) }} title="prosseguir pulando um portão de validação" style={{ ...runBtn(false), border: '1px dashed var(--err2)', color: 'var(--err2)', background: 'transparent' }}>
                     pular portão ⚠
                   </button>
                 )}
@@ -290,6 +292,7 @@ export default function HardwareTestPanel() {
         <ContextPanel
           width={ctxW}
           subsystems={subsystems} selected={selected} stages={stages}
+          log={hwtest.log} onAsk={askAssistant}
           running={running} onClearSel={() => useForge.getState().clearTestSelection()}
           onRunIntegration={() => runStage('integration')}
           integrationLocked={isLocked('integration')}
@@ -428,15 +431,87 @@ function StatusDot({ x, y, status }) {
   return <circle cx={x} cy={y} r="5" fill={ST_COLOR[status]} stroke="var(--paper)" strokeWidth="1.5" />
 }
 
+// ── per-stage failure knowledge → specific, non-generic AI diagnosis ──
+const STAGE_DIAGNOSIS = {
+  comm: { cause: 'A placa não respondeu ao ping dentro do tempo limite.', fixes: ['Confirme o cabo USB (de dados, não só de energia) e a porta.', 'Verifique a baud 115200 e se outro programa não está ocupando a serial.', 'Pressione EN/RESET na placa e detecte novamente.'] },
+  interfaces: { cause: 'O barramento I²C não respondeu como esperado.', fixes: ['Confirme SDA=GPIO21 e SCL=GPIO22 (ou os pinos da sua fiação).', 'Verifique os resistores de pull-up (~4.7k) em SDA e SCL.', 'Confirme a alimentação 3V3 dos periféricos.'] },
+  integration: { cause: 'Conflito ao exercitar os componentes no mesmo barramento.', fixes: ['Verifique endereços I²C duplicados — use o strap SDO/AD0 para separar.', 'Confira contenção/temporização no barramento compartilhado.'] },
+  system: { cause: 'A sequência de pré-voo reprovou em um ou mais subsistemas.', fixes: ['Revise individualmente as etapas reprovadas acima.'] },
+}
+const SENSOR_FIX = {
+  bmp280: ['BMP280 responde em 0x76 (SDO=GND) ou 0x77 (SDO=3V3) — confira o strap.', 'Confirme VCC=3V3, GND, SDA→GPIO21, SCL→GPIO22.', 'Verifique pull-ups de ~4.7k no barramento I²C.'],
+  mpu6050: ['MPU6050 responde em 0x68 (AD0=GND) ou 0x69 (AD0=3V3).', 'Confirme VCC=3V3, GND, SDA→GPIO21, SCL→GPIO22.', 'Com vários dispositivos, verifique conflito de endereço.'],
+  gps_neo6m: ['NEO-6M usa UART — TX→RX2(16), RX→TX2(17) cruzados.', 'Confirme baud 9600 e alimentação 3V3; antena com vista do céu para fix.'],
+}
+function diagnoseFailure(stageId, result) {
+  const errLines = (result?.steps || []).filter(s => s.cls === 'err').map(s => s.text)
+  const base = STAGE_DIAGNOSIS[stageId] || { cause: 'O teste reprovou.', fixes: ['Revise os passos do console acima.'] }
+  let fixes = base.fixes
+  if (stageId === 'sensors' && result?.perSensor) {
+    const failed = Object.values(result.perSensor).filter(r => r.status === 'failed')
+    if (failed.length) fixes = failed.flatMap(r => SENSOR_FIX[r.sensor] || ['Verifique alimentação (3V3/GND) e a fiação SDA/SCL.'])
+  }
+  return { cause: base.cause, fixes, errLines }
+}
+
 // ── right context panel ─────────────────────────────────────────────
-function ContextPanel({ width = 300, subsystems, selected, stages, running, onClearSel, onRunIntegration, integrationLocked, onRunSensor }) {
+function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onAsk, running, onClearSel, onRunIntegration, integrationLocked, onRunSensor }) {
   const sel = selected.map(id => COMPONENT_DEFS[id]).filter(Boolean)
   const breakdown = stages.system?.result?.breakdown
   // Log Doctor relocated here from the retired Debug section — collapsed by
   // default so it stays out of the way until the user needs a log diagnosis
   const [doctorOpen, setDoctorOpen] = useState(false)
+  const [logFilter, setLogFilter] = useState('all')
+
+  // coverage summary (Part 2)
+  const cov = TEST_STAGES.reduce((a, s) => {
+    const st = stages[s.id]?.status || 'idle'
+    if (st === 'passed') a.passed++
+    else if (st === 'failed') a.failed++
+    else if (st === 'warn' || st === 'skipped') a.warn++
+    else a.notRun++
+    return a
+  }, { passed: 0, failed: 0, warn: 0, notRun: 0 })
+  const ran = TEST_STAGES.length - cov.notRun
+
+  // first failed stage → inline AI diagnosis (Part 4)
+  const failedStage = TEST_STAGES.find(s => stages[s.id]?.status === 'failed')
+  const diag = failedStage ? diagnoseFailure(failedStage.id, stages[failedStage.id]?.result) : null
+  const askChat = () => {
+    if (!failedStage) return
+    onAsk?.(`No meu ESP32, o teste "${failedStage.label}" reprovou. ${diag.cause} Linhas de erro: ${diag.errLines.join(' | ') || '(sem detalhe)'}. Quais as causas mais prováveis e como resolvo? Sou de uma equipe universitária de satélite (CubeSat).`)
+  }
+
+  const shownLog = log.filter(e => logFilter === 'all' || (logFilter === 'fail' ? e.status === 'failed' : e.status === 'passed')).slice().reverse()
+  const clock = (iso) => new Date(iso).toTimeString().slice(0, 8)
+
   return (
     <div style={{ width, flexShrink: 0, borderLeft: '1px solid var(--rule)', background: 'var(--paper2)', overflowY: 'auto', padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* coverage summary (Part 2) */}
+      <div>
+        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Cobertura de teste</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <CovCell n={`${ran}/${TEST_STAGES.length}`} label="executados" color="var(--ink)" />
+          <CovCell n={cov.passed} label="passou" color="var(--ok2)" />
+          <CovCell n={cov.failed} label="falhou" color="var(--err2)" />
+          <CovCell n={cov.notRun} label="restam" color="var(--ink4)" />
+        </div>
+      </div>
+
+      {/* inline AI diagnosis on failure (Part 4) */}
+      {diag && (
+        <div style={{ border: '1px solid rgba(192,64,48,.35)', borderRadius: 7, background: 'rgba(192,64,48,.05)', padding: '9px 11px' }}>
+          <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--err2)', marginBottom: 4 }}>Diagnóstico assistido por IA · {failedStage.label}</div>
+          <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 6 }}>{diag.cause}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {diag.fixes.slice(0, 3).map((f, i) => (
+              <div key={i} style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.45 }}>→ {f}</div>
+            ))}
+          </div>
+          <button onClick={askChat} style={{ ...ghostBtn, marginTop: 8, border: '1px solid var(--acc)', color: 'var(--acc2)' }}>continuar no chat →</button>
+        </div>
+      )}
 
       {/* selection / integration */}
       <div>
@@ -493,6 +568,36 @@ function ContextPanel({ width = 300, subsystems, selected, stages, running, onCl
         </div>
       )}
 
+      {/* verification & validation log — timestamped history (Part 2) */}
+      <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Log de verificação</span>
+          <span style={{ flex: 1 }} />
+          {['all', 'pass', 'fail'].map(f => (
+            <button key={f} onClick={() => setLogFilter(f)} style={{
+              ...mono, fontSize: 9.5, letterSpacing: '.04em', textTransform: 'uppercase',
+              padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
+              border: `1px solid ${logFilter === f ? 'var(--acc)' : 'var(--rule)'}`,
+              background: logFilter === f ? 'rgba(158,74,44,.06)' : 'transparent',
+              color: logFilter === f ? 'var(--ink)' : 'var(--ink4)',
+            }}>{f === 'all' ? 'tudo' : f === 'pass' ? 'passou' : 'falhou'}</button>
+          ))}
+        </div>
+        {shownLog.length === 0 ? (
+          <div style={{ ...mono, fontSize: 11.5, color: 'var(--ink4)' }}>nenhum teste executado ainda</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 168, overflowY: 'auto' }}>
+            {shownLog.map((e, i) => (
+              <div key={i} style={{ ...mono, fontSize: 11, lineHeight: 1.4, color: 'var(--ink3)' }}>
+                <span style={{ color: 'var(--ink4)' }}>[{clock(e.t)}]</span>{' '}
+                {e.label} — <span style={{ color: ST_COLOR[e.status] }}>{(ST_LABEL[e.status] || e.status).toUpperCase()}</span>
+                {e.summary ? <span style={{ color: 'var(--ink4)' }}> — {e.summary}</span> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Log Doctor — log-diagnosis assistant, moved from the old Debug
           section. Cross-references device serial output with the twin. */}
       <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
@@ -506,6 +611,16 @@ function ContextPanel({ width = 300, subsystems, selected, stages, running, onCl
         {!doctorOpen && <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 5 }}>Diagnostique a saída serial cruzada com o gêmeo digital.</div>}
         {doctorOpen && <div style={{ marginTop: 8 }}><LogDoctorCard /></div>}
       </div>
+    </div>
+  )
+}
+
+// coverage summary cell — a big number + label, color-coded (Part 2)
+function CovCell({ n, label, color }) {
+  return (
+    <div style={{ flex: 1, textAlign: 'center', padding: '6px 4px', borderRadius: 6, border: '1px solid var(--rule)', background: 'var(--paper)' }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1.1 }}>{n}</div>
+      <div style={{ ...mono, fontSize: 9, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink4)', marginTop: 2 }}>{label}</div>
     </div>
   )
 }
