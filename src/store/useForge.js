@@ -268,6 +268,9 @@ const EMPTY_PLAN = {
   // is the university affiliation (also surfaced under restrictions).
   team: { name: '', institution: '', members: [] },
   priorityRanking: [],      // ordered priority ids (visual ranking, Part 2)
+  // brainstorming workspace (Prompt A Part 3) — persisted as mission data
+  // so it survives navigation and feeds the summary / phase reports.
+  brainstorm: { cards: [], arrows: [] },
   environment: { platform: '', altitude: '', tempRange: '', notes: '' },
   components: [],           // planned component ids (mirrors entities)
   software: [],             // chosen software module ids
@@ -964,6 +967,35 @@ const useForge = create((set, get) => {
     // Visual priority ranking — ordered list of priority ids (drag/click to
     // rank). Stored verbatim; the consultant/validation can read the order.
     setPriorityRanking: (ids) => set(s => ({ missionPlan: { ...s.missionPlan, priorityRanking: ids } })),
+
+    // ── brainstorming workspace (Prompt A Part 3) ───────────────────
+    // Cards: { id, zone, x, y, text, draft? }. Arrows: { id, from, to }.
+    // Stored under missionPlan.brainstorm so they persist with the mission.
+    _bs: (fn) => set(s => {
+      const bs = s.missionPlan.brainstorm || { cards: [], arrows: [] }
+      return { missionPlan: { ...s.missionPlan, brainstorm: fn(bs) } }
+    }),
+    addBrainstormCard: (card) => {
+      track('brainstorm', { action: 'add_card', target: card.zone })
+      const id = `bc_${Date.now()}_${Math.round(Math.random() * 1e4)}`
+      get()._bs(bs => ({ ...bs, cards: [...bs.cards, { id, text: '', ...card }] }))
+      return id
+    },
+    updateBrainstormCard: (id, patch) => get()._bs(bs => ({
+      ...bs, cards: bs.cards.map(c => (c.id === id ? { ...c, ...patch } : c)),
+    })),
+    acceptBrainstormDraft: (id) => { track('brainstorm', { action: 'accept_ai' }); get().updateBrainstormCard(id, { draft: false }) },
+    removeBrainstormCard: (id) => get()._bs(bs => ({
+      ...bs, cards: bs.cards.filter(c => c.id !== id),
+      arrows: bs.arrows.filter(a => a.from !== id && a.to !== id),
+    })),
+    addBrainstormArrow: (from, to) => {
+      if (from === to) return
+      get()._bs(bs => (bs.arrows.some(a => a.from === from && a.to === to)
+        ? bs
+        : { ...bs, arrows: [...bs.arrows, { id: `ba_${Date.now()}`, from, to }] }))
+    },
+    removeBrainstormArrow: (id) => get()._bs(bs => ({ ...bs, arrows: bs.arrows.filter(a => a.id !== id) })),
 
     // Team roster: { name, role } members (the institution is set via
     // setTeamField). Kept minimal — add/edit/remove.

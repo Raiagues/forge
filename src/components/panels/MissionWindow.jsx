@@ -7,6 +7,7 @@ import {
   mono, slab, CREAM, GOLD, NAVY_FIELD, h2, sub, inputStyle, StepDots, Card,
 } from '../onboarding/posterKit.jsx'
 import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
+import MissionBrainstorm from './MissionBrainstorm.jsx'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
 
@@ -37,6 +38,7 @@ const STEP_DEFS = [
   { id: 'team', title: 'equipe' },
   { id: 'format', title: 'formato' },
   { id: 'objective', title: 'objetivo' },
+  { id: 'brainstorm', title: 'ideias' },
   { id: 'restrictions', title: 'restrições' },
 ]
 
@@ -242,7 +244,14 @@ export default function MissionWindow() {
     </>
   )
 
-  // ── step 4: restrições (budget + fab target + university + priorities) ─
+  // ── step 4: ideias (brainstorming canvas — FMEA/design-thinking) ──
+  screensById.brainstorm = (
+    <div style={{ height: '72vh', minHeight: 420, display: 'flex', flexDirection: 'column' }}>
+      <MissionBrainstorm />
+    </div>
+  )
+
+  // ── step 5: restrições (budget + fab target + university + priorities) ─
   screensById.restrictions = (
     <>
       <h2 style={h2}>Restrições e prioridades</h2>

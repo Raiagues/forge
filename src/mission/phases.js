@@ -22,6 +22,7 @@ export const PHASES = [
       { id: 'team', label: 'Equipe', step: 'team' },
       { id: 'format', label: 'Formato', step: 'format' },
       { id: 'objective', label: 'Objetivo', step: 'objective' },
+      { id: 'brainstorm', label: 'Ideias', step: 'brainstorm' },
       { id: 'restrictions', label: 'Restrições', step: 'restrictions' },
     ],
   },
@@ -78,6 +79,7 @@ export function derivePhases(state, { gateAt = 2 } = {}) {
       team: !!(mp.team?.name || '').trim(),
       format: !!mp.cubeU,
       objective: (mp.objectiveCategories?.length || 0) > 0 || !!mp.objectiveId,
+      brainstorm: (mp.brainstorm?.cards?.length || 0) > 0,
       restrictions: mp.budgetBRL != null,
     },
     hardware: {
