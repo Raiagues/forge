@@ -136,7 +136,7 @@ export default function MissionWindow() {
     <>
       <CompetitionLock />
       <h2 style={h2}>Quem é a equipe?</h2>
-      <p style={sub}>Comece pela identidade da missão — o nome e quem está construindo. O resto da missão é desta equipe.</p>
+      <p style={sub}>Comece pela identidade: o nome da missão e quem está construindo.</p>
       <div style={{ width: 480, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label style={label}>nome da missão
@@ -176,7 +176,7 @@ export default function MissionWindow() {
   screensById.format = (
     <>
       <h2 style={h2}>Qual o formato do satélite?</h2>
-      <p style={sub}>Hoje o GuiaSat monta CubeSats. Escolha o tamanho — ele fixa os orçamentos de massa, volume e energia.</p>
+      <p style={sub}>Escolha o tamanho do CubeSat — ele fixa massa, volume e energia.</p>
       <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 22 }}>
         <Card width={220} selected onClick={() => {}}>
           <div style={{ ...slab, fontSize: 20, fontWeight: 700, marginBottom: 4 }}>CubeSat</div>
@@ -255,7 +255,7 @@ export default function MissionWindow() {
   screensById.restrictions = (
     <>
       <h2 style={h2}>Restrições e prioridades</h2>
-      <p style={sub}>O orçamento alimenta o medidor de custos; o alvo de fabricação e a afiliação contextualizam o projeto.</p>
+      <p style={sub}>Defina o orçamento e o alvo de fabricação.</p>
       <div style={{ width: 480, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label style={label}>orçamento total (R$)
@@ -342,12 +342,15 @@ export default function MissionWindow() {
         </div>
       </div>
 
-      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 22 }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
         {stepIdx > 0 && (
-          <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← voltar</button>
+          <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← {STEP_DEFS[stepIdx - 1].title}</button>
         )}
         {stepIdx < STEP_DEFS.length - 1 && (
-          <button onClick={() => goByIndex(stepIdx + 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>avançar →</button>
+          // action-oriented: name the destination, not a generic "próximo"
+          <button onClick={() => goByIndex(stepIdx + 1)} style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: 'pointer', fontWeight: 700 }}>
+            Continuar para {STEP_DEFS[stepIdx + 1].title} →
+          </button>
         )}
       </div>
     </div>

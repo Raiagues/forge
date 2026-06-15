@@ -169,6 +169,17 @@ export default function SatelliteAssembly({ plan }) {
           </circle>
         )}
 
+        {/* budget ring — appears when the team sets a budget (reactive) */}
+        {plan.budgetBRL != null && (
+          <g>
+            <circle cx="256" cy="44" r="21" fill="none" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
+            <circle cx="256" cy="44" r="21" fill="none" style={{ stroke: 'var(--poster-gold)' }} strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={`${2 * Math.PI * 21 * 0.78} ${2 * Math.PI * 21}`} transform="rotate(-90 256 44)" />
+            <text x="256" y="41" textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="8" style={gold} stroke="none">R$</text>
+            <text x="256" y="52" textAnchor="middle" fontFamily="'Space Mono', monospace" fontSize="10.5" fontWeight="700" fill="currentColor">{plan.budgetBRL}</text>
+          </g>
+        )}
+
         {/* engineering drawing title block */}
         <g fontFamily="'Space Mono', monospace" fill="currentColor">
           <rect x="22" y="346" width="256" height="34" fill="none" stroke="currentColor" strokeOpacity=".35" />
