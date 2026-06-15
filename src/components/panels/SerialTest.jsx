@@ -5,6 +5,7 @@ import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
 import { ADDR_STRAPS } from '../../mission/wiring.js'
 import { track } from '../../lib/analytics.js'
+import * as serialLink from '../../lib/serialLink.js'
 
 // ──────────────────────────────────────────────────────────────────
 // Serial Test — a hardware bring-up console that lives inside the GuiaSat
@@ -17,8 +18,6 @@ import { track } from '../../lib/analytics.js'
 // Layout: a drag-resizable workflow column (pipeline + readouts) beside a
 // soft navy editor and ONE tabbed console (Serial · Build · Diagnostics).
 // ──────────────────────────────────────────────────────────────────
-
-const SERVER = 'http://localhost:3001'
 
 // Soft navy-tinted dark — harmonises with the navy chrome, not a black terminal.
 const EDITOR_BG = '#1E283C'
@@ -51,6 +50,7 @@ bool haveDisplay = false;
 bool haveSensor = false;
 
 void blink2();
+void rescanI2C();
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
@@ -158,6 +158,11 @@ void loop() {
   delay(40);
   digitalWrite(LED_PIN, LOW);
 
+  // active I2C re-scan every ~2.5s — the diagnostic on screen polls the
+  // LIVE bus, so a sensor removed mid-run drops out within one cycle.
+  static unsigned long lastScan = 0;
+  if (millis() - lastScan > 2500) { lastScan = millis(); rescanI2C(); }
+
   delay(1000);
 }
 
@@ -166,6 +171,24 @@ void blink2() {
     digitalWrite(LED_PIN, HIGH); delay(80);
     digitalWrite(LED_PIN, LOW);  delay(80);
   }
+}
+
+// Re-scan the I2C bus on demand and print the same lines the setup scan
+// does, so the platform's diagnostic re-evaluates device presence live.
+void rescanI2C() {
+  Serial.println("Scanning I2C...");
+  int found = 0;
+  for (uint8_t addr = 8; addr < 120; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("Found device at 0x");
+      if (addr < 16) Serial.print("0");
+      Serial.println(addr, HEX);
+      found++;
+    }
+  }
+  Serial.print("Devices found: ");
+  Serial.println(found);
 }
 `
 
@@ -237,193 +260,72 @@ const TABS = [
   { id: 'build', label: 'Build / Flash' },
 ]
 
-const clock = () => new Date().toTimeString().slice(0, 8)
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
 const S_COLOR = { rx: PANEL_INK, tx: '#8FC0F0', sys: 'rgba(231,237,247,.42)' }
 const S_PREFIX = { rx: '‹', tx: '»', sys: '#' }
 
-const ST_IDLE = 'idle', ST_ACTIVE = 'active', ST_DONE = 'done', ST_ERROR = 'error'
+const ST_ACTIVE = 'active', ST_DONE = 'done', ST_ERROR = 'error'
 
 export default function SerialTest() {
-  // single store touchpoint: report the REAL link state so the rest of
-  // the platform can honestly distinguish hardware from simulation.
-  const setHwLink = useForge(s => s.setHwLink)
+  // Durable bring-up state lives in the store (Part 4a) so the connection
+  // status, detected board and diagnostics survive navigation. The serial
+  // EventSource itself is owned by the navigation-proof singleton in
+  // src/lib/serialLink.js; this component only renders state + binds it.
+  const fw = useForge(s => s.fw)
   const setSection = useForge(s => s.setSection)
   const openPhaseReview = useForge(s => s.openPhaseReview)
+  const askAssistant = useForge(s => s.askAssistant)
+  const fwSetTab = useForge(s => s.fwSetTab)
+  const fwSetExpandedStep = useForge(s => s.fwSetExpandedStep)
+  const fwSetCode = useForge(s => s.fwSetCode)
+  const fwClearSerial = useForge(s => s.fwClearSerial)
+  const fwClearLog = useForge(s => s.fwClearLog)
   const wires = useForge(s => s.wires)
   const fwFiles = useForge(s => s.fwFiles)
   const fwEdits = useForge(s => s.fwEdits)
   const setFwEdit = useForge(s => s.setFwEdit)
   const addrs = useForge(s => s.live?.addrs) || {}
-  const [connected, setConnected] = useState(false)
-  const [code, setCode] = useState(BMP_SKETCH)
-  const [activeFileName, setActiveFileName] = useState(null)
-  const [flashing, setFlashing] = useState(false)
-  const [detecting, setDetecting] = useState(false)
-  const [serialLines, setSerialLines] = useState([])
-  const [logLines, setLogLines] = useState([])
-  const [diagLines, setDiagLines] = useState([])
-  const [input, setInput] = useState('')
-  const [tab, setTab] = useState('serial')
-  const [stages, setStages] = useState({})
-  const [hw, setHw] = useState({ sda: 21, scl: 22, oled: null, bmp: null, i2c: null, oledOk: false, found: [] })
-  const [chip, setChip] = useState(null)
-  const [reading, setReading] = useState(null)
-  const [expandedStep, setExpandedStep] = useState(null) // completed step re-opened by the user
 
-  // drag-resizable regions: the editor flex-fills whatever the console
-  // doesn't take, so it always occupies the available vertical space
+  // durable bring-up state (from the store)
+  const { connected, detecting, flashing, chip, stages, hw, reading } = fw
+  const serialLines = fw.serial, logLines = fw.log, diagLines = fw.diag
+  const tab = fw.tab, expandedStep = fw.expandedStep
+  const code = fw.code ?? BMP_SKETCH
+  const setCode = fwSetCode
+  const setTab = fwSetTab
+  const setExpandedStep = fwSetExpandedStep
+
+  // local UI-only state (safe to reset on navigation)
+  const [activeFileName, setActiveFileName] = useState(null)
+  const [input, setInput] = useState('')
   const [colW, setColW] = useState(252)
   const [consoleH, setConsoleH] = useState(200)
 
-  const esRef = useRef(null)
   const serialEndRef = useRef(null)
   const logEndRef = useRef(null)
   const diagEndRef = useRef(null)
-  const notedRef = useRef(new Set())
-
-  const pushSerial = (dir, text) => setSerialLines((l) => [...l, { t: clock(), dir, text }].slice(-600))
-  const pushLog = (text) => setLogLines((l) => [...l, { t: clock(), text }].slice(-600))
-  const setStage = (id, status) => setStages((s) => (s[id] === status ? s : { ...s, [id]: status }))
-  const note = (text) => { if (!notedRef.current.has(text)) { notedRef.current.add(text); setDiagLines((l) => [...l, { t: clock(), text }].slice(-200)) } }
 
   useEffect(() => { serialEndRef.current?.scrollIntoView({ block: 'end' }) }, [serialLines])
   useEffect(() => { logEndRef.current?.scrollIntoView({ block: 'end' }) }, [logLines])
   useEffect(() => { diagEndRef.current?.scrollIntoView({ block: 'end' }) }, [diagLines])
-  useEffect(() => () => { esRef.current?.close() }, [])
+  // on mount: keep the link alive across navigation; reconnect after a
+  // full reload if we were connected. The singleton makes this a no-op
+  // when the link is already open.
+  useEffect(() => { serialLink.ensureConnected() }, [])
 
-  // ── parse REAL serial output into pipeline stages + hardware facts ──
-  const ingestSerial = (line) => {
-    setStage('active', ST_DONE)
-    if (/rst:0x|ets [A-Z][a-z]{2} |SPI_FAST_FLASH_BOOT|entry 0x/.test(line)) {
-      notedRef.current = new Set()
-      setStage('reboot', ST_DONE); setStage('board', ST_DONE)
-      note('Placa reiniciou — recuperando stream serial')
-    }
-    if (/=== ESP32 START ===/.test(line)) { setStage('active', ST_DONE); setStage('board', ST_DONE); note('Handshake da placa estabelecido') }
-    if (/Scanning I2C/i.test(line)) { setHw((h) => ({ ...h, i2c: null, found: [] })); note('Varredura I2C iniciada') }
-    let m = line.match(/Found device at (0x[0-9a-fA-F]+)/i)
-    if (m) {
-      const a = m[1].toLowerCase()
-      setHw((h) => ({
-        ...h,
-        found: h.found.includes(a) ? h.found : [...h.found, a],
-        oled: a === '0x3c' || a === '0x3d' ? a : h.oled,
-        bmp: a === '0x76' || a === '0x77' ? a : h.bmp,
-      }))
-      note(`Dispositivo I2C em ${a}`)
-    }
-    m = line.match(/Devices found:\s*(\d+)/i)
-    if (m) { const n = +m[1]; setHw((h) => ({ ...h, i2c: n })); note(`Varredura I2C concluída — ${n} dispositivo(s)`) }
-    if (/OLED OK/.test(line)) { setHw((h) => ({ ...h, oledOk: true, oled: h.oled || '0x3c' })); note('OLED respondeu em 0x3c') }
-    if (/OLED FAILED/.test(line)) setHw((h) => ({ ...h, oledOk: false }))
-    // sensor OK/erro — cobre o preset ("BMP280 OK") e o firmware gerado
-    // ("[BMP280] OK @ 0x76"), que reporta o strap que respondeu
-    m = line.match(/\[?BMP280\]? OK(?: @ (0x[0-9a-fA-F]+))?/)
-    if (m) { const at = m[1]?.toLowerCase(); setStage('sensor', ST_DONE); setHw((h) => { note(`BMP280 reconhecido em ${at || h.bmp || '0x76'}`); return { ...h, bmp: at || h.bmp || '0x76' } }) }
-    if (/BMP280 (NOT FOUND|missing)|\[BMP280\] nao encontrado/i.test(line)) { setStage('sensor', ST_ERROR); note('BMP280 não inicializou — veja o painel de diagnóstico') }
-    // leituras — formato do preset e do firmware gerado
-    m = line.match(/Temp:\s*([\d.-]+)\s*C\s*Pressure:\s*([\d.-]+)/i) || line.match(/\[BMP280\] T=([\d.-]+) P=([\d.-]+)/)
-    if (m) { setReading(`${m[1]} °C · ${m[2]} hPa`); setStage('telem', ST_DONE); note('Telemetria fluindo') }
-  }
-
-  const ingestLog = (line) => {
-    if (/Compiling\.\.\./i.test(line)) setStage('compile', ST_ACTIVE)
-    if (/Uploading\.\.\./i.test(line)) { setStage('compile', ST_DONE); setStage('upload', ST_ACTIVE) }
-    const m = line.match(/Chip type:\s*(ESP32[^\s(]*)/i) || line.match(/Detecting chip type\.{0,3}\s*(ESP32\S*)/i)
-    if (m) { setChip(m[1]); setStage('board', ST_DONE) }
-    if (/Flash complete/i.test(line)) setStage('upload', ST_DONE)
-    if (/compile failed/i.test(line)) setStage('compile', ST_ERROR)
-    if (/upload failed/i.test(line)) setStage('upload', ST_ERROR)
-  }
-
-  function connect() {
-    if (esRef.current) return
-    const es = new EventSource(`${SERVER}/serial`)
-    esRef.current = es
-    es.onopen = () => {
-      setConnected(true)
-      setHwLink({ connected: true, port: 'bridge · 115200' })
-      pushSerial('sys', 'monitor conectado · porta gerida pelo backend (sem popup)')
-    }
-    es.onmessage = (ev) => {
-      const line = ev.data
-      if (line.startsWith('#')) { pushSerial('sys', line.replace(/^#\s?/, '')); return }
-      pushSerial('rx', line); ingestSerial(line)
-      // mirror REAL device output into the platform serial buffer so the
-      // Serial monitor and the Log Doctor analyze the physical hardware
-      const cls = /not found|failed|error|timeout|missing|brownout|guru meditation/i.test(line) ? 'err'
-        : /warn|retry/i.test(line) ? 'warn'
-        : /ok|ready|complete|ack/i.test(line) ? 'ok' : 'info'
-      useForge.getState().pushSerial({ m: line, cls })
-    }
-    es.onerror = () => {
-      if (es.readyState === EventSource.CLOSED) {
-        setConnected(false)
-        setHwLink({ connected: false, port: '' })
-      } else pushSerial('sys', 'servidor serial indisponível — rode ./start.sh')
-    }
-  }
-
-  function disconnect() {
-    esRef.current?.close(); esRef.current = null
-    setConnected(false)
-    setHwLink({ connected: false, port: '' })
-    pushSerial('sys', 'monitor desconectado')
-  }
-
-  async function send() {
-    const msg = input.trim()
-    if (!msg) return
-    try {
-      const res = await fetch(`${SERVER}/serial/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ line: msg }) })
-      if (res.ok) { pushSerial('tx', msg); setInput('') }
-      else pushSerial('sys', 'serial não conectado — clique Conectar')
-    } catch { pushSerial('sys', 'falha ao enviar — servidor fora do ar') }
-  }
-
-  async function streamInto(url, opts) {
-    const res = await fetch(url, opts)
-    if (!res.body) { (await res.text()).split('\n').forEach((l) => l && (ingestLog(l), pushLog(l))); return }
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      let i
-      while ((i = buffer.indexOf('\n')) >= 0) { const l = buffer.slice(0, i); buffer = buffer.slice(i + 1); ingestLog(l); pushLog(l) }
-    }
-    if (buffer.trim()) { ingestLog(buffer); pushLog(buffer) }
-  }
-
-  async function detect() {
-    if (detecting || flashing) return
-    setDetecting(true); setTab('build'); setStage('board', ST_ACTIVE)
-    pushLog('── detectando placa (esptool) ──')
-    try { await streamInto(`${SERVER}/detect`) }
-    catch (err) { pushLog(`ERROR: servidor inacessível — rode ./start.sh (${err.message})`) }
-    finally { setDetecting(false) }
-  }
-
-  async function flash() {
-    if (flashing || detecting) return
-    setFlashing(true); setTab('build')
-    setStages((s) => ({ board: s.board })) // keep board; re-validate the rest from this flash
-    setHw((h) => ({ ...h, oled: null, bmp: null, i2c: null, oledOk: false, found: [] }))
-    setReading(null); notedRef.current = new Set()
-    pushLog('── flash iniciado ──')
+  // thin wrappers over the link singleton — all parsing/state lives there
+  const connect = () => serialLink.connect()
+  const disconnect = () => serialLink.disconnect()
+  const send = async () => { if (await serialLink.send(input)) setInput('') }
+  const detect = () => serialLink.detect()
+  const flash = () => {
     // mission mode flashes the whole generated file set (main.ino +
     // headers) so the #include references resolve in the temp sketch dir
     const payload = missionMode
       ? { files: Object.fromEntries(fwFiles.map((f) => [f.file, fileContent(f)])) }
       : { code }
-    try {
-      await streamInto(`${SERVER}/flash`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    } catch (err) { pushLog(`ERROR: servidor de flash inacessível — rode ./start.sh (${err.message})`) }
-    finally { setFlashing(false) }
+    serialLink.flash(payload)
   }
 
   // ── custom splitters (no browser resize handles) ───────────────────
@@ -473,17 +375,25 @@ export default function SerialTest() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hw.i2c, hw.found, fullSource, wires, testSensors.join(',')])
 
-  // per-sensor diagnostic card status, recomputed as serial data arrives
+  // per-sensor diagnostic status — driven by the LATEST I²C scan (Part 4b),
+  // not by init success. Each completed scan re-evaluates presence, so a
+  // sensor that stops responding flips to red within one poll cycle.
+  // status: 'ok' (nominal) | 'warn' (connected, awaiting/uncertain) |
+  //         'err' (disconnected/pin error) | 'idle' (not configured/no link).
   const sensorCard = (id) => {
     const def = COMPONENT_DEFS[id]
     const exp = expectedAddrs(id)
-    const base = { id, name: def?.friendly || id, part: def?.label || id, addr: exp.join('/') || '—' }
-    if (exp.some((a) => hw.found.includes(a.toLowerCase()))) return { ...base, st: 'encontrado' }
+    const found = exp.find((a) => hw.found.includes(a.toLowerCase())) || null
+    const base = { id, name: def?.friendly || id, part: def?.label || id, expected: exp.join('/') || '—', caps: def?.caps || [], lastReadAt: hw.lastReadAt }
+    if (!connected) return { ...base, status: 'idle', label: 'sem conexão', detail: 'Conecte o monitor serial para varrer o barramento I²C.' }
     const pinErr = findings.find((f) => f.kind === 'invalid-pin' || f.kind === 'pin-mismatch')
-    if (pinErr) return { ...base, st: 'erro de pino', msg: `${pinErr.what} ${pinErr.fix}` }
+    if (pinErr) return { ...base, status: 'err', label: 'erro de pino', detail: pinErr.what, fix: pinErr.fix }
+    if ((hw.scanCount || 0) === 0) return { ...base, status: 'warn', label: 'aguardando varredura', detail: 'Aguardando a primeira varredura I²C da placa.' }
+    if (found) return { ...base, status: 'ok', label: 'nominal', addrFound: found, detail: `Respondeu em ${found} na última varredura I²C.` }
     const mine = findings.find((f) => f.sensor === id)
-    if (mine) return { ...base, st: 'ausente', msg: 'Verifique alimentação e conexão física' }
-    return { ...base, st: 'aguardando' }
+    return { ...base, status: 'err', label: 'desconectado',
+      detail: mine ? mine.what : `Sem resposta em ${base.expected} na última varredura I²C.`,
+      fix: mine ? mine.fix : 'Verifique a alimentação (3V3/GND) e a fiação SDA/SCL do módulo.' }
   }
   const cards = testSensors.map(sensorCard)
 
@@ -633,7 +543,7 @@ export default function SerialTest() {
                 {TABS.map((tb) => <button key={tb.id} onClick={() => setTab(tb.id)} style={tabBtn(tab === tb.id)}>{tb.label}</button>)}
               </span>
               <div style={{ flex: 1 }} />
-              <button onClick={() => (tab === 'serial' ? setSerialLines([]) : setLogLines([]))} style={miniBtn}>limpar</button>
+              <button onClick={() => (tab === 'serial' ? fwClearSerial() : fwClearLog())} style={miniBtn}>limpar</button>
             </PaneHeader>
 
             {tab === 'serial' && (
@@ -664,6 +574,7 @@ export default function SerialTest() {
         <DiagPanel
           overall={overall} cards={cards} events={diagLines}
           chip={chip} connected={connected} endRef={diagEndRef}
+          onAsk={(q) => askAssistant(q)}
         />
       </div>
     </div>
@@ -672,17 +583,32 @@ export default function SerialTest() {
 
 // ── presentational pieces (GuiaSat card / row idiom) ───────────────────
 
-// Guided bring-up flow: one prominent current step with a single action;
-// completed steps collapse to clickable green one-liners (re-expand to
-// re-run); future steps stay hidden until the current one completes.
+// Guided bring-up flow — the FULL pipeline is always visible (Part 4d):
+// completed steps are green checked one-liners (re-expand to re-run), the
+// current step is the prominent action card, and future steps stay
+// visible but dimmed/locked so the user always sees what comes next.
 function GuidedSteps({ steps, expanded, onToggle }) {
   const currentIdx = steps.findIndex((s) => !s.done)
   const mono9 = { fontFamily: "'Space Mono', monospace", fontSize: 12 }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 2 }}>
       {steps.map((s, i) => {
-        if (currentIdx !== -1 && i > currentIdx) return null // futuros: ocultos
+        const future = currentIdx !== -1 && i > currentIdx
         const isOpen = i === currentIdx || expanded === s.id
+
+        // future steps stay VISIBLE but dimmed/locked (Part 4d)
+        if (future) {
+          return (
+            <div key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              padding: '6px 9px', borderRadius: 5, opacity: 0.5,
+              border: '1px dashed var(--rule)', background: 'transparent',
+            }}>
+              <span style={{ ...mono9, fontSize: 11, color: 'var(--ink4)', flexShrink: 0 }}>{s.n}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--ink4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+            </div>
+          )
+        }
 
         // completed + collapsed → green one-liner, clickable to re-open
         if (!isOpen) {
@@ -849,20 +775,88 @@ function Row({ k, v, dot, mono, last }) {
   )
 }
 // ── persistent diagnostics panel ─────────────────────────────────────
-// Always visible to the right of the editor: overall bring-up status,
-// one card per sensor under test, the interpreted events stream and the
-// target line. Updates live from the serial ingest — no clicks needed.
-const CARD_ST = {
-  'aguardando':   { color: 'var(--ink4)',  bg: 'transparent' },
-  'encontrado':   { color: 'var(--ok2)',   bg: 'rgba(58,144,96,.07)' },
-  'ausente':      { color: 'var(--err2)',  bg: 'rgba(192,64,48,.05)' },
-  'erro de pino': { color: 'var(--err2)',  bg: 'rgba(192,64,48,.05)' },
+// Always visible to the right of the editor. The sensors render as a grid
+// of square color+icon STATUS BLOCKS (Part 4c): the colour + icon carry
+// the status at a glance (green nominal / amber warning / red error /
+// grey not configured), not a text string. Clicking a block expands its
+// raw diagnostic detail inline (address found, last read, error + fix)
+// with a "saiba mais" link that asks the persistent AI chat about it.
+const BLOCK_ST = {
+  ok:   { color: 'var(--ok2)',   bg: 'rgba(58,144,96,.10)',  ring: 'rgba(58,144,96,.45)' },
+  warn: { color: 'var(--warn2)', bg: 'rgba(200,131,26,.10)', ring: 'rgba(200,131,26,.45)' },
+  err:  { color: 'var(--err2)',  bg: 'rgba(192,64,48,.10)',  ring: 'rgba(192,64,48,.45)' },
+  idle: { color: 'var(--ink4)',  bg: 'transparent',          ring: 'var(--rule)' },
 }
-function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
+const STATUS_LABEL = { ok: 'nominal', warn: 'atenção', err: 'erro', idle: '—' }
+
+// simple sensor-type glyphs (thermometer / IMU axes / satellite / chip)
+function SensorGlyph({ caps = [], color }) {
+  const sw = { fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }
+  let path
+  if (caps.includes('imu')) path = <g {...sw}><path d="M12 3v18M3 12h18" /><circle cx="12" cy="12" r="3" /></g>
+  else if (caps.includes('gnss')) path = <g {...sw}><circle cx="12" cy="12" r="3" /><path d="M5 5l4 4M19 5l-4 4M5 19l4-4M19 19l-4-4" /></g>
+  else if (caps.includes('pressure') || caps.includes('temp')) path = <g {...sw}><path d="M12 14V5a2 2 0 0 0-4 0v9a4 4 0 1 0 4 0z" /></g>
+  else path = <g {...sw}><rect x="5" y="5" width="14" height="14" rx="2" /><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" /></g>
+  return <svg viewBox="0 0 24 24" width="20" height="20">{path}</svg>
+}
+
+function StatusBlock({ c, expanded, onToggle, onAsk }) {
+  const st = BLOCK_ST[c.status] || BLOCK_ST.idle
   const mono = { fontFamily: "'Space Mono', monospace" }
+  const ago = c.lastReadAt ? `${Math.max(0, Math.round((Date.now() - c.lastReadAt) / 1000))}s atrás` : '—'
+  return (
+    <div style={{ border: `1px solid ${expanded ? st.ring : 'var(--rule)'}`, borderRadius: 'var(--r-md)', background: st.bg, marginBottom: 7, overflow: 'hidden' }}>
+      <button onClick={onToggle} title="Ver dados do diagnóstico" style={{
+        display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
+        padding: '9px 10px', border: 'none', background: 'transparent', cursor: 'pointer',
+      }}>
+        {/* icon tile carries the colour */}
+        <span style={{ position: 'relative', width: 38, height: 38, borderRadius: 7, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: c.status === 'idle' ? 'var(--paper3)' : st.bg, border: `1px solid ${st.ring}` }}>
+          <SensorGlyph caps={c.caps} color={st.color} />
+          <span className={c.status === 'ok' ? 'pulse' : ''} style={{ position: 'absolute', top: -3, right: -3, width: 11, height: 11, borderRadius: '50%', background: st.color, border: '2px solid var(--paper2)' }} />
+        </span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.part}</span>
+          <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color }}>{c.label || STATUS_LABEL[c.status]}</span>
+        </span>
+        <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '2px 11px 10px', borderTop: '1px solid var(--rule2)' }}>
+          <DiagRow k="I²C esperado" v={c.expected} />
+          <DiagRow k="endereço respondeu" v={c.addrFound || '—'} />
+          <DiagRow k="última leitura" v={ago} />
+          {c.detail && <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 6 }}>{c.detail}</div>}
+          {c.fix && <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.5, marginTop: 3 }}>→ {c.fix}</div>}
+          <button onClick={() => onAsk(`Estou diagnosticando o sensor ${c.part} (${c.name}) no meu ESP32. Status: ${c.label}. Endereço I²C esperado ${c.expected}${c.addrFound ? `, respondeu em ${c.addrFound}` : ', não respondeu na varredura'}. ${c.detail || ''} Como investigo e resolvo isso?`)}
+            style={{ marginTop: 8, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
+              border: '1px solid var(--acc)', background: 'transparent', color: 'var(--acc2)',
+              ...mono, fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase' }}>
+            saiba mais →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+function DiagRow({ k, v }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', fontFamily: "'Space Mono', monospace", fontSize: 11.5 }}>
+      <span style={{ color: 'var(--ink4)' }}>{k}</span>
+      <span style={{ color: 'var(--ink2)' }}>{v}</span>
+    </div>
+  )
+}
+
+function DiagPanel({ overall, cards, events, chip, connected, endRef, onAsk }) {
+  const mono = { fontFamily: "'Space Mono', monospace" }
+  const [open, setOpen] = useState(null)
   return (
     <div style={{
-      width: 248, flexShrink: 0, marginLeft: 10, minHeight: 0,
+      width: 256, flexShrink: 0, marginLeft: 10, minHeight: 0,
       border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper2)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
@@ -880,27 +874,9 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef }) {
             Nenhum sensor sob teste — monte a missão ou escolha o sketch BMP280 + OLED.
           </div>
         )}
-        {cards.map((c) => {
-          const st = CARD_ST[c.st] || CARD_ST.aguardando
-          return (
-            <div key={c.id} style={{
-              border: '1px solid var(--rule)',
-              borderRadius: 'var(--r-md)', background: st.bg, padding: '7px 9px', marginBottom: 7,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: st.color }} />
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{c.part}</span>
-                </span>
-                <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color, flexShrink: 0 }}>{c.st}</span>
-              </div>
-              <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 2 }}>I2C esperado: {c.addr}</div>
-              {c.msg && (
-                <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 5, paddingTop: 5, borderTop: '1px solid var(--rule2)' }}>{c.msg}</div>
-              )}
-            </div>
-          )
-        })}
+        {cards.map((c) => (
+          <StatusBlock key={c.id} c={c} expanded={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} onAsk={onAsk} />
+        ))}
 
         <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '10px 0 5px' }}>eventos interpretados</div>
         {events.length === 0 && <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>nenhum evento ainda</div>}

@@ -452,6 +452,30 @@ const useForge = create((set, get) => {
     // integration tests on the block diagram.
     hwtest: { stages: {}, selected: [], running: null },
 
+    // ── Firmware bring-up screen (Serial Test) ──────────────────────
+    // Persistent so the connection status, detected board and diagnostic
+    // results survive navigation (Part 4a). The serial EventSource itself
+    // lives in src/lib/serialLink.js (a navigation-proof singleton) and
+    // feeds this slice through the fwIngest* actions. `hw.found` always
+    // reflects the LATEST completed I²C scan so a sensor that stops
+    // responding drops out within one poll cycle (Part 4b).
+    fw: {
+      connected: false,       // live serial link open right now
+      wasConnected: false,    // was ever connected this session → auto-reconnect after reload
+      detecting: false,
+      flashing: false,
+      chip: null,             // detected board, e.g. "ESP32-D0WDQ6"
+      stages: {},             // pipeline milestone → idle|active|done|error
+      hw: { sda: 21, scl: 22, oled: null, bmp: null, mpu: null, i2c: null, oledOk: false, found: [], scanAt: null, scanCount: 0, lastReadAt: null },
+      reading: null,          // last "T °C · P hPa" telemetry line
+      serial: [],             // raw serial buffer [{t,dir,text}]
+      log: [],                // build/flash/detect log [{t,text}]
+      diag: [],               // interpreted diagnostic events [{t,text}]
+      tab: 'serial',
+      expandedStep: null,
+      code: null,             // non-mission preset editor content (null → default preset)
+    },
+
     // ── navigation / selection ──────────────────────────────────────
     setSection: (id) => {
       const prev = get().activeSection
@@ -1258,6 +1282,92 @@ const useForge = create((set, get) => {
       set(s => ({ hwtest: { ...s.hwtest, stages: { ...s.hwtest.stages, [id]: { ...s.hwtest.stages[id], status: 'skipped' } } } }))
     },
     resetHwTest: () => { track('hwtest_reset'); set({ hwtest: { stages: {}, selected: [], running: null } }) },
+
+    // ── Firmware bring-up actions (fed by src/lib/serialLink.js) ─────
+    // All bring-up state lives in the store so it survives navigation;
+    // the serial parsing is here (not in the component) so the link
+    // singleton can keep updating it even when the screen is unmounted.
+    fwPatch: (patch) => set(s => ({ fw: { ...s.fw, ...patch } })),
+    fwPatchHw: (patch) => set(s => ({ fw: { ...s.fw, hw: { ...s.fw.hw, ...patch } } })),
+    fwSetStage: (id, status) => set(s => (s.fw.stages[id] === status ? {} : { fw: { ...s.fw, stages: { ...s.fw.stages, [id]: status } } })),
+    fwSetTab: (tab) => set(s => ({ fw: { ...s.fw, tab } })),
+    fwSetExpandedStep: (id) => set(s => ({ fw: { ...s.fw, expandedStep: id } })),
+    fwSetCode: (code) => set(s => ({ fw: { ...s.fw, code } })),
+    fwPushSerial: (dir, text) => set(s => ({ fw: { ...s.fw, serial: [...s.fw.serial, { t: clock(0), dir, text }].slice(-600) } })),
+    fwPushLog: (text) => set(s => ({ fw: { ...s.fw, log: [...s.fw.log, { t: clock(0), text }].slice(-600) } })),
+    fwClearSerial: () => set(s => ({ fw: { ...s.fw, serial: [] } })),
+    fwClearLog: () => set(s => ({ fw: { ...s.fw, log: [] } })),
+    fwSetConnected: (connected) => {
+      set(s => ({ fw: { ...s.fw, connected, wasConnected: s.fw.wasConnected || connected } }))
+      get().setHwLink({ connected, port: connected ? 'bridge · 115200' : '' })
+    },
+    // dedup notes against the most recent one only (so a reboot can re-note)
+    fwNote: (text) => set(s => {
+      if (s.fw.diag[s.fw.diag.length - 1]?.text === text) return {}
+      return { fw: { ...s.fw, diag: [...s.fw.diag, { t: clock(0), text }].slice(-200) } }
+    }),
+    // reset everything the next flash will re-prove (keep the detected board)
+    fwResetForFlash: () => set(s => ({
+      fw: { ...s.fw, stages: { board: s.fw.stages.board }, reading: null,
+        hw: { ...s.fw.hw, oled: null, bmp: null, mpu: null, i2c: null, oledOk: false, found: [], scanCount: 0 } },
+    })),
+
+    // Parse a REAL serial line into pipeline stages + hardware facts.
+    // `found` is cleared at each scan start and rebuilt, so it always
+    // reflects the latest poll cycle (active diagnostic, Part 4b).
+    fwIngestSerial: (line) => {
+      const { fwSetStage, fwPatchHw, fwNote } = get()
+      fwSetStage('active', 'done')
+      if (/rst:0x|ets [A-Z][a-z]{2} |SPI_FAST_FLASH_BOOT|entry 0x/.test(line)) {
+        fwSetStage('reboot', 'done'); fwSetStage('board', 'done')
+        fwNote('Placa reiniciou — recuperando stream serial')
+      }
+      if (/=== ESP32 START ===/.test(line)) { fwSetStage('active', 'done'); fwSetStage('board', 'done'); fwNote('Handshake da placa estabelecido') }
+      if (/Scanning I2C/i.test(line)) { fwPatchHw({ i2c: null, found: [] }); fwNote('Varredura I2C iniciada') }
+      let m = line.match(/Found device at (0x[0-9a-fA-F]+)/i)
+      if (m) {
+        const a = m[1].toLowerCase()
+        set(s => {
+          const found = s.fw.hw.found.includes(a) ? s.fw.hw.found : [...s.fw.hw.found, a]
+          return { fw: { ...s.fw, hw: { ...s.fw.hw, found,
+            oled: a === '0x3c' || a === '0x3d' ? a : s.fw.hw.oled,
+            bmp: a === '0x76' || a === '0x77' ? a : s.fw.hw.bmp,
+            mpu: a === '0x68' || a === '0x69' ? a : s.fw.hw.mpu } } }
+        })
+        fwNote(`Dispositivo I2C em ${a}`)
+      }
+      m = line.match(/Devices found:\s*(\d+)/i)
+      if (m) { const n = +m[1]; fwPatchHw({ i2c: n, scanAt: Date.now(), scanCount: get().fw.hw.scanCount + 1 }); fwNote(`Varredura I2C concluída — ${n} dispositivo(s)`) }
+      if (/OLED OK/.test(line)) { fwPatchHw({ oledOk: true, oled: get().fw.hw.oled || '0x3c' }); fwNote('OLED respondeu em 0x3c') }
+      if (/OLED FAILED/.test(line)) fwPatchHw({ oledOk: false })
+      m = line.match(/\[?BMP280\]? OK(?: @ (0x[0-9a-fA-F]+))?/)
+      if (m) { const at = m[1]?.toLowerCase(); fwSetStage('sensor', 'done'); fwPatchHw({ bmp: at || get().fw.hw.bmp || '0x76' }); fwNote(`BMP280 reconhecido em ${at || get().fw.hw.bmp || '0x76'}`) }
+      if (/BMP280 (NOT FOUND|missing)|\[BMP280\] nao encontrado/i.test(line)) { fwSetStage('sensor', 'error'); fwNote('BMP280 não inicializou — veja o painel de diagnóstico') }
+      m = line.match(/\[?MPU6050\]? OK(?: @ (0x[0-9a-fA-F]+))?/)
+      if (m) { const at = m[1]?.toLowerCase(); fwSetStage('sensor', 'done'); fwPatchHw({ mpu: at || get().fw.hw.mpu || '0x68' }); fwNote(`MPU6050 reconhecido em ${at || get().fw.hw.mpu || '0x68'}`) }
+      if (/MPU6050 (NOT FOUND|missing|não encontrado)/i.test(line)) { fwSetStage('sensor', 'error'); fwNote('MPU6050 não inicializou — veja o painel de diagnóstico') }
+      // readings — preset and generated-firmware formats
+      m = line.match(/Temp:\s*([\d.-]+)\s*C\s*Pressure:\s*([\d.-]+)/i) || line.match(/\[BMP280\] T=([\d.-]+) P=([\d.-]+)/)
+      if (m) { set(s => ({ fw: { ...s.fw, reading: `${m[1]} °C · ${m[2]} hPa`, hw: { ...s.fw.hw, lastReadAt: Date.now() } } })); fwSetStage('telem', 'done'); fwNote('Telemetria fluindo') }
+      // MPU6050 streamed orientation/accel (drives the digital twin)
+      m = line.match(/\[?MPU6050\]?\s*(?:ax|accel)[=:]\s*([\d.-]+)[, ]+(?:ay)[=:]?\s*([\d.-]+)[, ]+(?:az)[=:]?\s*([\d.-]+)(?:[, ]+(?:gx)[=:]?\s*([\d.-]+)[, ]+(?:gy)[=:]?\s*([\d.-]+)[, ]+(?:gz)[=:]?\s*([\d.-]+))?/i)
+      if (m) {
+        set(s => ({ fw: { ...s.fw, hw: { ...s.fw.hw, lastReadAt: Date.now(),
+          imu: { ax: +m[1], ay: +m[2], az: +m[3], gx: m[4] != null ? +m[4] : null, gy: m[5] != null ? +m[5] : null, gz: m[6] != null ? +m[6] : null, at: Date.now() } } } }))
+        get().fwSetStage('telem', 'done')
+      }
+    },
+
+    fwIngestLog: (line) => {
+      const { fwSetStage } = get()
+      if (/Compiling\.\.\./i.test(line)) fwSetStage('compile', 'active')
+      if (/Uploading\.\.\./i.test(line)) { fwSetStage('compile', 'done'); fwSetStage('upload', 'active') }
+      const m = line.match(/Chip type:\s*(ESP32[^\s(]*)/i) || line.match(/Detecting chip type\.{0,3}\s*(ESP32\S*)/i)
+      if (m) { get().fwPatch({ chip: m[1] }); fwSetStage('board', 'done') }
+      if (/Flash complete/i.test(line)) fwSetStage('upload', 'done')
+      if (/compile failed/i.test(line)) fwSetStage('compile', 'error')
+      if (/upload failed/i.test(line)) fwSetStage('upload', 'error')
+    },
 
     // Architecture generation pipeline → live entities (digital twin).
     generateArchitectureFromPlan: () => {
