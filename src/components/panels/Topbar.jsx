@@ -38,7 +38,6 @@ export default function Topbar() {
     mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
     telemetry: 'Validação de sensores',
     serialtest: 'Firmware', hwtest: 'Testing',
-    schedule: 'Cronograma',
     team: 'Equipe', reports: 'Relatórios', metrics: 'Métricas',
     analytics: 'Analytics · dev',
   }

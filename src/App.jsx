@@ -11,7 +11,7 @@ import ArchitecturePanel from './components/panels/ArchitecturePanel'
 import EmptyState  from './components/panels/EmptyState'
 import SerialTest from './components/panels/SerialTest'
 import PipelineBar from './components/panels/PipelineBar'
-import SchedulePanel from './components/panels/SchedulePanel'
+// SchedulePanel removed — OBSat schedule is now a sidebar widget (ObsatWidget)
 import RequirementsChecklist from './components/ui/RequirementsChecklist'
 import AnalyticsPanel from './components/panels/AnalyticsPanel'
 import AnchoredPopover from './components/ui/AnchoredPopover'
@@ -36,7 +36,7 @@ function SectionContent({ section }) {
     case 'architecture': return <ArchitecturePanel />
     case 'telemetry':    return <TelemetryPanel />
     case 'serialtest':   return <SerialTest />
-    case 'schedule':     return <SchedulePanel />
+    // 'schedule' route removed — OBSat info now lives in the sidebar widget
     case 'team':         return <TeamPanel />
     case 'reports':      return <ReportsPanel />
     case 'metrics':      return <MetricsPanel />

@@ -3,6 +3,7 @@ import useForge from '../../store/useForge'
 import { PHASES, derivePhases } from '../../mission/index.js'
 import { track } from '../../lib/analytics.js'
 import BudgetMeters from '../ui/BudgetMeters'
+import { ObsatCompact } from './ObsatWidget'
 
 // ──────────────────────────────────────────────────────────────────
 // Sidebar — the expandable PHASE navigation (Part 5 of the redesign).
@@ -90,9 +91,6 @@ export default function IconSidebar() {
               </button>
             )
           })}
-          <button onClick={() => setSection('schedule')} title="Cronograma OBSAT" style={railBtn({ current: activeSection === 'schedule' })}>
-            <span style={{ display: 'block', width: 17, height: 17 }}>{ICONS.schedule}</span>
-          </button>
           <button onClick={() => { track('nav_click', { target: 'team' }); setSection('team') }} title="Equipe & tarefas" style={railBtn({ current: activeSection === 'team' })}>
             <span style={{ display: 'block', width: 17, height: 17 }}>{ICONS.team}</span>
           </button>
@@ -116,6 +114,7 @@ export default function IconSidebar() {
           )}
         </div>
         <div style={{ flex: 1 }} />
+        <ObsatCompact collapsed />
         <RailFooterButtons {...{ toggleSidebar, sidebarCollapsed, theme, toggleTheme, activeSection, setSection }} />
       </aside>
     )
@@ -177,12 +176,6 @@ export default function IconSidebar() {
           )
         })}
 
-        {/* schedule (Part 7) lives alongside the phases as a reference view */}
-        <button onClick={() => setSection('schedule')} style={phaseRow({ current: activeSection === 'schedule' })}>
-          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22 }}><span style={{ display: 'block', width: 14, height: 14, color: 'var(--rail-fg-dim)' }}>{ICONS.schedule}</span></span>
-          <span style={{ flex: 1, textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: 'var(--rail-fg)' }}>Cronograma</span>
-        </button>
-
         {/* collaboration nav (deferred backend pass) — additive, below the
             phase pipeline so the build flow stays primary */}
         <div style={{ ...mono, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--rail-fg-dim)', padding: '12px 14px 4px' }}>Colaboração</div>
@@ -215,6 +208,11 @@ export default function IconSidebar() {
             </button>
           </>
         )}
+      </div>
+
+      {/* OBSat status widget */}
+      <div style={{ borderTop: '1px solid var(--rail-line)' }}>
+        <ObsatCompact />
       </div>
 
       {/* docked live budget meters */}
