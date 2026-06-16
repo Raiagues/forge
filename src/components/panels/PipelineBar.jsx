@@ -88,7 +88,7 @@ export default function PipelineBar() {
                 {st.needsUpdate && <span title="atualização necessária" style={{ ...mono, fontSize: 11, color: 'var(--warn2)' }}>⟳</span>}
                 {health === 'late' && !st.done && <span title="atrasado" style={{ ...mono, fontSize: 11, color: 'var(--err2)' }}>!</span>}
               </button>
-              <MiniTimeline range={plan[p.id]} maxEnd={maxEnd} today={today} color={SCHED_COLOR[health]} onClick={() => setSection('schedule')} />
+              <MiniTimeline range={plan[p.id]} maxEnd={maxEnd} today={today} color={SCHED_COLOR[health]} onClick={(e) => click(p, e.currentTarget)} />
             </div>
           </div>
         )
