@@ -23,6 +23,7 @@ export const PHASES = [
       { id: 'format', label: 'Formato', step: 'format' },
       { id: 'challenges', label: 'Desafio', step: 'challenges' },
       { id: 'brainstorm', label: 'Ideias', step: 'brainstorm' },
+      { id: 'document', label: 'Documento da missão', step: 'document' },
     ],
   },
   {
@@ -139,6 +140,7 @@ export function derivePhases(state, { gateAt = 2 } = {}) {
       // objective is implicit in the selected challenges (Part 3)
       challenges: (mp.challenges?.length || 0) > 0 || (mp.objectiveCategories?.length || 0) > 0,
       brainstorm: (mp.brainstorm?.cards || []).some(c => !c.draft),
+      document: (mp.brainstorm?.cards || []).some(c => c.decided),
     },
     hardware: { schematic: (wires?.length || 0) > 0, pcb: nEnts >= 1, wiring: wiredAll },
     firmware: { editor: (fwFiles?.length || 0) > 0, flash: !!hwLink?.connected },

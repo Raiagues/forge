@@ -1066,8 +1066,13 @@ const useForge = create((set, get) => {
       ;[cards[i], cards[j]] = [cards[j], cards[i]]
       return { ...bs, cards }
     }),
-    // "mover para" — move a card to another zone (no cross-canvas drag)
+    // move a card to another zone (now via drag-and-drop only)
     moveBrainstormCardToZone: (id, zone) => get().updateBrainstormCard(id, { zone }),
+    // "bater o martelo" on a card — mark it decided/confirmed. Decided cards
+    // float to the top of their column and feed the mission document.
+    toggleBrainstormDecided: (id) => get()._bs(bs => ({
+      ...bs, cards: bs.cards.map(c => (c.id === id ? { ...c, decided: !c.decided } : c)),
+    })),
 
     // ── challenge selection IS the objective (Part 3) ────────────────
     // Toggling a challenge updates missionPlan.challenges and re-derives

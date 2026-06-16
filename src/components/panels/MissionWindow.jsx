@@ -7,11 +7,11 @@ import {
 } from '../onboarding/posterKit.jsx'
 import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
 import MissionBrainstorm from './MissionBrainstorm.jsx'
-import { BRAINSTORM_ZONES } from '../../mission/brainstorm.js'
+import MissionDocument from './MissionDocument.jsx'
 import ChallengeBoard, { SelectedChallengesSummary } from './ChallengeBoard.jsx'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 // ──────────────────────────────────────────────────────────────────
 // MissionWindow — the mission-definition flow (Part 2 redesign).
@@ -45,6 +45,7 @@ const STEP_DEFS = [
   { id: 'format', title: 'formato' },
   { id: 'challenges', title: 'desafio' },
   { id: 'brainstorm', title: 'ideias' },
+  { id: 'document', title: 'documento' },
 ]
 
 // CubeSat sizes — centred visual cards with dimensions + a mini stack
@@ -108,7 +109,6 @@ export default function MissionWindow() {
     seedBrainstormFromChallenges,
   } = useForge()
   const [asmW, setAsmW] = usePanelWidth('forge.missionAsmW', 320, 240, 480)
-  const [finalizeOpen, setFinalizeOpen] = useState(false)
 
   const steps = STEP_DEFS.map(s => s.title)
   const stepIdx = Math.max(0, STEP_DEFS.findIndex(s => s.id === missionStep))
@@ -228,17 +228,23 @@ export default function MissionWindow() {
   // ── step 3: desafios (challenge selection = the objective, Part 3) ──
   screensById.challenges = <ChallengeBoard />
 
-  // ── step 4: brainstorming (Part 4) — column zones, auto-seeded from
-  // the chosen challenges; a sticky "Finalizar" button converges to the
-  // phase review + transition.
+  // ── step 4: brainstorming — fixed-height columns, fills the viewport;
+  // only each card list scrolls (Trello/Linear pattern).
   screensById.brainstorm = (
-    <div>
-      <div style={{ marginBottom: 14 }}><SelectedChallengesSummary /></div>
-      <MissionBrainstorm />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 10 }}>
+      <div style={{ flexShrink: 0 }}><SelectedChallengesSummary /></div>
+      <div style={{ flex: 1, minHeight: 0 }}><MissionBrainstorm /></div>
     </div>
   )
 
+  // ── step 5: documento da missão — consolidated definition (replaces the
+  // old summary modal); has its own action bar.
+  screensById.document = <MissionDocument />
+
   const current = STEP_DEFS[stepIdx]
+  // brainstorm + document fill the viewport (no page scroll) and drop the
+  // satellite sidebar to make room for the 4 columns / the document
+  const wide = current.id === 'brainstorm' || current.id === 'document'
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '20px 36px 22px', background: NAVY_FIELD, overflow: 'hidden' }}>
@@ -260,69 +266,35 @@ export default function MissionWindow() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0, gap: 12 }}>
-        {/* Part 5: the mission content area is capped at ~900px and centred
-            so nothing sprawls full-window; only the satellite sidebar (right)
-            stays a fixed-width column. */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 0' }}>
-          <div style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>{screensById[current.id]}</div>
+        {/* Part 5: content capped at ~900px + centred for the form steps;
+            the brainstorm/document steps fill the width and height (no page
+            scroll) and hide the satellite sidebar to make room. */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: wide ? 'stretch' : 'center', overflowY: wide ? 'hidden' : 'auto', padding: wide ? '14px 0 0' : '20px 0' }}>
+          <div style={{ width: '100%', maxWidth: wide ? 'none' : 900, margin: '0 auto', flex: wide ? 1 : undefined, minHeight: 0, display: wide ? 'flex' : 'block', flexDirection: 'column' }}>{screensById[current.id]}</div>
         </div>
-        <PanelDivider w={asmW} setW={setAsmW} side="left" />
-        {/* satellite sidebar — the only full-window-edge element (Part 5) */}
-        <div style={{ width: asmW, flexShrink: 0, borderLeft: '1px solid var(--poster-line)', padding: '10px 4px 6px 14px', minHeight: 0 }}>
-          <SatelliteAssembly plan={missionPlan} />
-        </div>
+        {!wide && <>
+          <PanelDivider w={asmW} setW={setAsmW} side="left" />
+          {/* satellite sidebar — the only full-window-edge element (Part 5) */}
+          <div style={{ width: asmW, flexShrink: 0, borderLeft: '1px solid var(--poster-line)', padding: '10px 4px 6px 14px', minHeight: 0 }}>
+            <SatelliteAssembly plan={missionPlan} />
+          </div>
+        </>}
       </div>
 
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
-        {stepIdx > 0 && (
-          <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← {STEP_DEFS[stepIdx - 1].title}</button>
-        )}
-        {stepIdx < STEP_DEFS.length - 1 ? (
-          // action-oriented: name the destination, not a generic "próximo"
-          <button onClick={() => goByIndex(stepIdx + 1)} style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: 'pointer', fontWeight: 700 }}>
-            Continuar para {STEP_DEFS[stepIdx + 1].title} →
-          </button>
-        ) : (
-          // last step (brainstorm) → finalize (Part 4)
-          <button onClick={() => setFinalizeOpen(true)} disabled={!complete}
-            style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: complete ? GOLD : 'var(--poster-line)', border: 'none', borderRadius: 6, padding: '9px 18px', cursor: complete ? 'pointer' : 'not-allowed', fontWeight: 700 }}>
-            Finalizar brainstorming →
-          </button>
-        )}
-      </div>
-
-      {finalizeOpen && (
-        <FinalizeSummary plan={missionPlan} onClose={() => setFinalizeOpen(false)} onConfirm={() => { setFinalizeOpen(false); openPhaseReview('mission') }} />
+      {/* fixed bottom action bar — the document step provides its own */}
+      {current.id !== 'document' && (
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, paddingTop: 4 }}>
+          {stepIdx > 0 && (
+            <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← {STEP_DEFS[stepIdx - 1].title}</button>
+          )}
+          {stepIdx < STEP_DEFS.length - 1 && (
+            <button onClick={() => goByIndex(stepIdx + 1)} disabled={current.id === 'brainstorm' && !complete}
+              style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: (current.id === 'brainstorm' && !complete) ? 'var(--poster-line)' : GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: (current.id === 'brainstorm' && !complete) ? 'not-allowed' : 'pointer', fontWeight: 700 }}>
+              {current.id === 'brainstorm' ? 'Finalizar brainstorming →' : `Continuar para ${STEP_DEFS[stepIdx + 1].title} →`}
+            </button>
+          )}
+        </div>
       )}
-    </div>
-  )
-}
-
-// Finalize panel (Part 4): a read-only summary of what the brainstorming
-// captured per zone, then the convergence button into the phase review +
-// transition. Reuses the BRAINSTORM_ZONES labels.
-function FinalizeSummary({ plan, onClose, onConfirm }) {
-  const cards = plan.brainstorm?.cards || []
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,14,24,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '82vh', overflowY: 'auto', background: 'var(--poster-bg-solid)', border: '1px solid var(--poster-line)', borderRadius: 'var(--r-lg)', padding: '22px 24px' }}>
-        <div style={{ fontFamily: "'Zilla Slab', serif", fontSize: 22, fontWeight: 700, color: CREAM, marginBottom: 4 }}>Resumo do brainstorming</div>
-        <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', marginBottom: 18 }}>{plan.name || 'Missão'} · {(plan.challenges || []).length} desafio(s)</div>
-        {BRAINSTORM_ZONES.map(z => {
-          const zc = cards.filter(c => c.zone === z.id && !c.draft && (c.text || '').trim())
-          return (
-            <div key={z.id} style={{ marginBottom: 14 }}>
-              <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: GOLD, marginBottom: 5 }}>{z.label.split(' ')[0]} · {zc.length}</div>
-              {zc.length === 0 ? <div style={{ ...mono, fontSize: 11, color: 'var(--poster-line)' }}>—</div>
-                : zc.map(c => <div key={c.id} style={{ fontSize: 12.5, color: 'var(--poster-fg)', lineHeight: 1.45, marginBottom: 3 }}>· {c.text}</div>)}
-            </div>
-          )
-        })}
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-          <button onClick={onClose} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>voltar</button>
-          <button onClick={onConfirm} style={{ ...mono, fontSize: 13, fontWeight: 700, color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: 'pointer' }}>Revisar missão e ir para hardware →</button>
-        </div>
-      </div>
     </div>
   )
 }
