@@ -416,8 +416,8 @@ export default function SchematicView() {
                       drawn at JS-computed rotated coords so wires stay attached */}
                   <rect x={b.x + d.dx} y={b.y + d.dy} width={b.w} height={b.h} rx={8}
                     transform={r ? `rotate(${r} ${ec.x} ${ec.y})` : undefined}
-                    fill={id === 'esp32' ? '#1F2E49' : 'var(--paper2)'}
-                    stroke={sel ? WIRE_SEL : 'var(--rule)'} strokeWidth={sel ? 2 : 1}
+                    fill={id === 'esp32' ? (theme === 'dark' ? '#28415E' : '#1F2E49') : 'var(--paper2)'}
+                    stroke={sel ? WIRE_SEL : id === 'esp32' ? 'var(--rule2)' : 'var(--rule)'} strokeWidth={sel ? 2 : id === 'esp32' ? 1.4 : 1}
                     style={{ cursor: 'grab' }}
                     onMouseDown={(e) => startCompDrag(id, e)}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const rr = svgRef.current.getBoundingClientRect(); setCtxMenu({ id, x: e.clientX - rr.left, y: e.clientY - rr.top }) }} />
@@ -441,7 +441,12 @@ export default function SchematicView() {
                     const labelX = labelRight ? pos.x + 10 : pos.x - 10
                     const inOnly = !!p.inputOnly
                     const isHover = hoverPin === `${id}.${p.id}`
-                    const rc = roleColor(p.role)
+                    // colour by FUNCTION: ESP32 I²C/UART pins keep role 'gpio'
+                    // but carry i2c/uart flags — honour them so SDA reads blue,
+                    // SCL yellow, TX green, RX orange (parity with the sensors).
+                    const effRole = p.i2c === 'sda' ? 'sda' : p.i2c === 'scl' ? 'scl'
+                      : p.uart === 'tx' ? 'uart_tx' : p.uart === 'rx' ? 'uart_rx' : p.role
+                    const rc = roleColor(effRole)
                     return (
                       <g key={p.id} style={{ cursor: 'crosshair' }}
                         onClick={(e) => { e.stopPropagation(); clickPin(id, p.id, e.currentTarget) }}
@@ -450,13 +455,18 @@ export default function SchematicView() {
                         onMouseLeave={() => setHoverPin(h => (h === `${id}.${p.id}` ? null : h))}>
                         {isPending && <circle cx={pos.x} cy={pos.y} r={9} fill="none" stroke={WIRE_SEL} strokeWidth={1.4} opacity={0.7} />}
                         {isHover && !isPending && <circle cx={pos.x} cy={pos.y} r={8.5} fill="none" stroke={WIRE_SEL} strokeWidth={1.2} opacity={0.45} />}
+                        {/* SAME pin visual system for every component (Part 3):
+                            functional-colour ring, connected pins fill solid.
+                            Labels sit on the canvas, so they always use dark
+                            ink — never white — fixing the invisible ESP32 pins
+                            in light theme (Part 1/2). */}
                         <circle cx={pos.x} cy={pos.y} r={isHover && !isPending ? 6.5 : 5.5}
-                          fill={isPending ? WIRE_SEL : inOnly ? 'var(--paper4)' : connected ? rc : 'var(--paper3)'}
+                          fill={isPending ? WIRE_SEL : inOnly ? 'var(--paper4)' : connected ? rc : 'var(--paper)'}
                           stroke={isPending ? '#2B5EA7' : inOnly ? 'var(--ink4)' : rc}
-                          strokeWidth={1.4} strokeDasharray={inOnly ? '2 2' : 'none'} />
+                          strokeWidth={1.6} strokeDasharray={inOnly ? '2 2' : 'none'} />
                         <text x={labelX} y={pos.y + 3.5} textAnchor={labelRight ? 'start' : 'end'}
-                          fontFamily="'Space Mono', monospace" fontSize={12}
-                          fill={inOnly ? (id === 'esp32' ? 'rgba(255,255,255,.60)' : 'var(--ink4)') : id === 'esp32' ? 'rgba(255,255,255,.72)' : 'var(--ink2)'}
+                          fontFamily="'Space Mono', monospace" fontSize={id === 'esp32' ? 9.5 : 12}
+                          fill={inOnly ? 'var(--ink4)' : 'var(--ink2)'}
                           style={{ pointerEvents: 'none' }}>{p.label || p.id}</text>
                         <title>{p.note || p.id}</title>
                       </g>
