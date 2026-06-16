@@ -78,7 +78,14 @@ void telemetry_init() {
 }
 
 void telemetry_send(const TlmPacket &pkt) {
-  // serializa e envia o pacote — formato definido no edital
+  // PACOTE DE TELEMETRIA — formato serial padronizado (uma amostra por
+  // tick do scheduler). Os drivers de sensor emitem linhas rotuladas que
+  // o gêmeo digital / tela de validação parseiam:
+  //   [BMP280] T=<°C> P=<hPa>
+  //   [MPU6050] ax/ay/az=<g> gx/gy/gz=<°/s> roll/pitch/yaw=<°>
+  // Aqui enviamos também um cabeçalho de amostra com o uptime para marcar
+  // o início de cada pacote (e, no OBSAT, o downlink WiFi do edital).
+  Serial.print("[TLM] t="); Serial.println(pkt.uptime_ms);
 }`,
   },
   {

@@ -144,10 +144,35 @@ ${alt ? `#define ${def.id.toUpperCase()}_ADDR_ALT ${alt}  // strap AD0 oposto\n`
 struct Mpu6050Reading {
   float accel[3];   // g
   float gyro[3];    // °/s
+  float euler[3];   // roll, pitch, yaw (°) — estimativa de atitude
 };
 
 Adafruit_MPU6050 _mpu;
 bool ${def.id}_ok = false;
+
+// ── filtro complementar (atitude) ──────────────────────────────────
+// Fusão leve accel+gyro p/ orientação estável o suficiente p/ o gêmeo
+// digital, sem o custo do Madgwick. O acelerômetro dá roll/pitch
+// absolutos (vetor gravidade); o giroscópio é integrado p/ resposta
+// rápida; o complementar mistura os dois (alpha=0.98 favorece o gyro no
+// curto prazo, o accel corrige a deriva). Yaw vem só do gyro (sem
+// magnetômetro não há referência absoluta) — pode derivar lentamente.
+static float _roll = 0, _pitch = 0, _yaw = 0;
+static unsigned long _attLast = 0;
+const float ATT_ALPHA = 0.98f;
+
+void mpu6050_update_attitude(const Mpu6050Reading &r) {
+  unsigned long now = micros();
+  float dt = _attLast ? (now - _attLast) / 1e6f : 0;
+  _attLast = now;
+  // roll/pitch absolutos do vetor gravidade (graus)
+  float accRoll  = atan2f(r.accel[1], r.accel[2]) * 57.2958f;
+  float accPitch = atan2f(-r.accel[0], sqrtf(r.accel[1]*r.accel[1] + r.accel[2]*r.accel[2])) * 57.2958f;
+  // integra o giroscópio e mistura
+  _roll  = ATT_ALPHA * (_roll  + r.gyro[0] * dt) + (1 - ATT_ALPHA) * accRoll;
+  _pitch = ATT_ALPHA * (_pitch + r.gyro[1] * dt) + (1 - ATT_ALPHA) * accPitch;
+  _yaw  += r.gyro[2] * dt;   // sem magnetômetro: só integração
+}
 
 void mpu6050_init() {
   Serial.println("[${def.label}] init @ ${addr}${alt ? `/${alt}` : ''}");
@@ -171,9 +196,16 @@ Mpu6050Reading mpu6050_read() {
   Mpu6050Reading r;
   sensors_event_t a, g, t;
   _mpu.getEvent(&a, &g, &t);
-  r.accel[0] = a.acceleration.x; r.accel[1] = a.acceleration.y; r.accel[2] = a.acceleration.z;
-  r.gyro[0]  = g.gyro.x;         r.gyro[1]  = g.gyro.y;         r.gyro[2]  = g.gyro.z;
-  Serial.print("[${def.label}] ax="); Serial.println(r.accel[0], 2);
+  r.accel[0] = a.acceleration.x / 9.80665f; r.accel[1] = a.acceleration.y / 9.80665f; r.accel[2] = a.acceleration.z / 9.80665f;  // m/s² → g
+  r.gyro[0]  = g.gyro.x * 57.2958f; r.gyro[1] = g.gyro.y * 57.2958f; r.gyro[2] = g.gyro.z * 57.2958f;  // rad/s → °/s
+  mpu6050_update_attitude(r);
+  r.euler[0] = _roll; r.euler[1] = _pitch; r.euler[2] = _yaw;
+  // pacote estruturado — campos rotulados que o gêmeo digital parseia
+  // (ax/ay/az g · gx/gy/gz °/s · roll/pitch/yaw °)
+  Serial.print("[${def.label}] ax="); Serial.print(r.accel[0], 3);
+  Serial.print(" ay="); Serial.print(r.accel[1], 3); Serial.print(" az="); Serial.print(r.accel[2], 3);
+  Serial.print(" gx="); Serial.print(r.gyro[0], 2); Serial.print(" gy="); Serial.print(r.gyro[1], 2); Serial.print(" gz="); Serial.print(r.gyro[2], 2);
+  Serial.print(" roll="); Serial.print(r.euler[0], 2); Serial.print(" pitch="); Serial.print(r.euler[1], 2); Serial.print(" yaw="); Serial.println(r.euler[2], 2);
   return r;
 }`
     },
