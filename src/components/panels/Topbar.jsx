@@ -36,7 +36,7 @@ export default function Topbar() {
 
   const sectionLabels = {
     mission: 'Mission', hardware: 'Hardware', architecture: 'Architecture',
-    telemetry: 'Telemetry',
+    telemetry: 'Validação de sensores',
     serialtest: 'Firmware', hwtest: 'Testing',
     schedule: 'Cronograma',
     team: 'Equipe', reports: 'Relatórios', metrics: 'Métricas',
