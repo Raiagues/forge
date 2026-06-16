@@ -103,8 +103,8 @@ function LockedPill({ label: text, featureKey }) {
 
 export default function MissionWindow() {
   const {
-    missionPlan, setPlanName, setCubeU, setFabRule,
-    toggleObjectiveCategory, setTeamField, addTeamMember, setTeamMember, removeTeamMember,
+    missionPlan, setPlanName, setBudget, setCubeU, setFabRule,
+    toggleObjectiveCategory, setTeamField,
     setPriorityRanking, openPhaseReview, missionStep, setMissionStep, sidebarCollapsed,
   } = useForge()
   const board = useForge(s => s.board)
@@ -137,43 +137,58 @@ export default function MissionWindow() {
 
   const screensById = {}
 
-  // ── step 1: equipe (mission name + team identity) ────────────────
+  // ── step 1: missão + equipe (Part 2) ─────────────────────────────
+  // Only fields that actually influence downstream decisions: identity,
+  // team CONTEXT (size, university, location — they affect feasibility,
+  // lab/fab access and supplier/shipping) and budget. No per-member names
+  // or roles here (that lives in the Team panel), no redundant fields.
   screensById.team = (
     <>
       <CompetitionLock />
-      <h2 style={h2}>Quem é a equipe?</h2>
-      <p style={sub}>Comece pela identidade: o nome da missão e quem está construindo.</p>
-      <div style={{ width: 480, maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <label style={label}>nome da missão
-            <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={inputStyle} autoFocus />
-          </label>
-          <label style={label}>nome da equipe
-            <input value={missionPlan.team?.name || ''} onChange={e => setTeamField('name', e.target.value)} placeholder="ex.: Equipe Zênite" style={inputStyle} />
-          </label>
-        </div>
-
+      <h2 style={h2}>Missão e equipe</h2>
+      <p style={sub}>Apenas o que influencia as decisões da missão.</p>
+      <div style={{ width: '100%', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* group 1 — mission identity */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={label}>integrantes</span>
-            <button onClick={() => addTeamMember()} style={{ ...mono, fontSize: 12, color: GOLD, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>+ adicionar</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {(missionPlan.team?.members || []).length === 0 && (
-              <div style={{ ...mono, fontSize: 12, color: 'var(--poster-fg-dim)' }}>nenhum integrante ainda — adicione nome e função.</div>
-            )}
-            {(missionPlan.team?.members || []).map((m, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
-                <input value={m.name} onChange={e => setTeamMember(i, 'name', e.target.value)} placeholder="nome" style={{ ...inputStyle, marginTop: 0 }} />
-                <input value={m.role} onChange={e => setTeamMember(i, 'role', e.target.value)} placeholder="função (ex.: firmware)" style={{ ...inputStyle, marginTop: 0 }} />
-                <button onClick={() => removeTeamMember(i)} title="remover" style={{ ...mono, fontSize: 14, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-              </div>
-            ))}
+          <div style={{ ...label, marginBottom: 10 }}>identidade da missão</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <label style={label}>nome da missão
+              <input value={missionPlan.name} onChange={e => setPlanName(e.target.value)} placeholder="ex.: ARARA-1" style={inputStyle} autoFocus />
+            </label>
+            <label style={label}>nome da equipe
+              <input value={missionPlan.team?.name || ''} onChange={e => setTeamField('name', e.target.value)} placeholder="ex.: Equipe Zênite" style={inputStyle} />
+            </label>
           </div>
         </div>
 
-        {/* the situation analysis is a future consultant feature */}
-        <LockedPill label="situação da equipe" featureKey="team_situation" />
+        {/* group 2 — team context (affects what is feasible / sourceable) */}
+        <div>
+          <div style={{ ...label, marginBottom: 10 }}>contexto da equipe</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 14, marginBottom: 14 }}>
+            <label style={label}>nº de integrantes
+              <input type="number" min="1" value={missionPlan.team?.size ?? ''} onChange={e => setTeamField('size', e.target.value === '' ? '' : Math.max(1, +e.target.value))} placeholder="ex.: 6" style={inputStyle} />
+            </label>
+            <label style={label}>universidade / instituição
+              <input value={missionPlan.team?.institution || ''} onChange={e => setTeamField('institution', e.target.value)} placeholder="ex.: UFMG" style={inputStyle} />
+            </label>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 14 }}>
+            <label style={label}>cidade
+              <input value={missionPlan.team?.city || ''} onChange={e => setTeamField('city', e.target.value)} placeholder="ex.: Belo Horizonte" style={inputStyle} />
+            </label>
+            <label style={label}>estado (UF)
+              <input value={missionPlan.team?.state || ''} onChange={e => setTeamField('state', e.target.value.toUpperCase().slice(0, 2))} placeholder="MG" style={inputStyle} />
+            </label>
+          </div>
+        </div>
+
+        {/* group 3 — budget */}
+        <div>
+          <div style={{ ...label, marginBottom: 10 }}>orçamento</div>
+          <label style={label}>orçamento total estimado (R$)
+            <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="ex.: 3000" style={inputStyle} />
+          </label>
+        </div>
       </div>
     </>
   )
@@ -321,8 +336,11 @@ export default function MissionWindow() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0, gap: 12 }}>
+        {/* Part 5: the mission content area is capped at ~900px and centred
+            so nothing sprawls full-window; only the satellite sidebar (right)
+            stays a fixed-width column. */}
         <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '20px 0' }}>
-          <div>{screensById[current.id]}</div>
+          <div style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>{screensById[current.id]}</div>
         </div>
         <PanelDivider w={asmW} setW={setAsmW} side="left" />
         <div style={{ width: asmW, flexShrink: 0, borderLeft: '1px solid var(--poster-line)', padding: '10px 4px 6px 14px', minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: current.id === 'explore' ? 'auto' : 'hidden' }}>
