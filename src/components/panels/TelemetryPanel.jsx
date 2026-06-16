@@ -131,7 +131,7 @@ export default function TelemetryPanel() {
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 14px 0' }}>
             <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Gêmeo digital · orientação</span>
             {!hasMpu && <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>(adicione um MPU6050 para orientação 3D)</span>}
-            {hasMpu && !liveLink && <span style={{ ...mono, fontSize: 10.5, color: 'var(--warn2)' }}>aguardando conexão — movimento simulado</span>}
+            {hasMpu && !liveLink && <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>aguardando conexão — posição neutra</span>}
           </div>
           <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
             <DigitalTwin sensorId={hasMpu ? 'mpu6050' : 'bmp280'} />

@@ -11,8 +11,9 @@ import useForge from '../../store/useForge'
 //     firmware emits; see fwIngestSerial).
 //   · BMP280  → live temperature + pressure gauges with a sparkline.
 // Live data is badged with a pulsing green indicator; without a real link
-// the twin runs a clearly-labelled SIMULATED idle so it is never dead.
-// If the link drops, the twin FREEZES at the last known state and shows a
+// the twin holds a STATIC neutral pose labelled "aguardando conexão" (it
+// must not animate without real hardware) and animates the instant data
+// arrives. If the link drops, the twin FREEZES at the last known state and shows a
 // disconnected badge rather than resetting or erroring.
 // ──────────────────────────────────────────────────────────────────
 
@@ -82,14 +83,11 @@ function MpuTwin({ imu, live, frozen }) {
   // sample without re-mounting the Canvas on every serial line.
   const imuRef = useRef(imu)
   imuRef.current = imu
-  const simT = useRef(0)
-  const getTarget = useMemo(() => () => {
-    if (imuRef.current) return targetQuat(imuRef.current)
-    // simulated idle tumble when there is no live data
-    simT.current += 0.004
-    const e = new THREE.Euler(Math.sin(simT.current) * 0.35, simT.current * 0.4, Math.cos(simT.current * 0.7) * 0.2, 'YXZ')
-    return new THREE.Quaternion().setFromEuler(e)
-  }, [])
+  // static neutral pose (a gentle fixed tilt so it still reads as 3D) when
+  // there is no live data — the twin must NOT animate without real hardware
+  // (Part 3: "aguardando conexão"). Real data drives it the moment it arrives.
+  const NEUTRAL = useMemo(() => new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0.5, 0, 'YXZ')), [])
+  const getTarget = useMemo(() => () => (imuRef.current ? targetQuat(imuRef.current) : NEUTRAL), [NEUTRAL])
 
   const e = imu ? eulerFromImu(imu) : null
   return (
@@ -188,7 +186,7 @@ function TwinBadge({ live, frozen }) {
     ? { label: 'congelado · desconectado', color: 'var(--err2)', pulse: false }
     : live
       ? { label: 'ao vivo · hardware', color: 'var(--ok2)', pulse: true }
-      : { label: 'simulado', color: 'var(--warn2)', pulse: false }
+      : { label: 'aguardando conexão', color: 'var(--ink4)', pulse: false }
   return (
     <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', alignItems: 'center', gap: 7, padding: '4px 9px', borderRadius: 14, background: 'rgba(12,20,30,.55)', backdropFilter: 'blur(2px)' }}>
       <span className={cfg.pulse ? 'pulse' : ''} style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, boxShadow: cfg.pulse ? `0 0 6px ${cfg.color}` : 'none' }} />
@@ -227,7 +225,7 @@ export default function DigitalTwin({ sensorId }) {
           ? 'Espelhando o hardware físico em tempo real pela serial.'
           : frozen
             ? 'Sem dados recentes — exibindo o último estado conhecido (congelado).'
-            : 'Sem enlace físico — animação de demonstração. Conecte o ESP32 na aba Firmware.'}
+            : 'Aguardando conexão — posição neutra. Conecte o ESP32 na aba Firmware para animar com dados reais.'}
       </div>
     </div>
   )
