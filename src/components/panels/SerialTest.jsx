@@ -353,6 +353,7 @@ export default function SerialTest() {
   const fwClearLog = useForge(s => s.fwClearLog)
   const wires = useForge(s => s.wires)
   const fwFiles = useForge(s => s.fwFiles)
+  const missionPlan = useForge(s => s.missionPlan)
   const fwEdits = useForge(s => s.fwEdits)
   const setFwEdit = useForge(s => s.setFwEdit)
   const addrs = useForge(s => s.live?.addrs) || {}
@@ -397,6 +398,24 @@ export default function SerialTest() {
       : { code }
     serialLink.flash(payload)
   }
+  // "Executar tudo e gravar" (Part E3): run detect → connect → build →
+  // flash → validate in one click. If the board isn't connected yet we
+  // detect first and auto-flash once the link is up (see effect below);
+  // the pipeline steps still light up in real time. Step-by-step still works.
+  const runAllRef = useRef(false)
+  const runAll = () => {
+    if (flashing || detecting) return
+    track('firmware_run_all', { connected })
+    if (connected) { flash(); return }
+    runAllRef.current = true
+    detect()
+  }
+  useEffect(() => {
+    if (runAllRef.current && connected && !flashing && !detecting) {
+      runAllRef.current = false
+      flash()
+    }
+  }, [connected, flashing, detecting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── custom splitters (no browser resize handles) ───────────────────
   const startDrag = (kind) => (e) => {
@@ -423,6 +442,24 @@ export default function SerialTest() {
   const onEditorChange = missionMode ? (v) => setFwEdit(activeFile.file, v) : setCode
   // the full source the board will actually run (for diagnosis + flash)
   const fullSource = missionMode ? fwFiles.map(fileContent).join('\n') : code
+
+  // export the whole project as an Arduino-IDE/PlatformIO-ready zip (E2):
+  // main.ino is renamed to <project>.ino as the IDE requires; the README
+  // lists the exact Library Manager names to install. jszip is lazy-loaded.
+  const downloadProject = async () => {
+    const proj = ((missionPlan?.name || 'guiasat_mission').replace(/[^\w-]+/g, '_').replace(/^_+|_+$/g, '')) || 'guiasat_mission'
+    const JSZip = (await import('jszip')).default
+    const zip = new JSZip()
+    const folder = zip.folder(proj)
+    fwFiles.forEach((f) => folder.file(f.file === 'main.ino' ? `${proj}.ino` : f.file, fileContent(f)))
+    folder.file('README.txt', readmeText(proj, fullSource))
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${proj}.zip`; document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+    track('firmware_download_project', { files: fwFiles.length })
+  }
 
   // sensors under test: the mission's driver set, or the preset's
   const testSensors = missionMode
@@ -531,6 +568,15 @@ export default function SerialTest() {
           <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--ink4)', letterSpacing: '.04em' }}>ESP32-WROOM-32D · editar → gravar → validar</span>
         </div>
         <div style={{ flex: 1 }} />
+        {missionMode && (
+          <button onClick={downloadProject} title="exporta o projeto completo (.zip) pronto para Arduino IDE / PlatformIO" style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1,
+            background: 'var(--paper)', border: '1px solid var(--rule)', borderRadius: 6, cursor: 'pointer', padding: '5px 11px',
+          }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>baixar projeto</span>
+            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 9.5, letterSpacing: '.04em', color: 'var(--ink4)' }}>Arduino IDE · PlatformIO (.zip)</span>
+          </button>
+        )}
         {/* status only — detect/connect live in the guided pipeline steps */}
         <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: "'Space Mono', monospace", fontSize: 13, color: 'var(--ink3)' }}>
           <span className={connected ? 'pulse' : ''} style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? 'var(--ok2)' : 'var(--ink4)', boxShadow: connected ? '0 0 6px var(--ok2)' : 'none' }} />
@@ -550,6 +596,12 @@ export default function SerialTest() {
         {/* ── workflow column ─────────────────────────────────────── */}
         <div style={{ width: colW, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', paddingRight: 2 }}>
           <Card title={`Bring-up guiado · ${guidedSteps.filter((s) => s.done).length}/${guidedSteps.length}`}>
+            {/* one-click path through every step; the steps still update live */}
+            <button onClick={runAll} disabled={flashing || detecting} style={{
+              width: '100%', marginBottom: 10, padding: '9px 12px', borderRadius: 6, cursor: flashing || detecting ? 'wait' : 'pointer',
+              border: 'none', background: flashing || detecting ? 'var(--paper4)' : 'var(--btn-bg)', color: flashing || detecting ? 'var(--ink4)' : 'var(--btn-fg)',
+              fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, fontWeight: 600,
+            }}>{flashing ? 'gravando…' : detecting ? 'detectando…' : '▶ Executar tudo e gravar'}</button>
             <GuidedSteps steps={guidedSteps} expanded={expandedStep} onToggle={setExpandedStep} />
           </Card>
 
@@ -598,8 +650,9 @@ export default function SerialTest() {
                 <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)' }}>editado</span>
               )}
               <div style={{ flex: 1 }} />
+              {/* flashing happens through the guided pipeline (or "Executar
+                  tudo") — no standalone bypass button here (Part E3) */}
               {flashing && <Spinner label="gravando" />}
-              <button onClick={flash} disabled={flashing || detecting} style={solidBtn(flashing || detecting)}>{flashing ? 'Flashing…' : 'Flash to ESP32'}</button>
             </PaneHeader>
             <CodeEditor value={editorValue} onChange={onEditorChange} disabled={flashing} background={EDITOR_BG} style={{ flex: 1, minHeight: 0 }} />
             {missionMode && <FileContext file={activeFile} wires={wires} addrs={addrs} />}
@@ -766,10 +819,68 @@ const GROUP_STYLE = {
   driver: { bg: 'var(--paper4)', fg: 'var(--ink)',            border: 'transparent' },
   system: { bg: 'var(--paper)',  fg: 'var(--ink2)',           border: 'var(--rule)' },
 }
+// Arduino Library Manager names keyed by the #include token they need, so
+// the exported README lists exactly what to install (Part E2).
+const LIB_BY_INCLUDE = [
+  ['Adafruit_BMP280', 'Adafruit BMP280 Library'],
+  ['Adafruit_MPU6050', 'Adafruit MPU6050'],
+  ['Adafruit_Sensor', 'Adafruit Unified Sensor'],
+  ['Adafruit_GFX', 'Adafruit GFX Library'],
+  ['Adafruit_SSD1306', 'Adafruit SSD1306'],
+  ['TinyGPS', 'TinyGPSPlus'],
+]
+function readmeText(proj, source) {
+  const libs = LIB_BY_INCLUDE.filter(([tok]) => source.includes(tok)).map(([, name]) => name)
+  return `Projeto: ${proj}
+Gerado pelo GuiaSat — pronto para Arduino IDE e PlatformIO.
+
+ABRIR NO ARDUINO IDE
+  1. Abra a pasta "${proj}" e o arquivo "${proj}.ino".
+  2. Selecione a placa: ESP32 Dev Module (instale o pacote
+     "esp32 by Espressif Systems" em Gerenciador de Placas).
+  3. Instale as bibliotecas abaixo pelo Gerenciador de Bibliotecas
+     (Sketch > Incluir Biblioteca > Gerenciar Bibliotecas), com os nomes
+     exatos:
+${libs.length ? libs.map((l) => `       - ${l}`).join('\n') : '       (nenhuma biblioteca externa necessária)'}
+  4. Conecte o ESP32, selecione a porta e clique em Upload.
+
+ABRIR NO PLATFORMIO
+  - Crie um projeto para a placa "esp32dev" (framework: arduino) e copie
+    os arquivos desta pasta para src/. Declare as bibliotecas acima em
+    lib_deps no platformio.ini.
+
+Os arquivos .h de sistema (telemetry.h, scheduler.h) são gerados
+automaticamente e incluídos pelo ${proj}.ino — não precisam ser editados.
+`
+}
+
+function FileButton({ f, active, edited, st, onSelect }) {
+  return (
+    <button onClick={() => onSelect(f)} style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+      width: '100%', textAlign: 'left', cursor: 'pointer',
+      padding: '6px 9px', borderRadius: 4,
+      background: st.bg, color: st.fg,
+      border: `1px solid ${active ? 'var(--acc)' : st.border}`,
+      boxShadow: active ? '0 0 0 1px var(--acc)' : 'none',
+      fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: active ? 700 : 400,
+    }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file}</span>
+      {edited[f.file] != null && <span style={{ fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)', flexShrink: 0 }}>editado</span>}
+    </button>
+  )
+}
+// Show only the files a student authored/needs (main.ino + sensor drivers).
+// The infrastructure files (telemetry.h, scheduler.h — group 'system') are
+// still generated and flashed, but tucked into a collapsed "arquivos do
+// sistema" section so they don't confuse beginners (Part E1).
 function ArchitectureBlocks({ files, activeFile, edited, onSelect }) {
+  const [sysOpen, setSysOpen] = useState(false)
+  const userGroups = FILE_GROUPS.filter((g) => g.id !== 'system')
+  const systemFiles = files.filter((f) => f.group === 'system')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 2 }}>
-      {FILE_GROUPS.map((g) => {
+      {userGroups.map((g) => {
         const items = files.filter((f) => f.group === g.id)
         if (!items.length) return null
         const st = GROUP_STYLE[g.id] || GROUP_STYLE.system
@@ -777,28 +888,24 @@ function ArchitectureBlocks({ files, activeFile, edited, onSelect }) {
           <div key={g.id}>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>{g.label}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {items.map((f) => {
-                const active = activeFile?.file === f.file
-                return (
-                  <button key={f.file} onClick={() => onSelect(f)} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-                    width: '100%', textAlign: 'left', cursor: 'pointer',
-                    padding: '6px 9px', borderRadius: 4,
-                    background: st.bg, color: st.fg,
-                    border: `1px solid ${active ? 'var(--acc)' : st.border}`,
-                    boxShadow: active ? '0 0 0 1px var(--acc)' : 'none',
-                    fontFamily: "'Space Mono', monospace", fontSize: 13,
-                    fontWeight: active ? 700 : 400,
-                  }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.file}</span>
-                    {edited[f.file] != null && <span style={{ fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--warn2)', flexShrink: 0 }}>editado</span>}
-                  </button>
-                )
-              })}
+              {items.map((f) => <FileButton key={f.file} f={f} active={activeFile?.file === f.file} edited={edited} st={st} onSelect={onSelect} />)}
             </div>
           </div>
         )
       })}
+      {systemFiles.length > 0 && (
+        <div>
+          <button onClick={() => setSysOpen((o) => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: sysOpen ? 4 : 0 }}>
+            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--ink4)' }}>arquivos do sistema</span>
+            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: 'var(--ink4)', marginLeft: 'auto' }}>{sysOpen ? '−' : `+${systemFiles.length}`}</span>
+          </button>
+          {sysOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {systemFiles.map((f) => <FileButton key={f.file} f={f} active={activeFile?.file === f.file} edited={edited} st={GROUP_STYLE.system} onSelect={onSelect} />)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1023,13 +1130,6 @@ function tabBtn(active) {
     border: `1px solid ${active ? 'var(--btn-bg)' : 'var(--rule)'}`,
     background: active ? 'var(--btn-bg)' : 'var(--paper2)',
     color: active ? 'var(--btn-fg)' : 'var(--ink3)',
-  }
-}
-function solidBtn(busy) {
-  return {
-    padding: '5px 14px', borderRadius: 5, border: 'none', cursor: busy ? 'default' : 'pointer',
-    background: busy ? 'var(--paper4)' : 'var(--btn-bg)', color: 'var(--btn-fg)',
-    fontSize: 13.5, fontFamily: "'Space Grotesk', sans-serif",
   }
 }
 const miniBtn = {
