@@ -1,7 +1,8 @@
 # GuiaSat
 
-> **Serial Test (real ESP32):** run `npm run server` in one terminal and `npm run dev` in another.
-> The flash server runs silently in the background — you only interact with the browser interface.
+> **One command starts everything:** `npm start` (or `./start.sh`) launches the backend
+> (database + auth + WebSocket + flash/serial server, :3001) **and** the web app (:5173)
+> together — no second terminal. Stop it all with `./stop.sh`.
 
 **Mission development platform & digital twin for university satellite teams.**
 
@@ -49,16 +50,18 @@ npm install
 ## Running
 
 ```bash
-./start.sh          # starts the dev server, waits until it's live, opens the browser
+./start.sh          # starts backend (:3001) + web app (:5173), waits, opens the browser
 # → http://localhost:5173/
 
-./stop.sh           # stops the dev server cleanly and frees the port
+./stop.sh           # stops backend + web app cleanly and frees both ports
 ```
 
 Manual / Windows equivalent:
 
 ```bash
-npm run dev         # start dev server (Ctrl-C to stop)
+npm start           # ONE command → backend + frontend together (Ctrl-C stops both)
+npm run dev         # alias of npm start
+npm run dev:web     # frontend only (no backend) · npm run server → backend only
 npm run build       # production build into dist/
 npm run preview     # serve the production build
 npm run lint        # eslint

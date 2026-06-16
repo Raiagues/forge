@@ -5,6 +5,7 @@
   "type": "module",
   "description": "GuiaSat — mission development platform / digital twin for university satellite teams",
   "scripts": {
+    "start": "node scripts/dev.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite",
     "server": "node server/index.js",
