@@ -4,7 +4,7 @@ import CodeEditor from '../ui/CodeEditor'
 import TaskHighlightStrip from '../ui/TaskHighlightStrip'
 import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
-import { ADDR_STRAPS } from '../../mission/wiring.js'
+import { ADDR_STRAPS, COMPONENT_PINS } from '../../mission/wiring.js'
 import { track } from '../../lib/analytics.js'
 import * as serialLink from '../../lib/serialLink.js'
 
@@ -697,9 +697,9 @@ export default function SerialTest() {
 
         {/* ── persistent diagnostics panel (always on screen) ──────── */}
         <DiagPanel
-          overall={overall} cards={cards} events={diagLines}
+          overall={overall} cards={cards}
           chip={chip} connected={connected} endRef={diagEndRef}
-          onAsk={(q) => askAssistant(q)}
+          onAsk={(q) => askAssistant(q)} wires={wires}
         />
       </div>
       </div>
@@ -980,37 +980,28 @@ function SensorGlyph({ caps = [], color }) {
   return <svg viewBox="0 0 24 24" width="20" height="20">{path}</svg>
 }
 
-function StatusBlock({ c, expanded, onToggle, onAsk }) {
+function SensorStatusBlock({ c, expanded, onToggle, onAsk, wires = [] }) {
   const st = BLOCK_ST[c.status] || BLOCK_ST.idle
   const mono = { fontFamily: "'Space Mono', monospace" }
-  const ago = c.lastReadAt ? `${Math.max(0, Math.round((Date.now() - c.lastReadAt) / 1000))}s atrás` : '—'
   return (
     <div style={{ border: `1px solid ${expanded ? st.ring : 'var(--rule)'}`, borderRadius: 'var(--r-md)', background: st.bg, marginBottom: 7, overflow: 'hidden' }}>
       <button onClick={onToggle} title="Ver dados do diagnóstico" style={{
         display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
         padding: '9px 10px', border: 'none', background: 'transparent', cursor: 'pointer',
       }}>
-        {/* icon tile carries the colour */}
-        <span style={{ position: 'relative', width: 38, height: 38, borderRadius: 7, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: c.status === 'idle' ? 'var(--paper3)' : st.bg, border: `1px solid ${st.ring}` }}>
-          <SensorGlyph caps={c.caps} color={st.color} />
-          <span className={c.status === 'ok' ? 'pulse' : ''} style={{ position: 'absolute', top: -3, right: -3, width: 11, height: 11, borderRadius: '50%', background: st.color, border: '2px solid var(--paper2)' }} />
-        </span>
+        <span className={c.status === 'ok' ? 'pulse' : ''} style={{ width: 10, height: 10, borderRadius: '50%', background: st.color, flexShrink: 0, border: '2px solid var(--paper2)' }} />
         <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.part}</span>
-          <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: st.color }}>{c.label || STATUS_LABEL[c.status]}</span>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+          <span style={{ ...mono, fontSize: 10.5, color: st.color }}>{c.label || STATUS_LABEL[c.status]}</span>
         </span>
         <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
       </button>
 
       {expanded && (
         <div style={{ padding: '2px 11px 10px', borderTop: '1px solid var(--rule2)' }}>
-          <DiagRow k="I²C esperado" v={c.expected} />
-          <DiagRow k="endereço respondeu" v={c.addrFound || '—'} />
-          <DiagRow k="última leitura" v={ago} />
-          {c.detail && <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 6 }}>{c.detail}</div>}
-          {c.fix && <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.5, marginTop: 3 }}>→ {c.fix}</div>}
+          <MiniSchematic compId={c.id} wires={wires} />
+          {c.detail && <div style={{ fontSize: 12.5, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 4 }}>{c.detail}</div>}
+          {c.fix && <div style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.5, marginTop: 3 }}>→ {c.fix}</div>}
           <button onClick={() => onAsk(`Estou diagnosticando o sensor ${c.part} (${c.name}) no meu ESP32. Status: ${c.label}. Endereço I²C esperado ${c.expected}${c.addrFound ? `, respondeu em ${c.addrFound}` : ', não respondeu na varredura'}. ${c.detail || ''} Como investigo e resolvo isso?`)}
             style={{ marginTop: 8, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
               border: '1px solid var(--acc)', background: 'transparent', color: 'var(--acc2)',
@@ -1031,9 +1022,99 @@ function DiagRow({ k, v }) {
   )
 }
 
-function DiagPanel({ overall, cards, events, chip, connected, endRef, onAsk }) {
+// ── mini-schematic: shows each pin as a colour-coded dot ──────────
+// red = unconnected power, grey = unconnected signal, green = connected
+function MiniSchematic({ compId, wires = [] }) {
+  const pins = COMPONENT_PINS[compId] || []
+  if (!pins.length) return null
+  const monoF = { fontFamily: "'Space Mono', monospace" }
+  const connSet = new Set()
+  wires.forEach(w => {
+    if (w.from.comp === compId) connSet.add(w.from.pin)
+    if (w.to.comp === compId) connSet.add(w.to.pin)
+  })
+  const pinColor = (p) => {
+    if (connSet.has(p.id)) return '#3A9060'
+    if (p.role === 'vcc' || p.role === 'power3v3' || p.role === 'gnd' || p.role === 'vin') return '#C04030'
+    return 'var(--ink4)'
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '5px 0 2px' }}>
+      {pins.map(p => (
+        <span key={p.id} title={`${p.label || p.id} — ${p.note || p.role}`} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px',
+          borderRadius: 3, background: 'var(--paper)', border: '1px solid var(--rule2)',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: pinColor(p), flexShrink: 0 }} />
+          <span style={{ ...monoF, fontSize: 9, color: 'var(--ink3)' }}>{p.label || p.id}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ── ESP32 pin map: shows used vs free pins from the current wiring ──
+function Esp32PinMap({ wires = [] }) {
+  const pins = COMPONENT_PINS.esp32 || []
+  const monoF = { fontFamily: "'Space Mono', monospace" }
+  const usedMap = {}
+  wires.forEach(w => {
+    if (w.from.comp === 'esp32') {
+      const other = w.to
+      usedMap[w.from.pin] = `${COMPONENT_DEFS[other.comp]?.label || other.comp} · ${other.pin}`
+    }
+    if (w.to.comp === 'esp32') {
+      const other = w.from
+      usedMap[w.to.pin] = `${COMPONENT_DEFS[other.comp]?.label || other.comp} · ${other.pin}`
+    }
+  })
+  const gpio = pins.filter(p => p.role === 'gpio')
+  const used = gpio.filter(p => usedMap[p.id])
+  const free = gpio.filter(p => !usedMap[p.id])
+  return (
+    <div style={{ padding: '4px 0 2px' }}>
+      <div style={{ ...monoF, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>
+        pinos · {used.length} usados · {free.length} livres
+      </div>
+      {used.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 4 }}>
+          {used.map(p => (
+            <span key={p.id} title={usedMap[p.id]} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px',
+              borderRadius: 3, background: 'rgba(58,144,96,.08)', border: '1px solid rgba(58,144,96,.3)',
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#3A9060' }} />
+              <span style={{ ...monoF, fontSize: 9, color: 'var(--ink2)' }}>{p.id}</span>
+            </span>
+          ))}
+        </div>
+      )}
+      {free.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {free.slice(0, 12).map(p => (
+            <span key={p.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px',
+              borderRadius: 3, background: 'var(--paper)', border: '1px solid var(--rule2)',
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--ink4)' }} />
+              <span style={{ ...monoF, fontSize: 9, color: 'var(--ink4)' }}>{p.id}</span>
+            </span>
+          ))}
+          {free.length > 12 && <span style={{ ...monoF, fontSize: 9, color: 'var(--ink4)', alignSelf: 'center' }}>+{free.length - 12}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DiagPanel({ overall, cards, chip, connected, endRef, onAsk, wires = [] }) {
   const mono = { fontFamily: "'Space Mono', monospace" }
   const [open, setOpen] = useState(null)
+
+  // ESP32 block — always first
+  const esp32Status = connected ? 'ok' : 'idle'
+  const esp32St = BLOCK_ST[esp32Status] || BLOCK_ST.idle
+
   return (
     <div style={{
       width: 256, flexShrink: 0, marginLeft: 10, minHeight: 0,
@@ -1049,28 +1130,54 @@ function DiagPanel({ overall, cards, events, chip, connected, endRef, onAsk }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '9px 11px' }}>
+        {/* ESP32 status block — always present, first */}
+        <div style={{ border: `1px solid ${open === 'esp32' ? esp32St.ring : 'var(--rule)'}`, borderRadius: 'var(--r-md)', background: esp32St.bg, marginBottom: 7, overflow: 'hidden' }}>
+          <button onClick={() => setOpen(open === 'esp32' ? null : 'esp32')} style={{
+            display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left',
+            padding: '9px 10px', border: 'none', background: 'transparent', cursor: 'pointer',
+          }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: esp32St.color, flexShrink: 0, border: '2px solid var(--paper2)' }} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {chip || 'ESP32-WROOM-32D'}
+              </span>
+              <span style={{ ...mono, fontSize: 10.5, color: esp32St.color }}>
+                {connected ? 'conectado · 115200' : 'sem conexão'}
+              </span>
+            </span>
+            <span style={{ ...mono, fontSize: 12, color: 'var(--ink4)', transform: open === 'esp32' ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+          </button>
+          {open === 'esp32' && (
+            <div style={{ padding: '2px 11px 10px', borderTop: '1px solid var(--rule2)' }}>
+              <Esp32PinMap wires={wires} />
+              <div style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.5, marginTop: 4 }}>
+                {connected ? 'Serial ativo em ttyUSB0.' : 'Conecte o ESP32 via USB para varrer o barramento.'}
+              </div>
+              <button onClick={() => onAsk('Estou configurando meu ESP32-WROOM-32D. Quais os pinos disponíveis para I²C, UART e SPI? Como organizar a fiação para vários sensores?')}
+                style={{ marginTop: 8, padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
+                  border: '1px solid var(--acc)', background: 'transparent', color: 'var(--acc2)',
+                  ...mono, fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase' }}>
+                saiba mais →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* sensor status blocks */}
         {cards.length === 0 && (
           <div style={{ fontSize: 13.5, color: 'var(--ink4)', lineHeight: 1.6 }}>
             Nenhum sensor sob teste — monte a missão ou escolha o sketch BMP280 + OLED.
           </div>
         )}
         {cards.map((c) => (
-          <StatusBlock key={c.id} c={c} expanded={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} onAsk={onAsk} />
-        ))}
-
-        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', margin: '10px 0 5px' }}>eventos interpretados</div>
-        {events.length === 0 && <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>nenhum evento ainda</div>}
-        {events.map((l, i) => (
-          <div key={i} style={{ ...mono, fontSize: 12, color: 'var(--ink3)', lineHeight: 1.6, display: 'flex', gap: 6 }}>
-            <span style={{ color: 'var(--ink4)', flexShrink: 0 }}>{l.t}</span>
-            <span>{l.text}</span>
-          </div>
+          <SensorStatusBlock key={c.id} c={c} expanded={open === c.id}
+            onToggle={() => setOpen(open === c.id ? null : c.id)}
+            onAsk={onAsk} wires={wires} />
         ))}
         <div ref={endRef} />
       </div>
 
       <div style={{ padding: '7px 11px', borderTop: '1px solid var(--rule)', flexShrink: 0, ...mono, fontSize: 11, color: 'var(--ink4)', lineHeight: 1.6 }}>
-        <div>{chip || 'ESP32-WROOM-32D'} · {connected ? 'ttyUSB0 · 115200' : 'sem conexão'}</div>
         <div>arduino-cli · framework Arduino</div>
       </div>
     </div>

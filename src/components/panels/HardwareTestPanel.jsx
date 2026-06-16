@@ -7,7 +7,7 @@ import TaskHighlightStrip from '../ui/TaskHighlightStrip'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
 import {
-  buildSubsystems, SUBSYSTEM_LINKS, TEST_STAGES, stageById,
+  buildSubsystems, TEST_STAGES, stageById,
   planComm, planInterfaces, planSensor, planSensors, planIntegration, planSystem,
   buildReport,
 } from '../../mission/hwtest.js'
@@ -298,7 +298,7 @@ export default function HardwareTestPanel() {
         {/* ── context panel: selection + integration + breakdown ────── */}
         <ContextPanel
           width={ctxW}
-          subsystems={subsystems} selected={selected} stages={stages}
+          selected={selected} stages={stages}
           log={hwtest.log} onAsk={askAssistant}
           running={running} onClearSel={() => useForge.getState().clearTestSelection()}
           onRunIntegration={() => runStage('integration')}
@@ -321,123 +321,117 @@ function mergeSensor(prev, single, sensorIds) {
   return { status, perSensor, summary: `${ok}/${sensorIds.length} sensor(es) OK`, steps: single.steps }
 }
 
-// ── the printed-paper subsystem block diagram ───────────────────────
+// ── the mission-present-only integration diagram ─────────────────
+// Shows only components the mission actually has. Sensors are nested
+// INSIDE the ESP32/OBC block with the I²C bus drawn as an internal line.
+// EPS/COMMS/Payload/BUS "ausente" blocks are dropped entirely.
 function BlockDiagram({ blocks, selected, running, blockStatus, nodeStatus, onPick }) {
-  const byId = Object.fromEntries(blocks.map(b => [b.id, b]))
-  const center = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
+  const obc = blocks.find(b => b.id === 'obc')
+  const sensors = blocks.find(b => b.id === 'sensors')
+  const presentBlocks = blocks.filter(b => b.present && b.id !== 'obc' && b.id !== 'sensors' && b.id !== 'bus')
+  const sensorNodes = sensors?.nodes || []
+  const hasObc = obc?.present
+
+  // layout: OBC is the main container; sensors nest inside it
+  const obcX = 60, obcY = 40
+  const nodeW = 155, nodeH = 80, nodeGap = 14
+  const sensorAreaW = Math.max(sensorNodes.length * (nodeW + nodeGap) - nodeGap, 200)
+  const obcW = Math.max(sensorAreaW + 60, 420)
+  const obcH = sensorNodes.length > 0 ? 260 : 140
+  const busY = obcY + 100
+
+  // any other present blocks (EPS, COMMS) sit alongside if present
+  const sideX = obcX + obcW + 40
 
   return (
-    <svg viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', minWidth: 760, display: 'block' }}>
-      {/* title block — like an AIT drawing cartouche */}
-      <text x="20" y="26" style={{ ...mono }} fontSize="12" letterSpacing="2" fill="var(--ink4)">DIAGRAMA DE INTEGRAÇÃO DO SATÉLITE · 1U CUBESAT</text>
+    <svg viewBox={`0 0 ${Math.max(sideX + 220, obcW + 140)} ${obcH + 80}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', minWidth: 400, display: 'block' }}>
+      <text x="20" y="22" style={{ ...mono }} fontSize="11" letterSpacing="2" fill="var(--ink4)">DIAGRAMA DE INTEGRAÇÃO · COMPONENTES DA MISSÃO</text>
 
-      {/* connectors */}
-      {SUBSYSTEM_LINKS.map((lk, i) => {
-        const a = byId[lk.from], b = byId[lk.to]
-        if (!a || !b) return null
-        const p = center(a), q = center(b)
-        const present = a.present && b.present
+      {hasObc && (
+        <g>
+          {/* OBC outer container */}
+          <rect x={obcX} y={obcY} width={obcW} height={obcH} rx="8"
+            fill="var(--paper2)" stroke={blockStatus(obc) ? ST_COLOR[blockStatus(obc)] : 'var(--ink3)'}
+            strokeWidth="1.8" className={running === 'comm' ? 'pulse' : ''} />
+          <rect x={obcX} y={obcY} width={52} height={18} rx="3" fill={blockStatus(obc) ? ST_COLOR[blockStatus(obc)] : 'var(--ink3)'} opacity="0.9" />
+          <text x={obcX + 26} y={obcY + 13} textAnchor="middle" style={mono} fontSize="10" fontWeight="700" fill="var(--paper)">OBC</text>
+          <text x={obcX + 62} y={obcY + 14} style={mono} fontSize="10.5" letterSpacing="1" fill="var(--ink4)">C&DH</text>
+          <text x={obcX + 14} y={obcY + 42} fontSize="14" fontWeight="600" fill="var(--ink)">Computador de bordo</text>
+          <text x={obcX + 14} y={obcY + 58} style={mono} fontSize="11" fill="var(--ink3)">
+            {obc.components?.map(id => COMPONENT_DEFS[id]?.label).join(', ') || 'ESP32'}
+          </text>
+
+          {/* I²C bus line inside the OBC block */}
+          {sensorNodes.length > 0 && (
+            <g>
+              <line x1={obcX + 20} y1={busY} x2={obcX + obcW - 20} y2={busY}
+                stroke="var(--ink3)" strokeWidth="2" strokeDasharray="6 3" />
+              <text x={obcX + 24} y={busY - 6} style={mono} fontSize="9" letterSpacing="1" fill="var(--ink4)">I²C BUS</text>
+            </g>
+          )}
+
+          {/* sensor nodes nested inside the OBC block */}
+          {sensorNodes.map((n, i) => {
+            const nx = obcX + 30 + i * (nodeW + nodeGap)
+            const ny = busY + 16
+            const st = nodeStatus(n.id)
+            const isSel = selected.includes(n.id)
+            const ne = st ? ST_COLOR[st] : n.wired ? 'var(--ink3)' : 'var(--warn2)'
+            return (
+              <g key={n.id} onClick={(e) => onPick(n.id, e)} style={{ cursor: 'pointer' }}>
+                {/* bus tap line from the I²C bus to the sensor */}
+                <line x1={nx + nodeW / 2} y1={busY} x2={nx + nodeW / 2} y2={ny}
+                  stroke={n.wired ? 'var(--ok2)' : 'var(--warn2)'} strokeWidth="1.4" />
+                <circle cx={nx + nodeW / 2} cy={busY} r="3" fill={n.wired ? 'var(--ok2)' : 'var(--warn2)'} />
+                <rect x={nx} y={ny} width={nodeW} height={nodeH} rx="6"
+                  fill={isSel ? 'var(--poster-card-sel)' : 'var(--paper)'}
+                  stroke={isSel ? 'var(--acc)' : ne} strokeWidth={isSel ? 2.4 : 1.4} />
+                <text x={nx + 10} y={ny + 18} fontSize="12.5" fontWeight="600" fill="var(--ink)">{n.part}</text>
+                <text x={nx + 10} y={ny + 34} style={mono} fontSize="10" fill="var(--ink4)">{n.role}</text>
+                <text x={nx + 10} y={ny + 50} style={mono} fontSize="10" fill="var(--ink3)">{n.bus}{n.addr ? ` · ${n.addr}` : ''}</text>
+                <text x={nx + 10} y={ny + 66} style={mono} fontSize="10" fill={n.wired ? 'var(--ok2)' : 'var(--warn2)'}>{n.wired ? '● conectado' : '○ não conectado'}</text>
+                {st && <circle cx={nx + nodeW - 12} cy={ny + 14} r="5" fill={ST_COLOR[st]} stroke="var(--paper)" strokeWidth="1.5" />}
+              </g>
+            )
+          })}
+        </g>
+      )}
+
+      {/* other present blocks beside the OBC (e.g. COMMS, EPS if present) */}
+      {presentBlocks.map((b, i) => {
+        const bx = sideX, by = obcY + i * 120
+        const st = blockStatus(b)
+        const isSel = b.components?.some(id => selected.includes(id))
+        const edge = st ? ST_COLOR[st] : 'var(--ink3)'
         return (
-          <g key={i}>
-            <path d={dogleg(p, q)} fill="none"
-              stroke={present ? (lk.kind === 'power' ? 'var(--warn2)' : 'var(--ink3)') : 'var(--rule)'}
-              strokeWidth={present ? 1.6 : 1} strokeDasharray={present ? 'none' : '4 5'} />
+          <g key={b.id} onClick={b.components?.length === 1 ? (e) => onPick(b.components[0], e) : undefined}
+            style={{ cursor: b.components?.length === 1 ? 'pointer' : 'default' }}>
+            <rect x={bx} y={by} width={190} height={100} rx="6"
+              fill={isSel ? 'var(--poster-card-sel)' : 'var(--paper2)'}
+              stroke={isSel ? 'var(--acc)' : edge} strokeWidth={isSel ? 2.4 : 1.6} />
+            <rect x={bx} y={by} width={48} height={18} rx="3" fill={edge} opacity="0.9" />
+            <text x={bx + 24} y={by + 13} textAnchor="middle" style={mono} fontSize="10" fontWeight="700" fill="var(--paper)">{b.acro}</text>
+            <text x={bx + 14} y={by + 42} fontSize="14" fontWeight="600" fill="var(--ink)">{b.label}</text>
+            <foreignObject x={bx + 14} y={by + 50} width={162} height={40}>
+              <div style={{ fontSize: 11, lineHeight: 1.35, color: 'var(--ink3)' }}>
+                {b.components.map(id => COMPONENT_DEFS[id]?.label).join(', ')}
+              </div>
+            </foreignObject>
+            {st && <circle cx={bx + 174} cy={by + 84} r="5" fill={ST_COLOR[st]} stroke="var(--paper)" strokeWidth="1.5" />}
+            {/* connector line to OBC */}
+            {hasObc && <line x1={obcX + obcW} y1={obcY + obcH / 2} x2={bx} y2={by + 50}
+              stroke="var(--ink3)" strokeWidth="1.2" strokeDasharray="4 4" />}
           </g>
         )
       })}
 
-      {/* blocks */}
-      {blocks.map(b => {
-        if (b.node) return <SensorsBoundary key={b.id} block={b} selected={selected} status={blockStatus(b)} nodeStatus={nodeStatus} onPick={onPick} />
-        const st = blockStatus(b)
-        const isSel = b.components?.some(id => selected.includes(id))
-        const isRun = b.id === 'comms' && running === 'comm'
-        return (
-          <Block key={b.id} block={b} status={st} selected={isSel} running={isRun}
-            clickable={b.present && b.components?.length === 1}
-            onPick={(e) => b.components?.length === 1 && onPick(b.components[0], e)} />
-        )
-      })}
+      {/* no components at all */}
+      {!hasObc && sensorNodes.length === 0 && presentBlocks.length === 0 && (
+        <text x="60" y="70" fontSize="13" fill="var(--ink4)">Nenhum componente na missão ainda.</text>
+      )}
     </svg>
   )
 }
-
-// orthogonal dogleg between two block centers (AIT-drawing routing)
-function dogleg(p, q) {
-  const my = (p.y + q.y) / 2
-  return `M ${p.x} ${p.y} L ${p.x} ${my} L ${q.x} ${my} L ${q.x} ${q.y}`
-}
-
-function Block({ block: b, status, selected, running, clickable, onPick }) {
-  const present = b.present
-  const edge = status ? ST_COLOR[status] : present ? 'var(--ink3)' : 'var(--rule)'
-  const fill = selected ? 'var(--poster-card-sel)' : present ? 'var(--paper2)' : 'transparent'
-  return (
-    <g onClick={clickable ? onPick : undefined} style={{ cursor: clickable ? 'pointer' : 'default' }}>
-      <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="6"
-        fill={fill} stroke={selected ? 'var(--acc)' : edge} strokeWidth={selected ? 2.4 : present ? 1.6 : 1.2}
-        strokeDasharray={present ? 'none' : '5 5'} className={running ? 'pulse' : ''} />
-      {/* acronym tab */}
-      <rect x={b.x} y={b.y} width={48} height={18} rx="3" fill={present ? edge : 'var(--rule)'} opacity={present ? 0.9 : 0.5} />
-      <text x={b.x + 24} y={b.y + 13} textAnchor="middle" style={mono} fontSize="10" fontWeight="700" fill="var(--paper)">{b.acro}</text>
-      <text x={b.x + 58} y={b.y + 14} style={mono} fontSize="10.5" letterSpacing="1" fill="var(--ink4)">{b.sub}</text>
-
-      <text x={b.x + 14} y={b.y + 42} fontSize="15" fontWeight="600" fill={present ? 'var(--ink)' : 'var(--ink4)'}>{b.label}</text>
-      {b.bus ? (
-        <text x={b.x + 14} y={b.y + 62} style={mono} fontSize="11" fill="var(--ink3)">{(b.buses || []).join(' · ') || 'sem barramento'}</text>
-      ) : (
-        <foreignObject x={b.x + 14} y={b.y + 50} width={b.w - 28} height={b.h - 56}>
-          <div style={{ fontSize: 11.5, lineHeight: 1.35, color: present ? 'var(--ink3)' : 'var(--ink4)' }}>
-            {present ? b.components.map(id => COMPONENT_DEFS[id]?.label).join(', ') : (b.placeholder ? 'reservado — sem componente' : 'ausente no projeto')}
-          </div>
-        </foreignObject>
-      )}
-      {status && <StatusDot x={b.x + b.w - 16} y={b.y + b.h - 16} status={status} />}
-    </g>
-  )
-}
-
-// the Sensors subsystem boundary with one selectable node per sensor
-function SensorsBoundary({ block: b, selected, status, nodeStatus, onPick }) {
-  const present = b.nodes.length > 0
-  const edge = status ? ST_COLOR[status] : present ? 'var(--ink3)' : 'var(--rule)'
-  const nw = 165, gap = 18
-  const startX = b.x + 20
-  return (
-    <g>
-      <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="8" fill="transparent"
-        stroke={edge} strokeWidth={present ? 1.6 : 1.2} strokeDasharray={present ? 'none' : '5 5'} />
-      <rect x={b.x} y={b.y} width={56} height={18} rx="3" fill={present ? edge : 'var(--rule)'} opacity={present ? 0.9 : 0.5} />
-      <text x={b.x + 28} y={b.y + 13} textAnchor="middle" style={mono} fontSize="10" fontWeight="700" fill="var(--paper)">{b.acro}</text>
-      <text x={b.x + 66} y={b.y + 14} style={mono} fontSize="10.5" letterSpacing="1" fill="var(--ink4)">{b.sub} · {b.label}</text>
-
-      {!present && <text x={b.x + 20} y={b.y + 52} fontSize="12" fill="var(--ink4)">nenhum sensor na placa</text>}
-      {b.nodes.map((n, i) => {
-        const x = startX + i * (nw + gap)
-        const st = nodeStatus(n.id)
-        const isSel = selected.includes(n.id)
-        const ne = st ? ST_COLOR[st] : n.wired ? 'var(--ink3)' : 'var(--warn2)'
-        return (
-          <g key={n.id} onClick={(e) => onPick(n.id, e)} style={{ cursor: 'pointer' }}>
-            <rect x={x} y={b.y + 32} width={nw} height={86} rx="6"
-              fill={isSel ? 'var(--poster-card-sel)' : 'var(--paper2)'}
-              stroke={isSel ? 'var(--acc)' : ne} strokeWidth={isSel ? 2.4 : 1.4} />
-            <text x={x + 12} y={b.y + 52} fontSize="13" fontWeight="600" fill="var(--ink)">{n.part}</text>
-            <text x={x + 12} y={b.y + 69} style={mono} fontSize="10.5" fill="var(--ink4)">{n.role}</text>
-            <text x={x + 12} y={b.y + 86} style={mono} fontSize="10.5" fill="var(--ink3)">{n.bus}{n.addr ? ` · ${n.addr}` : ''}</text>
-            <text x={x + 12} y={b.y + 104} style={mono} fontSize="10.5" fill={n.wired ? 'var(--ok2)' : 'var(--warn2)'}>{n.wired ? '● conectado' : '○ não conectado'}</text>
-            {st && <StatusDot x={x + nw - 14} y={b.y + 46} status={st} />}
-          </g>
-        )
-      })}
-    </g>
-  )
-}
-
-function StatusDot({ x, y, status }) {
-  return <circle cx={x} cy={y} r="5" fill={ST_COLOR[status]} stroke="var(--paper)" strokeWidth="1.5" />
-}
-
 // ── per-stage failure knowledge → specific, non-generic AI diagnosis ──
 const STAGE_DIAGNOSIS = {
   comm: { cause: 'A placa não respondeu ao ping dentro do tempo limite.', fixes: ['Confirme o cabo USB (de dados, não só de energia) e a porta.', 'Verifique a baud 115200 e se outro programa não está ocupando a serial.', 'Pressione EN/RESET na placa e detecte novamente.'] },
@@ -461,17 +455,21 @@ function diagnoseFailure(stageId, result) {
   return { cause: base.cause, fixes, errLines }
 }
 
-// ── right context panel ─────────────────────────────────────────────
-function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onAsk, running, onClearSel, onRunIntegration, integrationLocked, onRunSensor }) {
+// ── right context panel — layered disclosure (tabs/accordion) ───────
+// Default view: pass/fail summary + next action. AI diagnostic and raw
+// live data sit behind taps so the panel stays compact.
+const CTX_TABS = [
+  { id: 'summary', label: 'Resumo' },
+  { id: 'diagnosis', label: 'Diagnóstico' },
+  { id: 'livedata', label: 'Dados' },
+]
+function ContextPanel({ width = 300, selected, stages, log = [], onAsk, running, onClearSel, onRunIntegration, integrationLocked, onRunSensor }) {
   const sel = selected.map(id => COMPONENT_DEFS[id]).filter(Boolean)
   const breakdown = stages.system?.result?.breakdown
-  // Log Doctor relocated here from the retired Debug section — collapsed by
-  // default so it stays out of the way until the user needs a log diagnosis
+  const [ctxTab, setCtxTab] = useState('summary')
   const [doctorOpen, setDoctorOpen] = useState(false)
-  const [subsysOpen, setSubsysOpen] = useState(false)
   const [logFilter, setLogFilter] = useState('all')
 
-  // coverage summary (Part 2)
   const cov = TEST_STAGES.reduce((a, s) => {
     const st = stages[s.id]?.status || 'idle'
     if (st === 'passed') a.passed++
@@ -482,7 +480,6 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
   }, { passed: 0, failed: 0, warn: 0, notRun: 0 })
   const ran = TEST_STAGES.length - cov.notRun
 
-  // first failed stage → inline AI diagnosis (Part 4)
   const failedStage = TEST_STAGES.find(s => stages[s.id]?.status === 'failed')
   const diag = failedStage ? diagnoseFailure(failedStage.id, stages[failedStage.id]?.result) : null
   const askChat = () => {
@@ -494,145 +491,166 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
   const clock = (iso) => new Date(iso).toTimeString().slice(0, 8)
 
   return (
-    <div style={{ width, flexShrink: 0, borderLeft: '1px solid var(--rule)', background: 'var(--paper2)', overflowY: 'auto', padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-      {/* coverage summary (Part 2) */}
-      <div>
-        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Cobertura de teste</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <CovCell n={`${ran}/${TEST_STAGES.length}`} label="executados" color="var(--ink)" />
-          <CovCell n={cov.passed} label="passou" color="var(--ok2)" />
-          <CovCell n={cov.failed} label="falhou" color="var(--err2)" />
-          <CovCell n={cov.notRun} label="restam" color="var(--ink4)" />
-        </div>
-      </div>
-
-      {/* between-test checkpoint — what just completed + next step (Part 6) */}
-      <CheckpointCard log={log} stages={stages} />
-
-      {/* live data monitor: raw serial + parsed readout (Part 5) */}
-      <LiveDataPanel running={running} />
-
-      {/* inline AI diagnosis on failure (Part 4) */}
-      {diag && (
-        <div style={{ border: '1px solid rgba(192,64,48,.35)', borderRadius: 7, background: 'rgba(192,64,48,.05)', padding: '9px 11px' }}>
-          <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--err2)', marginBottom: 4 }}>Diagnóstico assistido por IA · {failedStage.label}</div>
-          <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 6 }}>{diag.cause}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {diag.fixes.slice(0, 3).map((f, i) => (
-              <div key={i} style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.45 }}>→ {f}</div>
-            ))}
-          </div>
-          <button onClick={askChat} style={{ ...ghostBtn, marginTop: 8, border: '1px solid var(--acc)', color: 'var(--acc2)' }}>continuar no chat →</button>
-        </div>
-      )}
-
-      {/* selection / integration */}
-      <div>
-        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Seleção</div>
-        {sel.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: 'var(--ink4)', lineHeight: 1.5 }}>
-            Clique num bloco para selecioná-lo. Segure <b>Shift</b> para escolher vários e testar a integração entre eles.
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 9 }}>
-              {sel.map(d => (
-                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--rule)', background: 'var(--paper)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--acc)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{d.label}</span>
-                  <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{d.protocol}</span>
-                </div>
-              ))}
-            </div>
-            {sel.length === 1 && COMPONENT_DEFS[selected[0]]?.category === 'sensor' && (
-              <button onClick={() => onRunSensor(selected[0])} disabled={!!running} style={solidBtn(!!running)}>testar este sensor</button>
-            )}
-            {sel.length >= 2 && (
-              <button onClick={onRunIntegration} disabled={!!running || integrationLocked} title={integrationLocked ? 'requer a etapa de sensores aprovada' : ''} style={solidBtn(!!running || integrationLocked)}>
-                testar selecionados juntos
-              </button>
-            )}
-            <button onClick={onClearSel} style={{ ...ghostBtn, width: '100%', marginTop: 6 }}>limpar seleção</button>
-          </>
-        )}
-      </div>
-
-      {/* per-subsystem list — collapsed by default (the integration diagram
-          already shows the subsystems; avoid duplicating it here, Part D1) */}
-      <div>
-        <button onClick={() => setSubsysOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: subsysOpen ? 6 : 0 }}>
-          <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Subsistemas</span>
-          <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{subsysOpen ? '−' : '+'}</span>
-        </button>
-        {subsysOpen && subsystems.map(b => (
-          <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 0', borderBottom: '1px solid var(--rule2)' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: b.present ? 'var(--ok2)' : 'var(--ink4)' }} />
-            <span style={{ fontSize: 12.5, color: b.present ? 'var(--ink)' : 'var(--ink4)' }}>{b.label}</span>
-            <span style={{ ...mono, fontSize: 10, color: 'var(--ink4)', marginLeft: 'auto' }}>{b.acro}</span>
-          </div>
+    <div style={{ width, flexShrink: 0, borderLeft: '1px solid var(--rule)', background: 'var(--paper2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* tab bar */}
+      <div style={{ display: 'flex', gap: 2, padding: '8px 10px 0', borderBottom: '1px solid var(--rule)', flexShrink: 0 }}>
+        {CTX_TABS.map(t => (
+          <button key={t.id} onClick={() => setCtxTab(t.id)} style={{
+            ...mono, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase',
+            padding: '5px 10px', borderRadius: '5px 5px 0 0', cursor: 'pointer',
+            border: `1px solid ${ctxTab === t.id ? 'var(--rule)' : 'transparent'}`,
+            borderBottom: ctxTab === t.id ? '1px solid var(--paper2)' : '1px solid var(--rule)',
+            background: ctxTab === t.id ? 'var(--paper2)' : 'transparent',
+            color: ctxTab === t.id ? 'var(--ink)' : 'var(--ink4)',
+            marginBottom: -1,
+          }}>{t.label}</button>
         ))}
       </div>
 
-      {breakdown && (
-        <div>
-          <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Último pré-voo</div>
-          {Object.entries(breakdown).map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-              <span style={{ ...mono, fontSize: 11.5, color: 'var(--ink3)' }}>{k}</span>
-              <span style={{ ...mono, fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: ST_COLOR[v] }}>{ST_LABEL[v]}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 13px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* verification & validation log — timestamped history (Part 2) */}
-      <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Log de verificação</span>
-          <span style={{ flex: 1 }} />
-          {['all', 'pass', 'fail'].map(f => (
-            <button key={f} onClick={() => setLogFilter(f)} style={{
-              ...mono, fontSize: 9.5, letterSpacing: '.04em', textTransform: 'uppercase',
-              padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
-              border: `1px solid ${logFilter === f ? 'var(--acc)' : 'var(--rule)'}`,
-              background: logFilter === f ? 'rgba(158,74,44,.06)' : 'transparent',
-              color: logFilter === f ? 'var(--ink)' : 'var(--ink4)',
-            }}>{f === 'all' ? 'tudo' : f === 'pass' ? 'passou' : 'falhou'}</button>
-          ))}
-        </div>
-        {shownLog.length === 0 ? (
-          <div style={{ ...mono, fontSize: 11.5, color: 'var(--ink4)' }}>nenhum teste executado ainda</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 168, overflowY: 'auto' }}>
-            {shownLog.map((e, i) => (
-              <div key={i} style={{ ...mono, fontSize: 11, lineHeight: 1.4, color: 'var(--ink3)' }}>
-                <span style={{ color: 'var(--ink4)' }}>[{clock(e.t)}]</span>{' '}
-                {e.label} — <span style={{ color: ST_COLOR[e.status] }}>{(ST_LABEL[e.status] || e.status).toUpperCase()}</span>
-                {e.summary ? <span style={{ color: 'var(--ink4)' }}> — {e.summary}</span> : null}
+        {/* ── SUMMARY TAB: pass/fail + next action ── */}
+        {ctxTab === 'summary' && (
+          <>
+            {/* coverage */}
+            <div>
+              <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Cobertura</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <CovCell n={`${ran}/${TEST_STAGES.length}`} label="executados" color="var(--ink)" />
+                <CovCell n={cov.passed} label="passou" color="var(--ok2)" />
+                <CovCell n={cov.failed} label="falhou" color="var(--err2)" />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
 
-      {/* Log Doctor — log-diagnosis assistant, moved from the old Debug
-          section. Cross-references device serial output with the twin. */}
-      <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
-        <button onClick={() => setDoctorOpen(o => !o)} style={{
-          display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', cursor: 'pointer',
-          background: 'none', border: 'none', padding: 0,
-        }}>
-          <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Log Doctor</span>
-          <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{doctorOpen ? '−' : '+'}</span>
-        </button>
-        {!doctorOpen && <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 5 }}>Diagnostique a saída serial cruzada com o gêmeo digital.</div>}
-        {doctorOpen && <div style={{ marginTop: 8 }}><LogDoctorCard /></div>}
+            {/* next action checkpoint */}
+            <CheckpointCard log={log} stages={stages} />
+
+            {/* per-stage pass/fail strip */}
+            <div>
+              <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Etapas</div>
+              {TEST_STAGES.map(s => {
+                const st = stages[s.id]?.status || 'idle'
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 0', borderBottom: '1px solid var(--rule2)' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: st === 'passed' ? 'var(--ok2)' : st === 'failed' ? 'var(--err2)' : st === 'running' ? 'var(--acc)' : 'var(--ink4)' }} />
+                    <span style={{ fontSize: 12.5, color: st === 'idle' ? 'var(--ink4)' : 'var(--ink)', flex: 1 }}>{s.label}</span>
+                    <span style={{ ...mono, fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: ST_COLOR[st] || 'var(--ink4)' }}>{ST_LABEL[st] || '—'}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* selection / integration */}
+            {sel.length > 0 && (
+              <div>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Seleção</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 9 }}>
+                  {sel.map(d => (
+                    <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--rule)', background: 'var(--paper)' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--acc)' }} />
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{d.label}</span>
+                      <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{d.protocol}</span>
+                    </div>
+                  ))}
+                </div>
+                {sel.length === 1 && COMPONENT_DEFS[selected[0]]?.category === 'sensor' && (
+                  <button onClick={() => onRunSensor(selected[0])} disabled={!!running} style={solidBtn(!!running)}>testar este sensor</button>
+                )}
+                {sel.length >= 2 && (
+                  <button onClick={onRunIntegration} disabled={!!running || integrationLocked} title={integrationLocked ? 'requer a etapa de sensores aprovada' : ''} style={solidBtn(!!running || integrationLocked)}>
+                    testar selecionados juntos
+                  </button>
+                )}
+                <button onClick={onClearSel} style={{ ...ghostBtn, width: '100%', marginTop: 6 }}>limpar seleção</button>
+              </div>
+            )}
+
+            {breakdown && (
+              <div>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Último pré-voo</div>
+                {Object.entries(breakdown).map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
+                    <span style={{ ...mono, fontSize: 11.5, color: 'var(--ink3)' }}>{k}</span>
+                    <span style={{ ...mono, fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: ST_COLOR[v] }}>{ST_LABEL[v]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── DIAGNOSIS TAB: AI diagnostic + Log Doctor + verification log ── */}
+        {ctxTab === 'diagnosis' && (
+          <>
+            {diag ? (
+              <div style={{ border: '1px solid rgba(192,64,48,.35)', borderRadius: 7, background: 'rgba(192,64,48,.05)', padding: '9px 11px' }}>
+                <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--err2)', marginBottom: 4 }}>Diagnóstico IA · {failedStage.label}</div>
+                <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 6 }}>{diag.cause}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {diag.fixes.slice(0, 3).map((f, i) => (
+                    <div key={i} style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.45 }}>→ {f}</div>
+                  ))}
+                </div>
+                <button onClick={askChat} style={{ ...ghostBtn, marginTop: 8, border: '1px solid var(--acc)', color: 'var(--acc2)' }}>continuar no chat →</button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--ink4)', lineHeight: 1.5 }}>Nenhuma falha detectada — o diagnóstico aparecerá quando um teste reprovar.</div>
+            )}
+
+            {/* Log Doctor */}
+            <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
+              <button onClick={() => setDoctorOpen(o => !o)} style={{
+                display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', cursor: 'pointer',
+                background: 'none', border: 'none', padding: 0,
+              }}>
+                <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Log Doctor</span>
+                <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{doctorOpen ? '−' : '+'}</span>
+              </button>
+              {!doctorOpen && <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 5 }}>Diagnostique a saída serial cruzada com o gêmeo digital.</div>}
+              {doctorOpen && <div style={{ marginTop: 8 }}><LogDoctorCard /></div>}
+            </div>
+
+            {/* verification log */}
+            <div style={{ borderTop: '1px solid var(--rule)', paddingTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Log de verificação</span>
+                <span style={{ flex: 1 }} />
+                {['all', 'pass', 'fail'].map(f => (
+                  <button key={f} onClick={() => setLogFilter(f)} style={{
+                    ...mono, fontSize: 9.5, letterSpacing: '.04em', textTransform: 'uppercase',
+                    padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
+                    border: `1px solid ${logFilter === f ? 'var(--acc)' : 'var(--rule)'}`,
+                    background: logFilter === f ? 'rgba(158,74,44,.06)' : 'transparent',
+                    color: logFilter === f ? 'var(--ink)' : 'var(--ink4)',
+                  }}>{f === 'all' ? 'tudo' : f === 'pass' ? 'passou' : 'falhou'}</button>
+                ))}
+              </div>
+              {shownLog.length === 0 ? (
+                <div style={{ ...mono, fontSize: 11.5, color: 'var(--ink4)' }}>nenhum teste executado ainda</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 200, overflowY: 'auto' }}>
+                  {shownLog.map((e, i) => (
+                    <div key={i} style={{ ...mono, fontSize: 11, lineHeight: 1.4, color: 'var(--ink3)' }}>
+                      <span style={{ color: 'var(--ink4)' }}>[{clock(e.t)}]</span>{' '}
+                      {e.label} — <span style={{ color: ST_COLOR[e.status] }}>{(ST_LABEL[e.status] || e.status).toUpperCase()}</span>
+                      {e.summary ? <span style={{ color: 'var(--ink4)' }}> — {e.summary}</span> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── LIVE DATA TAB: raw serial + parsed readout ── */}
+        {ctxTab === 'livedata' && (
+          <LiveDataPanel running={running} />
+        )}
       </div>
     </div>
   )
 }
-
 // between-test checkpoint (Part 6): a compact summary of what just
 // completed + the recommended next action, like a phase-review at stage level.
 const stageCleared = (st) => st === 'passed' || st === 'warn' || st === 'skipped'
