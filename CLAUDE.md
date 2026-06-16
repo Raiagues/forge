@@ -30,10 +30,12 @@ for that backend behind the same interfaces.
 ## How to run
 ```bash
 ./install.sh   # or npm install
-./start.sh     # or npm run dev   → http://localhost:5173
+npm run dev    # ONE command → starts backend (:3001) + Vite (:5173) together
+./start.sh     # alternative: backgrounds both + waits/open browser
 ./stop.sh
 npm run build  # production build
 npm run lint
+# npm run dev:web  → frontend only (no backend); npm run server → backend only
 ```
 
 ## Visual language (preserve this)

@@ -78,9 +78,9 @@ fi
 # ── start the Vite dev server (frontend) ───────────────────────────
 bold "Starting GuiaSat dev server on port ${PORT}…"
 if command -v setsid >/dev/null 2>&1; then
-  setsid npm run dev -- --port "$PORT" >"$LOG" 2>&1 &
+  setsid npm run dev:web -- --port "$PORT" >"$LOG" 2>&1 &
 else
-  npm run dev -- --port "$PORT" >"$LOG" 2>&1 &
+  npm run dev:web -- --port "$PORT" >"$LOG" 2>&1 &
 fi
 echo $! > "$PIDFILE"
 
