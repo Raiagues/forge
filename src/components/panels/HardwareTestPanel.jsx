@@ -63,6 +63,7 @@ export default function HardwareTestPanel() {
 
   const [term, setTerm] = useState([])         // current/last terminal play-out
   const [activeStage, setActiveStage] = useState('comm')
+  const [hoverStage, setHoverStage] = useState(null)   // reveal stage detail on hover (Part D1)
   const [showTwin, setShowTwin] = useState(false)   // digital-twin view of a selected sensor
   const [pipeW, setPipeW] = usePanelWidth('forge.hwtestPipeW', 248, 200, 380)
   const [ctxW, setCtxW] = usePanelWidth('forge.hwtestCtxW', 300, 240, 460)
@@ -198,10 +199,14 @@ export default function HardwareTestPanel() {
             const locked = isLocked(s.id)
             const active = activeStage === s.id
             const isRun = running === s.id
+            // compact by default — detail (blurb, result, run/skip) only on
+            // the active or hovered stage so all five fit without scrolling.
+            const detail = active || hoverStage === s.id
             return (
-              <div key={s.id} style={{ position: 'relative', paddingLeft: 22, marginBottom: 8 }}>
+              <div key={s.id} style={{ position: 'relative', paddingLeft: 22, marginBottom: 6 }}
+                onMouseEnter={() => setHoverStage(s.id)} onMouseLeave={() => setHoverStage(h => (h === s.id ? null : h))}>
                 {/* connector rail */}
-                {i < TEST_STAGES.length - 1 && <div style={{ position: 'absolute', left: 9, top: 20, bottom: -8, width: 2, background: 'var(--rule)' }} />}
+                {i < TEST_STAGES.length - 1 && <div style={{ position: 'absolute', left: 9, top: 20, bottom: -6, width: 2, background: 'var(--rule)' }} />}
                 <span style={{
                   position: 'absolute', left: 2, top: 4, width: 15, height: 15, borderRadius: '50%',
                   border: `2px solid ${ST_COLOR[isRun ? 'running' : st]}`,
@@ -214,7 +219,7 @@ export default function HardwareTestPanel() {
                 <button onClick={() => !locked && showStage(s.id)} disabled={locked} title={locked ? 'desbloqueia quando a etapa anterior passa' : s.why} style={{
                   display: 'block', width: '100%', textAlign: 'left', cursor: locked ? 'not-allowed' : 'pointer',
                   border: `1px solid ${active ? 'var(--acc)' : 'var(--rule)'}`, borderRadius: 6,
-                  background: active ? 'rgba(158,74,44,.05)' : 'var(--paper)', padding: '7px 9px', opacity: locked ? 0.55 : 1,
+                  background: active ? 'rgba(158,74,44,.05)' : 'var(--paper)', padding: detail ? '7px 9px' : '5px 9px', opacity: locked ? 0.55 : 1,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)' }}>{s.n}</span>
@@ -223,18 +228,18 @@ export default function HardwareTestPanel() {
                       {locked ? '🔒' : ST_LABEL[isRun ? 'running' : st]}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 3 }}>{s.blurb}</div>
-                  {stages[s.id]?.result && st !== 'idle' && (
+                  {detail && <div style={{ fontSize: 12, color: 'var(--ink3)', lineHeight: 1.45, marginTop: 3 }}>{s.blurb}</div>}
+                  {detail && stages[s.id]?.result && st !== 'idle' && (
                     <div style={{ ...mono, fontSize: 11, color: ST_COLOR[st], marginTop: 4 }}>{stages[s.id].result.summary}</div>
                   )}
                 </button>
-                {/* run / gate controls */}
-                {!locked && s.id !== 'integration' && (
+                {/* run / gate controls — only on the active/hovered stage */}
+                {detail && !locked && s.id !== 'integration' && (
                   <button onClick={() => runStage(s.id)} disabled={!!running} style={runBtn(!!running)}>
                     {isRun ? 'rodando…' : st === 'idle' ? 'executar' : 'reexecutar'}
                   </button>
                 )}
-                {st === 'failed' && (
+                {detail && st === 'failed' && (
                   <button onClick={() => { if (window.confirm(`Pular "${s.label}" com uma falha NÃO resolvida? Isso será registrado no log de verificação.`)) skipHwTestGate(s.id, s.label) }} title="prosseguir pulando um portão de validação" style={{ ...runBtn(false), border: '1px dashed var(--err2)', color: 'var(--err2)', background: 'transparent' }}>
                     pular portão ⚠
                   </button>
@@ -461,6 +466,7 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
   // Log Doctor relocated here from the retired Debug section — collapsed by
   // default so it stays out of the way until the user needs a log diagnosis
   const [doctorOpen, setDoctorOpen] = useState(false)
+  const [subsysOpen, setSubsysOpen] = useState(false)
   const [logFilter, setLogFilter] = useState('all')
 
   // coverage summary (Part 2)
@@ -550,10 +556,14 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
         )}
       </div>
 
-      {/* per-subsystem breakdown from the last full-system run */}
+      {/* per-subsystem list — collapsed by default (the integration diagram
+          already shows the subsystems; avoid duplicating it here, Part D1) */}
       <div>
-        <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 6 }}>Subsistemas</div>
-        {subsystems.map(b => (
+        <button onClick={() => setSubsysOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: subsysOpen ? 6 : 0 }}>
+          <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Subsistemas</span>
+          <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{subsysOpen ? '−' : '+'}</span>
+        </button>
+        {subsysOpen && subsystems.map(b => (
           <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 0', borderBottom: '1px solid var(--rule2)' }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: b.present ? 'var(--ok2)' : 'var(--ink4)' }} />
             <span style={{ fontSize: 12.5, color: b.present ? 'var(--ink)' : 'var(--ink4)' }}>{b.label}</span>
