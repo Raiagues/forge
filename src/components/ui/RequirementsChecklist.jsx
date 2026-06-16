@@ -74,7 +74,11 @@ export default function RequirementsChecklist() {
     const r = e.currentTarget.parentElement.getBoundingClientRect()
     dragRef.current = { x0: e.clientX, y0: e.clientY, left: r.left, top: r.top, moved: false }
   }
-  const dock = pos ? { left: pos.x, top: pos.y } : { left: 14, bottom: 14 }
+  // Default dock = bottom-RIGHT (was bottom-left, which sat on top of the
+  // left sidebar nav icons). The right edge is clear of the persistent
+  // navigation, keeps the pill visible without scrolling, and the panel
+  // still expands upward on click. Remains draggable anywhere.
+  const dock = pos ? { left: pos.x, top: pos.y } : { right: 14, bottom: 14 }
 
   return (
     <div style={{ position: 'fixed', ...dock, zIndex: 85, width: open ? 320 : 'auto' }}>
