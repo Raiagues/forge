@@ -249,6 +249,15 @@ function loadSidebarCollapsed() {
   try { return localStorage.getItem(SIDEBAR_KEY) === '1' } catch { return false }
 }
 
+// Persisted weekly availability (memberId → { slotKey → type }).
+const AVAIL_KEY = 'forge.availability'
+function loadAvailability() {
+  try { const v = localStorage.getItem(AVAIL_KEY); return v ? JSON.parse(v) : {} } catch { return {} }
+}
+function saveAvailability(data) {
+  try { localStorage.setItem(AVAIL_KEY, JSON.stringify(data)) } catch { /* ignore */ }
+}
+
 const EMPTY_PLAN = {
   // Competition is LOCKED to OBSAT in the redesigned flow (Part 2): there is
   // a single supported competition today, so it is pre-filled, not chosen.
@@ -472,6 +481,19 @@ const useForge = create((set, get) => {
     })),
     setScheduleDeadline: (day) => set(s => ({ schedule: { ...s.schedule, deadlineDay: Math.max(1, Math.round(day)) } })),
     resetSchedule: () => set(s => ({ schedule: { ...s.schedule, phases: {} } })),
+
+    // ── team weekly availability overlay ─────────────────────────────
+    // memberId → { slotKey → 'free'|'blocked' }. Client-side for now;
+    // persisted in localStorage so it survives page reloads. The overlay
+    // superimposes all members on one weekly grid.
+    availability: loadAvailability(),
+    showAvailability: false,
+    toggleAvailability: () => set(s => ({ showAvailability: !s.showAvailability })),
+    setMemberAvailability: (memberId, schedule) => set(s => {
+      const next = { ...s.availability, [memberId]: schedule }
+      saveAvailability(next)
+      return { availability: next }
+    }),
 
     // ── explicit phase completion (Prompt B Part 2) ─────────────────
     // phaseId → { confirmed, confirmedAt, sig }. A phase is "done" only
