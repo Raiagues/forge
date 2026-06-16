@@ -356,7 +356,6 @@ export default function SerialTest() {
   const missionPlan = useForge(s => s.missionPlan)
   const fwEdits = useForge(s => s.fwEdits)
   const setFwEdit = useForge(s => s.setFwEdit)
-  const addrs = useForge(s => s.live?.addrs) || {}
 
   // durable bring-up state (from the store)
   const { connected, detecting, flashing, chip, stages, hw, reading } = fw
@@ -654,8 +653,10 @@ export default function SerialTest() {
                   tudo") — no standalone bypass button here (Part E3) */}
               {flashing && <Spinner label="gravando" />}
             </PaneHeader>
+            {/* the pin-mapping strip (SDA—GPIO21—BMP280…) was removed: that
+                info already lives in the schematic view + mini datasheets;
+                the editor now fills the whole pane. */}
             <CodeEditor value={editorValue} onChange={onEditorChange} disabled={flashing} background={EDITOR_BG} style={{ flex: 1, minHeight: 0 }} />
-            {missionMode && <FileContext file={activeFile} wires={wires} addrs={addrs} />}
           </Pane>
 
           {/* editor/console resize handle */}
