@@ -224,10 +224,15 @@ function TipBanner() {
   const tips = useMemo(
     () => computeTips({ entities, wires, wiring: live?.wiring || {} }),
     [entities, wires, live],
-  ).filter(t => !dismissedTips.includes(t.id)).slice(0, 2)
+    // cap the visible stack at 3 (toast-style); the rest queue and appear
+    // as earlier tips are dismissed since the list is recomputed from state
+  ).filter(t => !dismissedTips.includes(t.id)).slice(0, 3)
   if (!tips.length) return null
   return (
-    <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 12, width: 'min(460px, calc(100% - 40px))', display: 'flex', flexDirection: 'column', gap: 7 }}>
+    // top-right toast cluster, stacked downward BELOW the view/mode toolbar
+    // (top:8) so it never overlaps the 2D/3D + wire-style controls or the
+    // user's work in the canvas centre.
+    <div style={{ position: 'absolute', top: 50, right: 12, zIndex: 12, width: 320, maxWidth: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', gap: 8 }}>
       {tips.map(t => (
         <div key={t.id} style={{
           display: 'flex', alignItems: 'flex-start', gap: 9, padding: '9px 11px',
