@@ -499,6 +499,12 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
         </div>
       </div>
 
+      {/* between-test checkpoint — what just completed + next step (Part 6) */}
+      <CheckpointCard log={log} stages={stages} />
+
+      {/* live data monitor: raw serial + parsed readout (Part 5) */}
+      <LiveDataPanel running={running} />
+
       {/* inline AI diagnosis on failure (Part 4) */}
       {diag && (
         <div style={{ border: '1px solid rgba(192,64,48,.35)', borderRadius: 7, background: 'rgba(192,64,48,.05)', padding: '9px 11px' }}>
@@ -610,6 +616,84 @@ function ContextPanel({ width = 300, subsystems, selected, stages, log = [], onA
         </button>
         {!doctorOpen && <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.5, marginTop: 5 }}>Diagnostique a saída serial cruzada com o gêmeo digital.</div>}
         {doctorOpen && <div style={{ marginTop: 8 }}><LogDoctorCard /></div>}
+      </div>
+    </div>
+  )
+}
+
+// between-test checkpoint (Part 6): a compact summary of what just
+// completed + the recommended next action, like a phase-review at stage level.
+const stageCleared = (st) => st === 'passed' || st === 'warn' || st === 'skipped'
+function CheckpointCard({ log, stages }) {
+  if (!log.length) return null
+  const last = log[log.length - 1]
+  const next = TEST_STAGES.find(s => !stageCleared(stages[s.id]?.status))
+  const failed = last.status === 'failed'
+  return (
+    <div style={{ border: `1px solid ${ST_COLOR[last.status] || 'var(--rule)'}`, borderRadius: 7, background: 'var(--paper)', padding: '9px 11px' }}>
+      <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>checkpoint</div>
+      <div style={{ fontSize: 13, color: 'var(--ink)' }}>{last.label} — <span style={{ ...mono, fontSize: 11, textTransform: 'uppercase', color: ST_COLOR[last.status] }}>{ST_LABEL[last.status] || last.status}</span></div>
+      {last.summary && <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 3, lineHeight: 1.5 }}>{last.summary}</div>}
+      <div style={{ fontSize: 12.5, color: failed ? 'var(--err2)' : 'var(--acc2)', marginTop: 6 }}>
+        {failed ? '→ resolva a falha antes de prosseguir' : next ? `→ próximo: ${next.label}` : '✓ todas as etapas concluídas'}
+      </div>
+    </div>
+  )
+}
+
+// live data monitor (Part 5): raw serial stream beside a parsed readout of
+// the sensor values. Out-of-range values turn red; nominal stays calm.
+const LIVE_RANGE = { temperature: [-40, 85], pressure: [300, 1100], accel_z: [0.9, 1.1] }
+const numOf = (v) => parseFloat(String(v))
+const rawColor = (cls) => ({ err: 'var(--err2)', warn: 'var(--warn2)', ok: 'var(--ok2)', rx: 'var(--acc2)', tx: 'var(--warn2)' }[cls] || 'var(--ink3)')
+function LiveDataPanel({ running }) {
+  const serialLog = useForge(s => s.serialLog)
+  const entities = useForge(s => s.entities)
+  const wiring = useForge(s => s.live?.wiring) || EMPTY
+  const ids = Object.keys(entities).filter(id => COMPONENT_DEFS[id])
+  const raw = serialLog.slice(0, 9)
+  return (
+    <div style={{ border: '1px solid var(--rule)', borderRadius: 7, background: 'var(--paper)', padding: '9px 11px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+        <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Dados ao vivo</span>
+        {running && <span className="pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok2)' }} />}
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {/* raw serial */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ ...mono, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>serial bruto</div>
+          {raw.length === 0 && <div style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>sem dados</div>}
+          {raw.map((l, i) => (
+            <div key={i} style={{ ...mono, fontSize: 10.5, lineHeight: 1.5, color: rawColor(l.cls), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.m}>{l.m}</div>
+          ))}
+        </div>
+        {/* parsed readout */}
+        <div style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--rule2)', paddingLeft: 10 }}>
+          <div style={{ ...mono, fontSize: 9.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 4 }}>leitura interpretada</div>
+          {ids.length === 0 && <div style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>sem sensores</div>}
+          {ids.map(id => {
+            const wired = wiring[id]?.wired
+            const readings = wired ? (entities[id].readings || {}) : {}
+            const keys = Object.keys(readings)
+            return (
+              <div key={id} style={{ marginBottom: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: wired ? 'var(--ok2)' : 'var(--ink4)' }} />
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink2)' }}>{COMPONENT_DEFS[id].label}</span>
+                </div>
+                {!wired && <div style={{ ...mono, fontSize: 10, color: 'var(--ink4)', paddingLeft: 11 }}>não conectado</div>}
+                {keys.map(k => {
+                  const bad = LIVE_RANGE[k] && (numOf(readings[k]) < LIVE_RANGE[k][0] || numOf(readings[k]) > LIVE_RANGE[k][1])
+                  return (
+                    <div key={k} style={{ ...mono, fontSize: 10.5, lineHeight: 1.5, paddingLeft: 11, color: bad ? 'var(--err2)' : 'var(--ink3)' }}>
+                      {k}: <span style={{ color: bad ? 'var(--err2)' : 'var(--ink)', fontWeight: bad ? 700 : 400 }}>{String(readings[k])}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
