@@ -164,6 +164,17 @@ body {
 }
 .spin { animation: spin .8s linear infinite; }
 
+/* ── lego "click into place" micro-animation (north-star building feeling) ──
+   Tunable globally here + mirrored in src/lib/anim.js for JS use. A brief
+   overshoot-and-settle, ≤300ms, never blocks interaction. */
+:root { --lego-dur: 280ms; --lego-ease: cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes lego-pop {
+  0%   { transform: scale(.62); opacity: 0; }
+  60%  { transform: scale(1.16); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.lego-pop { animation: lego-pop var(--lego-dur) var(--lego-ease) both; }
+
 @keyframes popover-in {
   from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: none; }

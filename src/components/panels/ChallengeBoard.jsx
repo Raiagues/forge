@@ -3,6 +3,7 @@ import useForge from '../../store/useForge'
 import { OBJECTIVE_CATEGORIES_BY_ID } from '../../mission/index.js'
 import { SEED_CHALLENGES, CHALLENGE_CATEGORIES, filterChallenges } from '../../mission/challenges.js'
 import { mono, slab, CREAM, GOLD } from '../onboarding/posterKit.jsx'
+import { legoClass } from '../../lib/anim.js'
 
 // ──────────────────────────────────────────────────────────────────
 // ChallengeBoard — challenge selection IS the mission objective (Part 3).
@@ -65,7 +66,7 @@ export default function ChallengeBoard() {
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                 <span style={{ ...slab, fontSize: 14.5, fontWeight: 700, lineHeight: 1.25, flex: 1 }}>{c.org}</span>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                <span key={on ? 'on' : 'off'} className={on ? legoClass : undefined} style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: `1.5px solid ${on ? GOLD : 'var(--poster-line)'}`, background: on ? GOLD : 'transparent', color: 'var(--poster-bg-solid)', fontSize: 11, fontWeight: 800 }}>{on ? '✓' : ''}</span>
               </div>
               <div style={{ ...mono, fontSize: 10, letterSpacing: '.05em', color: GOLD }}>{c.location} · {catLabel(c.category)}</div>

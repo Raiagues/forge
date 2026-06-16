@@ -2,6 +2,7 @@ import { useState } from 'react'
 import useForge from '../../store/useForge'
 import { suggestForZone } from '../../mission/brainstorm.js'
 import { mono, CREAM, GOLD } from '../onboarding/posterKit.jsx'
+import { legoClass } from '../../lib/anim.js'
 
 // ──────────────────────────────────────────────────────────────────
 // MissionBrainstorm — calm, scannable ideation (Prompts: brainstorm v2/v3).
@@ -49,7 +50,7 @@ function Card({ c, readOnly, store }) {
         borderLeft: `3px solid ${border}`, border: '1px solid var(--poster-line)', borderLeftWidth: 3,
         borderRadius: 'var(--r-md)', padding: '8px 10px', cursor: readOnly ? 'default' : 'grab',
       }}>
-      {c.decided && <span style={{ position: 'absolute', top: 6, right: 8, ...mono, fontSize: 8.5, letterSpacing: '.08em', textTransform: 'uppercase', color: GOLD }}>decidido</span>}
+      {c.decided && <span className={legoClass} style={{ position: 'absolute', top: 6, right: 8, ...mono, fontSize: 8.5, letterSpacing: '.08em', textTransform: 'uppercase', color: GOLD }}>decidido</span>}
       {ZONE_TAG[c.zone] && <span style={{ ...mono, fontSize: 8.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)', display: 'block', marginBottom: 3 }}>{ZONE_TAG[c.zone]}</span>}
       {readOnly
         ? <div style={{ fontSize: 12.5, color: CREAM, lineHeight: 1.45 }}>{c.text}</div>
