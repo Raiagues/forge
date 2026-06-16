@@ -115,6 +115,10 @@ export default function MissionWindow() {
   const goByIndex = (i) => setMissionStep(STEP_DEFS[Math.max(0, Math.min(STEP_DEFS.length - 1, i))].id)
 
   const selectedChallenges = missionPlan.challenges || []
+  // Finalizing the brainstorming only needs: at least one challenge chosen
+  // and at least one brainstorm card. (The stricter `complete` — which also
+  // wants mission name + team + budget — was over-gating this button.)
+  const canFinalize = selectedChallenges.length > 0 && (missionPlan.brainstorm?.cards || []).length > 0
   // arriving at the brainstorm step seeds the zones from the chosen
   // challenges (deduped server-side by fromChallenge) — Part 4 auto-pop.
   useEffect(() => { if (missionStep === 'brainstorm') seedBrainstormFromChallenges() }, [missionStep, seedBrainstormFromChallenges])
@@ -288,8 +292,9 @@ export default function MissionWindow() {
             <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← {STEP_DEFS[stepIdx - 1].title}</button>
           )}
           {stepIdx < STEP_DEFS.length - 1 && (
-            <button onClick={() => goByIndex(stepIdx + 1)} disabled={current.id === 'brainstorm' && !complete}
-              style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: (current.id === 'brainstorm' && !complete) ? 'var(--poster-line)' : GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: (current.id === 'brainstorm' && !complete) ? 'not-allowed' : 'pointer', fontWeight: 700 }}>
+            <button onClick={() => goByIndex(stepIdx + 1)} disabled={current.id === 'brainstorm' && !canFinalize}
+              title={current.id === 'brainstorm' && !canFinalize ? 'escolha ao menos um desafio e adicione ao menos um cartão' : undefined}
+              style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: (current.id === 'brainstorm' && !canFinalize) ? 'var(--poster-line)' : GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: (current.id === 'brainstorm' && !canFinalize) ? 'not-allowed' : 'pointer', fontWeight: 700 }}>
               {current.id === 'brainstorm' ? 'Finalizar brainstorming →' : `Continuar para ${STEP_DEFS[stepIdx + 1].title} →`}
             </button>
           )}
