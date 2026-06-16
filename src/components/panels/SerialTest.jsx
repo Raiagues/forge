@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import CodeEditor from '../ui/CodeEditor'
+import TaskHighlightStrip from '../ui/TaskHighlightStrip'
 import { diagnoseI2C } from '../../debug/i2cDiagnosis.js'
 import { FILE_GROUPS } from '../../mission/firmwareFiles.js'
 import { ADDR_STRAPS } from '../../mission/wiring.js'
@@ -519,7 +520,9 @@ export default function SerialTest() {
           : { label: 'Aguardando conexão', color: 'var(--ink4)' }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <TaskHighlightStrip section="serialtest" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '14px 18px 16px', minHeight: 0 }}>
 
       {/* header / toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexShrink: 0 }}>
@@ -645,6 +648,7 @@ export default function SerialTest() {
           chip={chip} connected={connected} endRef={diagEndRef}
           onAsk={(q) => askAssistant(q)}
         />
+      </div>
       </div>
     </div>
   )

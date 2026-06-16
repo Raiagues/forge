@@ -4,6 +4,7 @@ import * as session from '../../lib/session.js'
 import { isAvailable } from '../../lib/api.js'
 import { TASK_STATES, groupByState, nextState, prevState, deadlineStatus, daysUntil, taskStats } from '../../mission/tasks.js'
 import { canManageTeam, canEditTask, SUBSYSTEMS } from '../../mission/roles.js'
+import WeeklyAvailabilityGrid from './WeeklyAvailabilityGrid'
 
 // ──────────────────────────────────────────────────────────────────
 // TeamPanel — team management + task kanban + deadlines (IMPLEMENTATION_
@@ -56,6 +57,7 @@ export default function TeamPanel() {
       <Roster team={team} isManager={isManager} />
 
       <AvailabilityStrip team={team} tasks={tasks} />
+      <AvailabilityToggle team={team} />
 
       {/* kanban */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '22px 0 10px' }}>
@@ -248,6 +250,29 @@ function TaskCard({ task, team, role, me, isManager }) {
         <span style={{ flex: 1 }} />
         {isManager && <button onClick={() => session.deleteTask(task.id)} style={{ ...miniLink, color: 'var(--err2)' }}>excluir</button>}
       </div>
+    </div>
+  )
+}
+
+function AvailabilityToggle({ team }) {
+  const showAvailability = useForge(s => s.showAvailability)
+  const toggleAvailability = useForge(s => s.toggleAvailability)
+  if (!team?.members?.length) return null
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button onClick={toggleAvailability}
+        style={{ ...mono, fontSize: 11, padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+          border: showAvailability ? '1.5px solid var(--navy)' : '1px solid var(--rule)',
+          background: showAvailability ? 'var(--paper2)' : 'var(--paper)',
+          color: showAvailability ? 'var(--ink)' : 'var(--ink3)',
+          fontWeight: showAvailability ? 700 : 400 }}>
+        {showAvailability ? 'ocultar grade semanal' : 'grade semanal de disponibilidade'}
+      </button>
+      {showAvailability && (
+        <div style={{ marginTop: 12, border: '1px solid var(--rule)', borderRadius: 9, padding: 14, background: 'var(--paper2)' }}>
+          <WeeklyAvailabilityGrid team={team} />
+        </div>
+      )}
     </div>
   )
 }

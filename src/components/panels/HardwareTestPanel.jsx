@@ -3,6 +3,7 @@ import useForge, { COMPONENT_DEFS } from '../../store/useForge'
 import EmptyState from './EmptyState'
 import DigitalTwin from './DigitalTwin'
 import LogDoctorCard from './debug/LogDoctorCard'
+import TaskHighlightStrip from '../ui/TaskHighlightStrip'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
 import {
@@ -163,6 +164,7 @@ export default function HardwareTestPanel() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--paper)' }}>
+      <TaskHighlightStrip section="hwtest" />
       {/* header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', background: 'var(--paper2)', borderBottom: '1px solid var(--rule)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

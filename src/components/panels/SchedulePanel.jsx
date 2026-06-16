@@ -2,6 +2,7 @@ import useForge from '../../store/useForge'
 import { OBSAT, getFramework, derivePhases } from '../../mission/index.js'
 import { mono, slab, CREAM, GOLD, NAVY_FIELD } from '../onboarding/posterKit.jsx'
 import GanttChart from './GanttChart'
+import WeeklyAvailabilityGrid from './WeeklyAvailabilityGrid'
 
 // ──────────────────────────────────────────────────────────────────
 // SchedulePanel — the OBSAT competition timeline (Part 7).
@@ -25,6 +26,9 @@ export default function SchedulePanel() {
   const { status } = derivePhases(store)
   const currentBuild = ['telemetry', 'testing', 'firmware', 'hardware', 'mission'].find(id => status[id]?.current) || 'mission'
   const hereFase = BUILD_TO_FASE[currentBuild]
+  const showAvailability = useForge(s => s.showAvailability)
+  const toggleAvailability = useForge(s => s.toggleAvailability)
+  const team = store.teams?.find(t => t.id === store.activeTeamId)
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: NAVY_FIELD, padding: '26px 34px' }}>
@@ -37,6 +41,27 @@ export default function SchedulePanel() {
 
         {/* interactive project Gantt (Prompt B Part 3) */}
         <GanttChart />
+
+        {/* weekly team-availability overlay toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 10px' }}>
+          <button onClick={toggleAvailability}
+            style={{ ...mono, fontSize: 11, padding: '5px 12px', borderRadius: 5, cursor: 'pointer',
+              border: showAvailability ? `1.5px solid ${GOLD}` : '1px solid var(--poster-line)',
+              background: showAvailability ? 'var(--poster-card-sel)' : 'transparent',
+              color: showAvailability ? GOLD : 'var(--poster-fg-dim)' }}>
+            {showAvailability ? 'ocultar disponibilidade' : 'disponibilidade da equipe'}
+          </button>
+        </div>
+        {showAvailability && team?.members?.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <WeeklyAvailabilityGrid team={team} poster />
+          </div>
+        )}
+        {showAvailability && (!team?.members?.length) && (
+          <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', marginBottom: 28 }}>
+            Entre com uma conta e tenha uma equipe para configurar a disponibilidade.
+          </div>
+        )}
 
         {/* competition reference timeline */}
         <div style={{ ...slab, fontSize: 20, fontWeight: 700, color: CREAM, marginBottom: 14 }}>Marcos da competição</div>

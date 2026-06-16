@@ -7,6 +7,7 @@ import {
 import HardwareViews, { BigViewToggle } from '../canvas/HardwareViews'
 import CatGlyph from '../ui/catGlyphs'
 import BudgetMeters from '../ui/BudgetMeters'
+import TaskHighlightStrip from '../ui/TaskHighlightStrip'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
 
@@ -253,7 +254,9 @@ export default function HardwareSection() {
   const obj = resolveObjective(missionPlan)
 
   return (
-    <div style={{ position: 'relative', height: '100%', overflow: 'hidden', display: 'flex' }}>
+    <div style={{ position: 'relative', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <TaskHighlightStrip section="hardware" />
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
       <div style={{ width: cfgW, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--paper2)', borderRight: '1px solid var(--rule)' }}>
         <div style={{ padding: '14px 14px 4px', flexShrink: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }}>{missionPlan.name?.trim() || 'Integração de hardware'}</div>
@@ -286,6 +289,7 @@ export default function HardwareSection() {
 
       <PanelDivider w={cfgW} setW={setCfgW} side="right" />
       <BuilderCanvas />
+      </div>
     </div>
   )
 }
