@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import useForge from '../../store/useForge'
-import { SEED_CHIPS, SEED_QA } from '../../lib/assistant.js'
+import { SEED_QA } from '../../lib/assistant.js'
 import TutorDiagram from './AssistantDiagrams'
 
 // ──────────────────────────────────────────────────────────────────
@@ -191,17 +191,12 @@ export default function AssistantChat() {
 
       {/* body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 4px', minHeight: 0 }}>
+        {/* clean empty state — no pre-populated suggestion chips; just a
+            quiet prompt and the input below (open clean, wait for input) */}
         {messages.length === 0 && (
-          <div>
-            <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink2)', marginTop: 2 }}>
-              Pergunte sobre barramentos, pinos, alimentação ou qualquer dúvida de eletrônica embarcada. Para começar:
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-              {SEED_CHIPS.map((s) => (
-                <button key={s.id} onClick={() => ask(s.q)} style={{ ...chipStyle, textAlign: 'left', width: '100%' }}>{s.q}</button>
-              ))}
-            </div>
-          </div>
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink4)', marginTop: 2 }}>
+            Pergunte sobre barramentos, pinos, alimentação ou qualquer dúvida de eletrônica embarcada.
+          </p>
         )}
         {messages.map((m) => <Message key={m.id} m={m} onAsk={ask} />)}
         {running && (
@@ -213,17 +208,8 @@ export default function AssistantChat() {
         <div ref={endRef} />
       </div>
 
-      {/* always-available suggestions — ask a new question without clearing */}
-      {messages.length > 0 && (
-        <div style={{ flexShrink: 0, display: 'flex', gap: 6, padding: '7px 10px 0', overflowX: 'auto', borderTop: '1px solid var(--rule)' }}>
-          {SEED_CHIPS.map((s) => (
-            <button key={s.id} onClick={() => ask(s.q)} title={s.q} style={{ ...chipStyle, whiteSpace: 'nowrap', flexShrink: 0, fontSize: 11.5, padding: '4px 9px' }}>{s.short || s.q.replace(/\?$/, '')}</button>
-          ))}
-        </div>
-      )}
-
       {/* input */}
-      <div style={{ flexShrink: 0, display: 'flex', gap: 7, padding: '9px 10px', borderTop: messages.length > 0 ? 'none' : '1px solid var(--rule)', background: 'var(--paper2)' }}>
+      <div style={{ flexShrink: 0, display: 'flex', gap: 7, padding: '9px 10px', borderTop: '1px solid var(--rule)', background: 'var(--paper2)' }}>
         <input
           value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') onSend() }}
