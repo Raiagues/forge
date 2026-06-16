@@ -194,11 +194,8 @@ function ValidationNotices() {
 
 // ── canvas area (always live, big center-top 2D/3D switch) ──────────
 function BuilderCanvas() {
-  const { entities, missionPlan, live, hwLink } = useForge()
+  const { entities, missionPlan, hwLink } = useForge()
   const empty = Object.keys(entities).length === 0
-  const eco = live?.eco || { massG: 0, priceBRL: 0, currentmA: 0 }
-  const v = live?.validation
-  const wired = Object.keys(entities).filter(id => live?.wiring?.[id]?.wired).length
 
   return (
     <div style={{ flex: 1, position: 'relative', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -221,30 +218,99 @@ function BuilderCanvas() {
           </div>
         )}
       </div>
+      {/* the bottom error/warning + economics bar was removed (Part G1):
+          errors live in the requirements panel, budgets in the right panel */}
+    </div>
+  )
+}
 
-      {/* live economics + honest wiring statusline */}
-      <div style={{ height: 24, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '0 12px', background: 'var(--paper3)', borderTop: '1px solid var(--rule)', ...mono, fontSize: 11, color: 'var(--ink4)' }}>
-        {v && (
-          <>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: v.summary.errors ? 'var(--err2)' : 'var(--ok2)' }} />
-              {v.summary.errors ? `${v.summary.errors} erro${v.summary.errors > 1 ? 's' : ''}` : 'requisitos ok'}
-            </span>
-            {v.summary.warnings > 0 && <span style={{ color: 'var(--warn2)' }}>{v.summary.warnings} aviso{v.summary.warnings > 1 ? 's' : ''}</span>}
-          </>
+// ── right inspector: budgets + OBSAT requirements (Part G1) ─────────
+// Collapsible. Budgets collapse to a thin strip with ONE aggregate health
+// dot (verde dentro / âmbar perto / vermelho acima); expand for the four
+// bars + the budget input. Requirements are single lines with a status dot
+// and an inline one-sentence explanation — no popup, no separate page.
+function BudgetReqPanel({ hoverDelta }) {
+  const { live, missionPlan, setBudget, entities, toggleHardware } = useForge()
+  const [budgetsOpen, setBudgetsOpen] = useState(false)
+  const [reqsOpen, setReqsOpen] = useState(true)
+  const [expandedReq, setExpandedReq] = useState(null)
+  const issues = live?.validation?.issues || []
+
+  // aggregate budget health from the (already source-tagged) validation
+  const budgetErr = issues.some(i => i.source === 'budget' && i.severity === 'error')
+  const budgetWarn = issues.some(i => i.source === 'budget' && i.severity !== 'error')
+  const aggColor = budgetErr ? 'var(--err2)' : budgetWarn ? 'var(--warn2)' : 'var(--ok2)'
+  const aggLabel = budgetErr ? 'acima do limite' : budgetWarn ? 'perto do limite' : 'dentro dos limites'
+
+  const fw = getFramework(missionPlan.frameworkId)
+  const rules = fw?.requirements || []
+  const reqs = rules.map(r => {
+    const iss = issues.find(i => i.ruleId === r.id)
+    return { rule: r, state: !iss ? 'ok' : iss.severity === 'error' ? 'violated' : 'unmet', issue: iss }
+  })
+  const reqDot = { ok: 'var(--ok2)', unmet: 'var(--ink4)', violated: 'var(--err2)' }
+  const met = reqs.filter(r => r.state === 'ok').length
+
+  const sectionHdr = { ...mono, fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }
+  return (
+    <div style={{ width: 248, flexShrink: 0, borderLeft: '1px solid var(--rule)', background: 'var(--paper2)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* budgets */}
+      <div style={{ borderBottom: '1px solid var(--rule)' }}>
+        <button onClick={() => setBudgetsOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 13px', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: aggColor, flexShrink: 0 }} />
+          <span style={sectionHdr}>orçamentos</span>
+          <span style={{ ...mono, fontSize: 10.5, color: aggColor, marginLeft: 'auto' }}>{budgetsOpen ? '−' : aggLabel}</span>
+        </button>
+        {budgetsOpen && (
+          <div style={{ padding: '0 13px 13px' }}>
+            <label style={{ ...mono, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink4)', display: 'block', marginBottom: 10 }}>orçamento (R$)
+              <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="opcional"
+                style={{ width: '100%', marginTop: 4, padding: '6px 9px', borderRadius: 'var(--r-md)', border: '1px solid var(--rule)', background: 'var(--paper)', fontSize: 13.5, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }} />
+            </label>
+            <BudgetMeters delta={hoverDelta} showFormat={false} />
+          </div>
         )}
-        {Object.keys(entities).length > 0 && <span>{wired}/{Object.keys(entities).length} conectados</span>}
-        <div style={{ flex: 1 }} />
-        <span>{eco.massG} g</span><span>·</span><span>{eco.currentmA.toFixed(0)} mA</span><span>·</span>
-        <span style={{ color: missionPlan.budgetBRL && eco.priceBRL > missionPlan.budgetBRL ? 'var(--err2)' : 'var(--ink4)' }}>R$ {eco.priceBRL}{missionPlan.budgetBRL ? ` / ${missionPlan.budgetBRL}` : ''}</span>
       </div>
+
+      {/* OBSAT requirements */}
+      {rules.length > 0 && (
+        <div>
+          <button onClick={() => setReqsOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '11px 13px', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <span style={sectionHdr}>requisitos {fw.name}</span>
+            <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)', marginLeft: 'auto' }}>{met}/{rules.length} {reqsOpen ? '−' : '+'}</span>
+          </button>
+          {reqsOpen && (
+            <div style={{ padding: '0 13px 13px' }}>
+              {reqs.map(({ rule, state, issue }) => {
+                const open = expandedReq === rule.id
+                return (
+                  <div key={rule.id} style={{ borderTop: '1px solid var(--rule2)' }}>
+                    <button onClick={() => setExpandedReq(open ? null : rule.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%', textAlign: 'left', padding: '7px 0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0, background: reqDot[state] }} />
+                      <span style={{ flex: 1, fontSize: 12.5, lineHeight: 1.35, color: state === 'ok' ? 'var(--ink4)' : 'var(--ink2)', textDecoration: state === 'ok' ? 'line-through' : 'none' }}>{rule.title}</span>
+                    </button>
+                    {open && (
+                      <div style={{ padding: '0 0 8px 16px' }}>
+                        <div style={{ fontSize: 12, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: 6 }}>{issue?.detail || rule.detail}</div>
+                        {issue?.suggestions?.filter(s => !entities[s.id]).slice(0, 2).map(s => (
+                          <button key={s.id} onClick={() => toggleHardware(s.id)} style={{ fontSize: 11.5, cursor: 'pointer', padding: '3px 8px', borderRadius: 4, marginRight: 5, border: '1px solid var(--rule)', background: 'var(--paper)', color: 'var(--ink2)', fontFamily: "'Space Grotesk', sans-serif" }}>+ {COMPONENT_DEFS[s.id]?.friendly || s.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── main section ──────────────────────────────────────────────────
 export default function HardwareSection() {
-  const { entities, live, missionPlan, openPhaseReview, sidebarCollapsed } = useForge()
+  const { entities, live, missionPlan, openPhaseReview } = useForge()
   const [cfgW, setCfgW] = usePanelWidth('forge.hwBuilderW', 308, 232, 540)
   const [hoverComp, setHoverComp] = useState(null)
   const hoverDelta = hoverComp && !entities[hoverComp] ? budgetDelta({ defs: COMPONENT_DEFS, compId: hoverComp, overrides: missionPlan.overrides }) : null
@@ -262,21 +328,12 @@ export default function HardwareSection() {
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', fontFamily: "'Space Grotesk', sans-serif" }}>{missionPlan.name?.trim() || 'Integração de hardware'}</div>
           {obj && <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginTop: 2 }}>{obj.label}</div>}
         </div>
+        {/* left sidebar = the component list only (Part G1); budgets +
+            requirements moved to the right inspector, wiring happens on the
+            canvas, and the bottom error bar is gone */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
-          <ScopedMission />
           <ComponentManifest onHover={setHoverComp} />
-          <WiringStage />
-          <ValidationNotices />
         </div>
-        {/* Budget meters live in the phase sidebar when it is expanded, so we
-            only dock them here when that sidebar is collapsed (Part 4) — no
-            duplicate meters on screen. */}
-        {sidebarCollapsed && (
-          <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
-            <div style={{ ...mono, fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 8 }}>orçamentos</div>
-            <BudgetMeters delta={hoverDelta} showFormat={false} />
-          </div>
-        )}
         <div style={{ padding: '10px 14px', borderTop: '1px solid var(--rule)', flexShrink: 0, background: 'var(--paper2)' }}>
           <button onClick={() => openPhaseReview('hardware')} disabled={!ready}
             style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none', cursor: ready ? 'pointer' : 'not-allowed',
@@ -289,6 +346,7 @@ export default function HardwareSection() {
 
       <PanelDivider w={cfgW} setW={setCfgW} side="right" />
       <BuilderCanvas />
+      <BudgetReqPanel hoverDelta={hoverDelta} />
       </div>
     </div>
   )

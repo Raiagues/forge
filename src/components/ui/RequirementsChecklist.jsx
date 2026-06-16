@@ -33,7 +33,7 @@ function Mark({ state }) {
 }
 
 export default function RequirementsChecklist() {
-  const { missionPlan, live, toggleHardware, entities, onboarding, transition } = useForge()
+  const { missionPlan, live, toggleHardware, entities, onboarding, transition, activeSection } = useForge()
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(null)
   // The panel is DRAGGABLE (Part 5) so it never sits over the advance
@@ -61,8 +61,10 @@ export default function RequirementsChecklist() {
   }, [])
 
   const fw = getFramework(missionPlan.frameworkId)
-  // only relevant once a competition with requirements is chosen
-  if (!fw?.requirements?.length || onboarding || transition?.playing) return null
+  // only relevant once a competition with requirements is chosen; hidden on
+  // the hardware screen, where the requirements live in the right inspector
+  // panel instead of this floating pill (Part G1)
+  if (!fw?.requirements?.length || onboarding || transition?.playing || activeSection === 'hardware') return null
 
   const issues = live?.validation?.issues || []
   const rules = fw.requirements
