@@ -21,7 +21,8 @@ export const PHASES = [
     sub: [
       { id: 'team', label: 'Equipe', step: 'team' },
       { id: 'format', label: 'Formato', step: 'format' },
-      { id: 'explore', label: 'Explorar', step: 'explore' },
+      { id: 'challenges', label: 'Desafio', step: 'challenges' },
+      { id: 'brainstorm', label: 'Ideias', step: 'brainstorm' },
     ],
   },
   {
@@ -133,10 +134,11 @@ export function derivePhases(state, { gateAt = 2 } = {}) {
 
   const subDone = {
     mission: {
-      team: !!(mp.team?.name || '').trim(),
+      team: !!(mp.team?.name || '').trim() && mp.budgetBRL != null,
       format: !!mp.cubeU,
-      // the explore step folds objective + brainstorming + restrictions
-      explore: ((mp.objectiveCategories?.length || 0) > 0 || !!mp.objectiveId) && mp.budgetBRL != null,
+      // objective is implicit in the selected challenges (Part 3)
+      challenges: (mp.challenges?.length || 0) > 0 || (mp.objectiveCategories?.length || 0) > 0,
+      brainstorm: (mp.brainstorm?.cards || []).some(c => !c.draft),
     },
     hardware: { schematic: (wires?.length || 0) > 0, pcb: nEnts >= 1, wiring: wiredAll },
     firmware: { editor: (fwFiles?.length || 0) > 0, flash: !!hwLink?.connected },

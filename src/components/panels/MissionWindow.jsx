@@ -1,18 +1,17 @@
 import useForge from '../../store/useForge'
 import {
-  getFramework, resolveObjective, OBJECTIVE_CATEGORIES, MISSION_PRIORITIES,
-  FAB_RULES, getFabRule,
+  getFramework, resolveObjective,
 } from '../../mission/index.js'
 import {
   mono, slab, CREAM, GOLD, NAVY_FIELD, h2, sub, inputStyle, StepDots, Card,
 } from '../onboarding/posterKit.jsx'
 import SatelliteAssembly from '../onboarding/SatelliteAssembly.jsx'
 import MissionBrainstorm from './MissionBrainstorm.jsx'
-import ChallengeBoard from './ChallengeBoard.jsx'
-import BudgetMeters from '../ui/BudgetMeters'
+import { BRAINSTORM_ZONES } from '../../mission/brainstorm.js'
+import ChallengeBoard, { SelectedChallengesSummary } from './ChallengeBoard.jsx'
 import { usePanelWidth } from '../ui/usePanelWidth'
 import { PanelDivider } from '../ui/Resizable'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // ──────────────────────────────────────────────────────────────────
 // MissionWindow — the mission-definition flow (Part 2 redesign).
@@ -44,7 +43,8 @@ const label = { ...mono, fontSize: 12, letterSpacing: '.1em', textTransform: 'up
 const STEP_DEFS = [
   { id: 'team', title: 'equipe' },
   { id: 'format', title: 'formato' },
-  { id: 'explore', title: 'explorar' },
+  { id: 'challenges', title: 'desafio' },
+  { id: 'brainstorm', title: 'ideias' },
 ]
 
 // CubeSat sizes — centred visual cards with dimensions + a mini stack
@@ -103,37 +103,29 @@ function LockedPill({ label: text, featureKey }) {
 
 export default function MissionWindow() {
   const {
-    missionPlan, setPlanName, setBudget, setCubeU, setFabRule,
-    toggleObjectiveCategory, setTeamField,
-    setPriorityRanking, openPhaseReview, missionStep, setMissionStep, sidebarCollapsed,
+    missionPlan, setPlanName, setBudget, setCubeU, setTeamField,
+    openPhaseReview, missionStep, setMissionStep, sidebarCollapsed,
+    seedBrainstormFromChallenges,
   } = useForge()
-  const board = useForge(s => s.board)
   const [asmW, setAsmW] = usePanelWidth('forge.missionAsmW', 320, 240, 480)
-  const [advOpen, setAdvOpen] = useState(false)   // fab/priorities collapsible
+  const [finalizeOpen, setFinalizeOpen] = useState(false)
 
   const steps = STEP_DEFS.map(s => s.title)
   const stepIdx = Math.max(0, STEP_DEFS.findIndex(s => s.id === missionStep))
   const goByIndex = (i) => setMissionStep(STEP_DEFS[Math.max(0, Math.min(STEP_DEFS.length - 1, i))].id)
 
-  const cats = missionPlan.objectiveCategories || []
-  const ranked = missionPlan.priorityRanking || []
-  const unranked = MISSION_PRIORITIES.filter(p => !ranked.includes(p.id))
-  const addPriority = (id) => setPriorityRanking([...ranked, id])
-  const removePriority = (id) => setPriorityRanking(ranked.filter(x => x !== id))
-  const movePriority = (i, dir) => {
-    const j = i + dir
-    if (j < 0 || j >= ranked.length) return
-    const next = ranked.slice();[next[i], next[j]] = [next[j], next[i]]
-    setPriorityRanking(next)
-  }
+  const selectedChallenges = missionPlan.challenges || []
+  // arriving at the brainstorm step seeds the zones from the chosen
+  // challenges (deduped server-side by fromChallenge) — Part 4 auto-pop.
+  useEffect(() => { if (missionStep === 'brainstorm') seedBrainstormFromChallenges() }, [missionStep, seedBrainstormFromChallenges])
 
+  // objective is now implicit in the challenge selection (Part 3)
   const complete = missionPlan.name.trim().length >= 2
     && !!(missionPlan.team?.name || '').trim()
-    && cats.length > 0
+    && selectedChallenges.length > 0
     && missionPlan.budgetBRL != null
   const fw = getFramework(missionPlan.frameworkId)
   const resolved = resolveObjective(missionPlan)
-  const fabRule = getFabRule(board.ruleId)
 
   const screensById = {}
 
@@ -233,84 +225,16 @@ export default function MissionWindow() {
     </>
   )
 
-  // ── integrated EXPLORE space: objective + brainstorming + restrictions
-  // are one continuous thinking process (Prompt Part 1). Objectives are
-  // live seeds (select/deselect any time), the challenge board grounds the
-  // canvas in real problems, and the constraints react on the definition
-  // panel to the right — no separate locked steps.
-  screensById.explore = (
-    <div style={{ height: '76vh', minHeight: 480, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-      {/* objective seeds — multi-select, never locked */}
-      <div style={{ flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 7, flexWrap: 'wrap' }}>
-          <span style={{ ...slab, fontSize: 16, fontWeight: 700, color: CREAM }}>O que a missão vai fazer?</span>
-          <span style={{ ...mono, fontSize: 10.5, color: 'var(--poster-fg-dim)' }}>selecione objetivos — eles semeiam as ideias e as restrições reagem ao lado</span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {OBJECTIVE_CATEGORIES.map(c => {
-            const active = cats.includes(c.id)
-            return (
-              <button key={c.id} onClick={() => toggleObjectiveCategory(c.id)} title={c.desc} style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 20, cursor: 'pointer',
-                border: `1.5px solid ${active ? GOLD : 'var(--poster-line)'}`,
-                background: active ? 'var(--poster-card-sel)' : 'var(--poster-card)', color: CREAM, ...mono, fontSize: 12,
-              }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={active ? 'var(--poster-gold)' : 'currentColor'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={c.icon} /></svg>
-                {c.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+  // ── step 3: desafios (challenge selection = the objective, Part 3) ──
+  screensById.challenges = <ChallengeBoard />
 
-      {/* real-world challenge board (Part 2) */}
-      <ChallengeBoard />
-
-      {/* the brainstorming canvas fills the rest */}
-      <div style={{ flex: 1, minHeight: 240 }}><MissionBrainstorm /></div>
-
-      {/* fab target + priorities — available but secondary, collapsed */}
-      <div style={{ flexShrink: 0, border: '1px solid var(--poster-line)', borderRadius: 'var(--r-md)', background: 'var(--poster-card)' }}>
-        <button onClick={() => setAdvOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer' }}>
-          <span style={{ ...mono, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--poster-fg-dim)' }}>fabricação e prioridades</span>
-          <span style={{ flex: 1 }} />
-          <span style={{ ...mono, fontSize: 12, color: 'var(--poster-fg-dim)' }}>{advOpen ? '−' : '+'}</span>
-        </button>
-        {advOpen && (
-          <div style={{ padding: '0 12px 12px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <label style={{ ...label, flex: 1, minWidth: 200 }}>alvo de fabricação
-              <select value={board.ruleId} onChange={e => setFabRule(e.target.value)} style={{ ...inputStyle, fontFamily: "'Space Mono', monospace", fontSize: 14 }}>
-                {FAB_RULES.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <span style={{ ...mono, fontSize: 10, color: 'var(--poster-fg-dim)', lineHeight: 1.5, display: 'block', marginTop: 5, textTransform: 'none', letterSpacing: 0 }}>trilha mín {fabRule.minTraceMm} mm · isol {fabRule.minClearanceMm} mm · {fabRule.material}</span>
-            </label>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <span style={label}>prioridades</span>
-              {ranked.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, margin: '6px 0' }}>
-                  {ranked.map((id, i) => {
-                    const p = MISSION_PRIORITIES.find(x => x.id === id)
-                    return (
-                      <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 9px', borderRadius: 6, border: `1px solid ${GOLD}`, background: 'var(--poster-card-sel)' }}>
-                        <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: GOLD, width: 14 }}>{i + 1}</span>
-                        <span style={{ fontSize: 13, color: CREAM, flex: 1 }}>{p?.label}</span>
-                        <button onClick={() => movePriority(i, -1)} disabled={i === 0} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--poster-fg-dim)', fontSize: 11 }}>▲</button>
-                        <button onClick={() => movePriority(i, 1)} disabled={i === ranked.length - 1} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--poster-fg-dim)', fontSize: 11 }}>▼</button>
-                        <button onClick={() => removePriority(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--poster-fg-dim)', fontSize: 13 }}>×</button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                {unranked.map(p => (
-                  <button key={p.id} onClick={() => addPriority(p.id)} style={{ ...mono, fontSize: 12, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--poster-line)', background: 'var(--poster-card)', color: CREAM, cursor: 'pointer' }}>+ {p.label}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+  // ── step 4: brainstorming (Part 4) — column zones, auto-seeded from
+  // the chosen challenges; a sticky "Finalizar" button converges to the
+  // phase review + transition.
+  screensById.brainstorm = (
+    <div>
+      <div style={{ marginBottom: 14 }}><SelectedChallengesSummary /></div>
+      <MissionBrainstorm />
     </div>
   )
 
@@ -343,14 +267,9 @@ export default function MissionWindow() {
           <div style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>{screensById[current.id]}</div>
         </div>
         <PanelDivider w={asmW} setW={setAsmW} side="left" />
-        <div style={{ width: asmW, flexShrink: 0, borderLeft: '1px solid var(--poster-line)', padding: '10px 4px 6px 14px', minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: current.id === 'explore' ? 'auto' : 'hidden' }}>
-          {/* the satellite is always the live feedback; in the explore step
-              the definition (budget, meters, constraints) crystallises below
-              it as the student selects objectives (Part 1) */}
-          <div style={{ flexShrink: 0, height: current.id === 'explore' ? 300 : '100%', minHeight: current.id === 'explore' ? 300 : 0 }}>
-            <SatelliteAssembly plan={missionPlan} />
-          </div>
-          {current.id === 'explore' && <ExploreDefinition cats={cats} />}
+        {/* satellite sidebar — the only full-window-edge element (Part 5) */}
+        <div style={{ width: asmW, flexShrink: 0, borderLeft: '1px solid var(--poster-line)', padding: '10px 4px 6px 14px', minHeight: 0 }}>
+          <SatelliteAssembly plan={missionPlan} />
         </div>
       </div>
 
@@ -358,50 +277,50 @@ export default function MissionWindow() {
         {stepIdx > 0 && (
           <button onClick={() => goByIndex(stepIdx - 1)} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>← {STEP_DEFS[stepIdx - 1].title}</button>
         )}
-        {stepIdx < STEP_DEFS.length - 1 && (
+        {stepIdx < STEP_DEFS.length - 1 ? (
           // action-oriented: name the destination, not a generic "próximo"
           <button onClick={() => goByIndex(stepIdx + 1)} style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: 'pointer', fontWeight: 700 }}>
             Continuar para {STEP_DEFS[stepIdx + 1].title} →
           </button>
+        ) : (
+          // last step (brainstorm) → finalize (Part 4)
+          <button onClick={() => setFinalizeOpen(true)} disabled={!complete}
+            style={{ ...mono, fontSize: 13, letterSpacing: '.03em', color: 'var(--poster-bg-solid)', background: complete ? GOLD : 'var(--poster-line)', border: 'none', borderRadius: 6, padding: '9px 18px', cursor: complete ? 'pointer' : 'not-allowed', fontWeight: 700 }}>
+            Finalizar brainstorming →
+          </button>
         )}
       </div>
+
+      {finalizeOpen && (
+        <FinalizeSummary plan={missionPlan} onClose={() => setFinalizeOpen(false)} onConfirm={() => { setFinalizeOpen(false); openPhaseReview('mission') }} />
+      )}
     </div>
   )
 }
 
-// short engineering constraint that "appears" per selected objective —
-// the restrictions are a continuous presence, not a separate form (Part 1)
-const CONSTRAINT_NOTE = {
-  earth_obs: 'Imagem gera muito dado — banda/downlink e revisita são o gargalo.',
-  atmospheric: 'Sensor ambiental é leve, mas exige amostragem e calibração.',
-  communication: 'Enlace em LEO é intermitente — janelas curtas de contato.',
-  radiation: 'Ambiente de radiação exige proteger o MCU (SEU/latch-up).',
-  attitude_control: 'Determinar atitude pede IMU calibrado; controle ativo pesa no orçamento.',
-  tech_demo: 'Componente sem heritage de voo aumenta o risco.',
-}
-const MASS_CAP = { '1U': '~1,3 kg', '2U': '~2,6 kg', '3U': '~4 kg' }
-
-// the crystallising mission definition shown beside the exploration: the
-// budget meters react, and the relevant constraints surface as objectives
-// are chosen (Part 1).
-function ExploreDefinition({ cats }) {
-  const missionPlan = useForge(s => s.missionPlan)
-  const setBudget = useForge(s => s.setBudget)
+// Finalize panel (Part 4): a read-only summary of what the brainstorming
+// captured per zone, then the convergence button into the phase review +
+// transition. Reuses the BRAINSTORM_ZONES labels.
+function FinalizeSummary({ plan, onClose, onConfirm }) {
+  const cards = plan.brainstorm?.cards || []
   return (
-    <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 6 }}>
-      <label style={label}>orçamento (R$)
-        <input type="number" value={missionPlan.budgetBRL ?? ''} onChange={e => setBudget(e.target.value)} placeholder="ex.: 300" style={inputStyle} />
-      </label>
-      <div>
-        <div style={{ ...label, marginBottom: 8 }}>orçamentos</div>
-        <BudgetMeters showFormat={false} />
-      </div>
-      <div>
-        <div style={{ ...label, marginBottom: 7 }}>restrições que reagem</div>
-        <div style={{ ...mono, fontSize: 11, lineHeight: 1.6, color: 'var(--poster-fg-dim)' }}>
-          <div>· Massa do {missionPlan.cubeU || '1U'}: até {MASS_CAP[missionPlan.cubeU || '1U']}</div>
-          {cats.length === 0 && <div>· selecione um objetivo para ver as restrições associadas</div>}
-          {cats.map(c => CONSTRAINT_NOTE[c] && <div key={c}>· {CONSTRAINT_NOTE[c]}</div>)}
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,14,24,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '82vh', overflowY: 'auto', background: 'var(--poster-bg-solid)', border: '1px solid var(--poster-line)', borderRadius: 'var(--r-lg)', padding: '22px 24px' }}>
+        <div style={{ fontFamily: "'Zilla Slab', serif", fontSize: 22, fontWeight: 700, color: CREAM, marginBottom: 4 }}>Resumo do brainstorming</div>
+        <div style={{ ...mono, fontSize: 11.5, color: 'var(--poster-fg-dim)', marginBottom: 18 }}>{plan.name || 'Missão'} · {(plan.challenges || []).length} desafio(s)</div>
+        {BRAINSTORM_ZONES.map(z => {
+          const zc = cards.filter(c => c.zone === z.id && !c.draft && (c.text || '').trim())
+          return (
+            <div key={z.id} style={{ marginBottom: 14 }}>
+              <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.1em', textTransform: 'uppercase', color: GOLD, marginBottom: 5 }}>{z.label.split(' ')[0]} · {zc.length}</div>
+              {zc.length === 0 ? <div style={{ ...mono, fontSize: 11, color: 'var(--poster-line)' }}>—</div>
+                : zc.map(c => <div key={c.id} style={{ fontSize: 12.5, color: 'var(--poster-fg)', lineHeight: 1.45, marginBottom: 3 }}>· {c.text}</div>)}
+            </div>
+          )
+        })}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+          <button onClick={onClose} style={{ ...mono, fontSize: 13, color: 'var(--poster-fg-dim)', background: 'none', border: 'none', cursor: 'pointer' }}>voltar</button>
+          <button onClick={onConfirm} style={{ ...mono, fontSize: 13, fontWeight: 700, color: 'var(--poster-bg-solid)', background: GOLD, border: 'none', borderRadius: 6, padding: '9px 18px', cursor: 'pointer' }}>Revisar missão e ir para hardware →</button>
         </div>
       </div>
     </div>

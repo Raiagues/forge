@@ -7,6 +7,7 @@ import {
   primaryObjectiveId, phaseInputs, phaseReady,
 } from '../mission/index.js'
 import { generateFirmwareFiles } from '../mission/firmwareFiles.js'
+import { SEED_CHALLENGES } from '../mission/challenges.js'
 import { track } from '../lib/analytics.js'
 import { getFeatureInfo } from '../lib/futureFeatures.js'
 import { runLogDoctor } from '../debug/logDoctor.js'
@@ -267,7 +268,9 @@ const EMPTY_PLAN = {
   format: 'cubesat',        // only CubeSat is selectable today (CanSat "em breve")
   cubeU: '1U',              // CubeSat size: '1U' | '2U' | '3U' (scales volume/mass budgets)
   objectives: [],
-  objectiveCategories: [],  // visual mission categories (multi-select, Part 2)
+  challenges: [],           // selected real-world challenge ids — the OBJECTIVE
+                            // is now implicit in the chosen challenges (Part 3)
+  objectiveCategories: [],  // derived from the selected challenges' categories
   objectiveId: null,        // primary objective (derived from the first category)
   objectiveMeta: {},        // user edits over the objective's metadata
   budgetBRL: null,          // user-defined budget (R$) — headline total, required
@@ -1049,6 +1052,55 @@ const useForge = create((set, get) => {
       ...bs, cards: bs.cards.filter(c => c.id !== id),
       arrows: bs.arrows.filter(a => a.from !== id && a.to !== id),
     })),
+    // reorder a card within its zone (Part 4): swap with the previous/next
+    // card of the SAME zone in document order (priority sort is applied in
+    // the view, so this reorders within a priority group visually).
+    moveBrainstormCard: (id, dir) => get()._bs(bs => {
+      const cards = bs.cards.slice()
+      const i = cards.findIndex(c => c.id === id)
+      if (i < 0) return bs
+      const zone = cards[i].zone
+      let j = i + dir
+      while (j >= 0 && j < cards.length && cards[j].zone !== zone) j += dir
+      if (j < 0 || j >= cards.length) return bs
+      ;[cards[i], cards[j]] = [cards[j], cards[i]]
+      return { ...bs, cards }
+    }),
+    // "mover para" — move a card to another zone (no cross-canvas drag)
+    moveBrainstormCardToZone: (id, zone) => get().updateBrainstormCard(id, { zone }),
+
+    // ── challenge selection IS the objective (Part 3) ────────────────
+    // Toggling a challenge updates missionPlan.challenges and re-derives
+    // objectiveCategories from the selected challenges' categories, so all
+    // downstream validation / hardware / firmware keep working unchanged.
+    toggleMissionChallenge: (id) => set(s => {
+      const cur = s.missionPlan.challenges || []
+      const challenges = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+      const all = (s.challenges?.length ? s.challenges : SEED_CHALLENGES)
+      const cats = [...new Set(challenges.map(cid => all.find(c => c.id === cid)?.category).filter(Boolean))]
+      track('challenge_select', { target: id, selected: challenges.length })
+      return { missionPlan: { ...s.missionPlan, challenges, objectiveCategories: cats, objectiveId: cats[0] || null } }
+    }),
+    // seed the brainstorm zones from the selected challenges (Part 4). Each
+    // challenge contributes auto cards once (deduped by fromChallenge); these
+    // are flagged auto:true so the UI marks them "gerado automaticamente".
+    seedBrainstormFromChallenges: () => {
+      const s = get()
+      const all = (s.challenges?.length ? s.challenges : SEED_CHALLENGES)
+      const sel = (s.missionPlan.challenges || []).map(id => all.find(c => c.id === id)).filter(Boolean)
+      const have = new Set((s.missionPlan.brainstorm?.cards || []).map(c => c.fromChallenge).filter(Boolean))
+      const ZMAP = { objectives: 'objectives', constraints: 'constraints', failures: 'failures', questions: 'questions' }
+      const add = []
+      for (const ch of sel) {
+        if (have.has(ch.id)) continue
+        for (const [k, zone] of Object.entries(ZMAP)) {
+          for (const text of (ch.cards?.[k] || [])) {
+            add.push({ id: `bc_${Date.now()}_${Math.round(Math.random() * 1e5)}`, zone, text, priority: 'média', auto: true, fromChallenge: ch.id })
+          }
+        }
+      }
+      if (add.length) get()._bs(bs => ({ ...bs, cards: [...bs.cards, ...add] }))
+    },
     addBrainstormArrow: (from, to) => {
       if (from === to) return
       get()._bs(bs => (bs.arrows.some(a => a.from === from && a.to === to)
