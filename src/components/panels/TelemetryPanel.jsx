@@ -1,146 +1,133 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useForge, { COMPONENT_DEFS } from '../../store/useForge'
-import DigitalTwin from './DigitalTwin'
+import ForgeCanvas from '../canvas/ForgeCanvas'
 
 // ──────────────────────────────────────────────────────────────────
-// TelemetryPanel — live SENSOR VALIDATION environment (prompt D, Part 2).
-//
-// The orbiting-satellite ground station was wrong for the real use case:
-// university teams validating hardware on a bench / balloon, not flying a
-// satellite. This is a flight-computer GSE / logic-analyser style view:
-//   · LEFT   — live readout per connected sensor: channels, 30 s sparkline,
-//              status (verde nominal / âmbar fora de faixa / vermelho sem
-//              resposta).
-//   · CENTER — the 3D digital twin (the board), driven by real MPU6050
-//              orientation (reuses DigitalTwin: slerp-smoothed, live/sim).
-//   · BOTTOM — raw serial console with timestamps, so the team verifies
-//              exactly what is arriving.
-// Honest: "ao vivo" only when a real ESP32 link is open, else "simulação".
+// Simulação — live validation environment. Just TWO things: the real PCB
+// model (the exact hardware-screen renderer, reused in sim mode) on the
+// right, rotating to mirror the physical board via the MPU6050; and the
+// live sensor values on the left. REAL serial data only — never simulated.
+// No grid, no serial console, no extra chrome.
 // ──────────────────────────────────────────────────────────────────
 
 const mono = { fontFamily: "'Space Mono', monospace" }
-const CONSOLE_BG = '#0C1422'
-const num = (v) => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : null }
+const STALE_MS = 2500
+const HIST = 20            // sparkline window (samples ≈ seconds)
+const fresh = (t) => t != null && Date.now() - t < STALE_MS
 
-// channels we keep a 30 s sparkline for, mapped to the rolling telemetry sample
-const SPARK_FIELD = { temperature: 'temp', pressure: 'press', accel_z: 'accel', free_heap: 'heap' }
-const RANGE = { temperature: [-40, 85], pressure: [300, 1100], accel_z: [0.85, 1.15] }
+function parseBmp(reading) {
+  if (!reading) return {}
+  const m = String(reading).match(/(-?[\d.]+)\s*°C.*?(-?[\d.]+)\s*hPa/)
+  return m ? { temp: +m[1], press: +m[2] } : {}
+}
 
+// flat/honest sparkline — renders nothing meaningful until there is real
+// history (a flat baseline is shown rather than a fake wave)
 function Spark({ series }) {
-  const vals = series.filter(v => v != null)
-  if (vals.length < 2) return <div style={{ height: 22 }} />
+  const vals = (series || []).filter(v => v != null)
+  const W = 90, H = 20
+  if (vals.length < 2) return <svg width={W} height={H}><line x1="0" y1={H - 2} x2={W} y2={H - 2} stroke="var(--rule2)" strokeWidth="1" /></svg>
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1
-  const W = 96, H = 22
-  const pts = series.map((v, i) => {
-    const x = (i / (series.length - 1)) * W
-    const y = v == null ? H : H - ((v - min) / span) * (H - 3) - 1.5
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
-  return (
-    <svg width={W} height={H} style={{ display: 'block' }}>
-      <polyline points={pts} fill="none" stroke="var(--acc2)" strokeWidth="1.3" strokeLinejoin="round" />
-    </svg>
-  )
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * W},${(H - ((v - min) / span) * (H - 3) - 1.5).toFixed(1)}`).join(' ')
+  return <svg width={W} height={H}><polyline points={pts} fill="none" stroke="var(--acc2)" strokeWidth="1.3" strokeLinejoin="round" /></svg>
 }
 
-function SensorBlock({ id, entities, telemetry, wiring }) {
+function SensorBlock({ id, channels, connected }) {
   const def = COMPONENT_DEFS[id]
-  const wired = id === 'esp32' ? true : !!wiring[id]?.wired
-  const readings = wired ? (entities[id].readings || {}) : {}
-  const keys = Object.keys(readings)
-  // status: red = not responding, amber = a channel out of range, green = nominal
-  const outOfRange = keys.some(k => RANGE[k] && (num(readings[k]) < RANGE[k][0] || num(readings[k]) > RANGE[k][1]))
-  const status = !wired || keys.length === 0 ? 'down' : outOfRange ? 'warn' : 'ok'
-  const dot = { ok: 'var(--ok2)', warn: 'var(--warn2)', down: 'var(--err2)' }[status]
-  const statusLabel = { ok: 'nominal', warn: 'fora de faixa', down: 'sem resposta' }[status]
   return (
-    <div style={{ border: '1px solid var(--rule)', borderRadius: 8, background: 'var(--paper)', padding: '10px 12px', marginBottom: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span className={status === 'ok' ? 'pulse' : ''} style={{ width: 9, height: 9, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+    <div style={{ border: '1px solid var(--rule)', borderRadius: 8, background: 'var(--paper)', padding: '11px 13px', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className={connected ? 'pulse' : ''} style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: connected ? 'var(--ok2)' : 'var(--ink4)' }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{def?.friendly || def?.label || id}</span>
-        <span style={{ ...mono, fontSize: 10, color: 'var(--ink4)' }}>{def?.label}</span>
-        <span style={{ ...mono, fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: dot, marginLeft: 'auto' }}>{statusLabel}</span>
+        {!connected && <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', marginLeft: 'auto' }}>não conectado</span>}
       </div>
-      {status === 'down' && <div style={{ ...mono, fontSize: 11, color: 'var(--ink4)' }}>não conectado — verifique a fiação</div>}
-      {keys.map(k => {
-        const bad = RANGE[k] && (num(readings[k]) < RANGE[k][0] || num(readings[k]) > RANGE[k][1])
-        const field = SPARK_FIELD[k]
-        return (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-            <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', width: 92, flexShrink: 0 }}>{k}</span>
-            <span style={{ ...mono, fontSize: 12.5, fontWeight: bad ? 700 : 400, color: bad ? 'var(--err2)' : 'var(--ink)', width: 96, flexShrink: 0 }}>{String(readings[k])}</span>
-            {field && <Spark series={telemetry.map(s => s[field])} />}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function SerialConsole({ serialLog }) {
-  const ref = useRef(null)
-  const lines = serialLog.slice().reverse()   // oldest → newest
-  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight }, [serialLog])
-  const color = (cls) => ({ err: '#E5736B', warn: '#E0B24A', ok: '#6FCF97', rx: '#7FB2F0', tx: '#E0B24A' }[cls] || '#9FB2C8')
-  return (
-    <div style={{ flexShrink: 0, height: 156, borderTop: '1px solid var(--rule)', background: CONSOLE_BG, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ ...mono, fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: '#7C8BA0', padding: '6px 12px 4px' }}>console serial · stream bruto</div>
-      <div ref={ref} style={{ flex: 1, overflowY: 'auto', padding: '0 12px 8px' }}>
-        {lines.length === 0 && <div style={{ ...mono, fontSize: 12, color: '#5C6B80' }}>aguardando dados do dispositivo…</div>}
-        {lines.map((l, i) => (
-          <div key={i} style={{ ...mono, fontSize: 11.5, lineHeight: 1.55, color: color(l.cls), whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            <span style={{ color: '#566679' }}>{l.t} </span>{l.m}
-          </div>
-        ))}
-      </div>
+      {connected && channels.map(ch => (
+        <div key={ch.k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
+          <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)', width: 64, flexShrink: 0 }}>{ch.k}</span>
+          <span style={{ ...mono, fontSize: 13, color: 'var(--ink)', width: 88, flexShrink: 0 }}>{ch.v}</span>
+          <Spark series={ch.hist} />
+        </div>
+      ))}
     </div>
   )
 }
 
 export default function TelemetryPanel() {
   const entities = useForge(s => s.entities)
-  const telemetry = useForge(s => s.telemetry)
-  const serialLog = useForge(s => s.serialLog)
-  const wiring = useForge(s => s.live?.wiring) || {}
-  const hwLink = useForge(s => s.hwLink)
-  const liveLink = !!hwLink?.connected
+  const fw = useForge(s => s.fw)
+  const [, tick] = useState(0)
+  const hist = useRef({})   // channel key → rolling real samples
 
-  const sensorIds = ['esp32', 'bmp280', 'mpu6050'].filter(id => entities[id])
-  const hasMpu = !!entities.mpu6050
+  // sample REAL values once per second while the link is up; clear on drop
+  useEffect(() => {
+    const id = setInterval(() => {
+      const f = useForge.getState().fw
+      if (f.connected) {
+        const push = (k, v) => { if (v == null || Number.isNaN(v)) return; const a = hist.current[k] || (hist.current[k] = []); a.push(v); if (a.length > HIST) a.shift() }
+        const b = parseBmp(f.reading)
+        if (fresh(f.hw.lastReadAt)) { push('temp', b.temp); push('press', b.press) }
+        const imu = f.hw.imu
+        if (imu && fresh(imu.at)) { push('roll', imu.euler?.roll ?? imu.ax); push('pitch', imu.euler?.pitch ?? imu.ay) }
+      } else {
+        hist.current = {}
+      }
+      tick(t => t + 1)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const link = fw.connected
+  const imuLive = link && fresh(fw.hw.imu?.at)
+  const bmpLive = link && fresh(fw.hw.lastReadAt)
+  const b = parseBmp(fw.reading)
+  const imu = fw.hw.imu
+
+  // one block per sensor actually on the board (+ the ESP32), real status only
+  const blocks = []
+  if (entities.esp32) blocks.push({ id: 'esp32', connected: link, channels: [] })
+  if (entities.bmp280) blocks.push({
+    id: 'bmp280', connected: bmpLive,
+    channels: [
+      { k: 'temp', v: b.temp != null ? `${b.temp.toFixed(1)} °C` : '—', hist: hist.current.temp },
+      { k: 'pressão', v: b.press != null ? `${b.press.toFixed(0)} hPa` : '—', hist: hist.current.press },
+    ],
+  })
+  if (entities.mpu6050) blocks.push({
+    id: 'mpu6050', connected: imuLive,
+    channels: [
+      { k: 'roll', v: imu?.euler?.roll != null ? `${imu.euler.roll.toFixed(0)}°` : '—', hist: hist.current.roll },
+      { k: 'pitch', v: imu?.euler?.pitch != null ? `${imu.euler.pitch.toFixed(0)}°` : '—', hist: hist.current.pitch },
+      { k: 'yaw', v: imu?.euler?.yaw != null ? `${imu.euler.yaw.toFixed(0)}°` : '—' },
+    ],
+  })
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--paper)', minHeight: 0 }}>
-      {/* header / link status */}
+      {/* top bar — only name + connection status */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--rule)', background: 'var(--paper2)' }}>
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>Validação de sensores</span>
-        <span style={{ ...mono, fontSize: 11, color: 'var(--ink4)' }}>bancada · GSE</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>Simulação</span>
         <span style={{ flex: 1 }} />
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: liveLink ? 'var(--ok2)' : 'var(--warn2)' }} />
-        <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: liveLink ? 'var(--ok2)' : 'var(--warn2)' }}>{liveLink ? 'ao vivo · ESP32' : 'simulação'}</span>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: link ? 'var(--ok2)' : 'var(--ink4)' }} />
+        <span style={{ ...mono, fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: link ? 'var(--ok2)' : 'var(--ink4)' }}>{link ? 'ESP32 conectado' : 'aguardando conexão'}</span>
       </div>
 
-      {/* top: sensor readout (left) + 3D twin (center) */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ width: 384, flexShrink: 0, borderRight: '1px solid var(--rule)', overflowY: 'auto', padding: '12px 14px' }}>
-          <div style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)', marginBottom: 10 }}>Leitura ao vivo</div>
-          {sensorIds.length === 0 && <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>nenhum sensor na placa — adicione hardware na seção Hardware.</div>}
-          {sensorIds.map(id => <SensorBlock key={id} id={id} entities={entities} telemetry={telemetry} wiring={wiring} />)}
+        {/* left — live sensor values (real only) */}
+        <div style={{ width: 340, flexShrink: 0, borderRight: '1px solid var(--rule)', overflowY: 'auto', padding: '12px 14px' }}>
+          {blocks.length === 0 && <div style={{ ...mono, fontSize: 12, color: 'var(--ink4)' }}>nenhum sensor na placa.</div>}
+          {blocks.map(bl => <SensorBlock key={bl.id} id={bl.id} channels={bl.channels} connected={bl.connected} />)}
         </div>
 
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 14px 0' }}>
-            <span style={{ ...mono, fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ink4)' }}>Gêmeo digital · orientação</span>
-            {!hasMpu && <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>(adicione um MPU6050 para orientação 3D)</span>}
-            {hasMpu && !liveLink && <span style={{ ...mono, fontSize: 10.5, color: 'var(--ink4)' }}>aguardando conexão — posição neutra</span>}
-          </div>
-          <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-            <DigitalTwin sensorId={hasMpu ? 'mpu6050' : 'bmp280'} />
-          </div>
+        {/* right — the real PCB model, rotating with the MPU6050 */}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          <ForgeCanvas sim={{ imu, live: imuLive }} />
+          {!imuLive && (
+            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', ...mono, fontSize: 12, letterSpacing: '.06em', color: 'var(--ink4)', background: 'var(--paper2)', border: '1px solid var(--rule)', borderRadius: 6, padding: '5px 12px', pointerEvents: 'none' }}>
+              aguardando conexão · placa em posição neutra
+            </div>
+          )}
         </div>
       </div>
-
-      {/* bottom: raw serial console */}
-      <SerialConsole serialLog={serialLog} />
     </div>
   )
 }

@@ -49,9 +49,9 @@ export const PHASES = [
     ],
   },
   {
-    id: 'telemetry', section: 'telemetry', label: 'Telemetria',
+    id: 'telemetry', section: 'telemetry', label: 'Simulação',
     sub: [
-      { id: 'ground', label: 'Estação base' },
+      { id: 'ground', label: 'Validação ao vivo' },
       { id: 'logs', label: 'Dados' },
     ],
   },

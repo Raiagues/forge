@@ -10,6 +10,28 @@ import { footprint } from './pinLayout.js'
 // footprint size (board units) in the { w, d } shape the DRC expects
 const drcSizeOf = (e) => { const s = footprint(e.id, e.def).size; return { w: s[0], d: s[2] } }
 
+// ── simulation mode (Simulação screen) ──────────────────────────────
+// The SAME PCB renderer reused read-only: the whole board group rotates to
+// mirror the physical MPU6050 orientation (real serial data only). When no
+// hardware is live it slerps back to a neutral pose ("aguardando conexão").
+const NEUTRAL_Q = new THREE.Quaternion()
+const _deg = (d) => (d * Math.PI) / 180
+function simTargetQuat(imu) {
+  if (!imu) return NEUTRAL_Q
+  if (imu.quat) return new THREE.Quaternion(imu.quat.x, imu.quat.y, imu.quat.z, imu.quat.w).normalize()
+  if (imu.euler) return new THREE.Quaternion().setFromEuler(new THREE.Euler(_deg(imu.euler.pitch || 0), _deg(imu.euler.yaw || 0), _deg(imu.euler.roll || 0), 'YXZ'))
+  return NEUTRAL_Q
+}
+function BoardOrient({ sim, children }) {
+  const ref = useRef()
+  useFrame(() => {
+    if (!ref.current || !sim) return
+    const target = sim.live && sim.imu ? simTargetQuat(sim.imu) : NEUTRAL_Q
+    ref.current.quaternion.slerp(target, sim.live ? 0.2 : 0.1)
+  })
+  return <group ref={ref}>{children}</group>
+}
+
 // world XZ of a pin, with the component's Y-rotation applied — so a
 // rotated chip's traces still land on its pins (the chip group rotates in
 // three.js; this mirrors that maths for the trace geometry computed
@@ -593,7 +615,7 @@ function IsoCamera() {
 }
 
 // ── Main canvas ───────────────────────────────────────────────────
-export default function ForgeCanvas() {
+export default function ForgeCanvas({ sim = null }) {
   const {
     entities, selectedId, selectEntity, updatePosition, live, canvasMode,
     wires, addWire, removeWire, board, theme,
@@ -601,7 +623,10 @@ export default function ForgeCanvas() {
   } = useForge()
   const validation = live?.validation
   const C = pcbColors(theme)          // themed PCB palette (Part 1)
-  const routing = canvasMode === 'route'
+  // sim (Simulação) reuses this renderer read-only: no editing, no orbit,
+  // no grid — the board itself rotates with the real MPU6050 data.
+  const interactive = !sim
+  const routing = interactive && canvasMode === 'route'
 
   // live DRC against the board outline + active fab rule
   const drc = useMemo(
@@ -708,72 +733,82 @@ export default function ForgeCanvas() {
       <directionalLight position={[-4, 4, -4]} intensity={0.3} color="#C8D8F0" />
       <pointLight position={[0, 5, 0]} intensity={0.2} color="#FFFFFF" />
 
-      {/* grid */}
-      <Grid
-        position={[0, -0.062, 0]}
-        args={[12, 12]}
-        cellSize={0.4}
-        cellThickness={0.4}
-        cellColor={C.grid}
-        sectionSize={2}
-        sectionThickness={0.8}
-        sectionColor={C.gridSection}
-        fadeDistance={18}
-        fadeStrength={1}
-        infiniteGrid={false}
-      />
-
-      <PCBBoard w={boardW} d={boardD} />
-      <Traces3D
-        entities={entities} wires={wires} wireIssues={wireIssues}
-        selWire={selWire} onSelectWire={setSelWire}
-        wiring={live?.wiring} selectedId={selectedId}
-        underspec={drc.traceUnderspec} onSetVia={setWireVia}
-      />
-      {routing && pendingXZ && <RoutePreview from={pendingXZ} />}
-
-      {/* DRC markers: ring under each component flagged out-of-bounds or
-          overlapping (red = error, amber = clearance warning) */}
-      {Object.entries(entities).map(([id, e]) => drc.byComp[id] && (
-        <DRCMarker key={`drc-${id}`} position={e.position} size={footprint(id, e.def).size} severity={drc.byComp[id]} />
-      ))}
-
-      {Object.entries(entities).map(([id, entity]) => (
-        <ComponentMesh
-          key={id}
-          id={id}
-          entity={entity}
-          isSelected={selectedId === id}
-          onSelect={selectEntity}
-          onDragEnd={updatePosition}
-          draggable={canvasMode === 'edit'}
-          onPinClick={routing ? onPinClick : undefined}
-          pendingPin={pendingPin}
-          connectedPins={connectedPins}
-          issues={issuesForComponent(validation, id)}
-          onRotate={rotateEntity}
-          onFlip={flipEntityLayer}
-          onDelete={removeEntity}
+      {/* grid — hidden in sim (the Simulação 3D view has no grid) */}
+      {interactive && (
+        <Grid
+          position={[0, -0.062, 0]}
+          args={[12, 12]}
+          cellSize={0.4}
+          cellThickness={0.4}
+          cellColor={C.grid}
+          sectionSize={2}
+          sectionThickness={0.8}
+          sectionColor={C.gridSection}
+          fadeDistance={18}
+          fadeStrength={1}
+          infiniteGrid={false}
         />
-      ))}
+      )}
 
-      <OrbitControls
-        makeDefault
-        enablePan
-        enableZoom
-        enableRotate
-        panSpeed={0.8}
-        zoomSpeed={0.9}
-        rotateSpeed={0.5}
-        minDistance={3}
-        maxDistance={22}
-        maxPolarAngle={Math.PI / 2.1}
-        target={[0, 0, 0]}
-      />
+      {/* the board, traces and components — wrapped in a group that, in sim
+          mode, rotates to mirror the real physical board orientation */}
+      <BoardOrient sim={sim}>
+        <PCBBoard w={boardW} d={boardD} />
+        <Traces3D
+          entities={entities} wires={wires} wireIssues={wireIssues}
+          selWire={selWire} onSelectWire={setSelWire}
+          wiring={live?.wiring} selectedId={selectedId}
+          underspec={drc.traceUnderspec} onSetVia={setWireVia}
+        />
+        {routing && pendingXZ && <RoutePreview from={pendingXZ} />}
 
-      <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
-        <GizmoViewport axisColors={['#C04030', '#3A9060', '#2B5EA7']} labelColor="#1A1814" />
-      </GizmoHelper>
+        {/* DRC markers (edit only) */}
+        {interactive && Object.entries(entities).map(([id, e]) => drc.byComp[id] && (
+          <DRCMarker key={`drc-${id}`} position={e.position} size={footprint(id, e.def).size} severity={drc.byComp[id]} />
+        ))}
+
+        {Object.entries(entities).map(([id, entity]) => (
+          <ComponentMesh
+            key={id}
+            id={id}
+            entity={entity}
+            isSelected={interactive && selectedId === id}
+            onSelect={interactive ? selectEntity : () => {}}
+            onDragEnd={updatePosition}
+            draggable={interactive && canvasMode === 'edit'}
+            onPinClick={routing ? onPinClick : undefined}
+            pendingPin={pendingPin}
+            connectedPins={connectedPins}
+            issues={interactive ? issuesForComponent(validation, id) : []}
+            onRotate={rotateEntity}
+            onFlip={flipEntityLayer}
+            onDelete={removeEntity}
+          />
+        ))}
+      </BoardOrient>
+
+      {/* camera control + axis gizmo only in the editable hardware view */}
+      {interactive && (
+        <OrbitControls
+          makeDefault
+          enablePan
+          enableZoom
+          enableRotate
+          panSpeed={0.8}
+          zoomSpeed={0.9}
+          rotateSpeed={0.5}
+          minDistance={3}
+          maxDistance={22}
+          maxPolarAngle={Math.PI / 2.1}
+          target={[0, 0, 0]}
+        />
+      )}
+
+      {interactive && (
+        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+          <GizmoViewport axisColors={['#C04030', '#3A9060', '#2B5EA7']} labelColor="#1A1814" />
+        </GizmoHelper>
+      )}
     </Canvas>
   )
 }
